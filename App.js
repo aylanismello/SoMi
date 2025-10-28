@@ -2,11 +2,17 @@ import { useState } from 'react';
 import { StatusBar } from 'expo-status-bar';
 import { StyleSheet, Text, View, TouchableOpacity } from 'react-native';
 import Slider from '@react-native-community/slider';
+import * as Haptics from 'expo-haptics';
 
 export default function App() {
   const [sliderValue, setSliderValue] = useState(50);
 
-  const handleSOS = () => {
+  const handleSOSPress = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+  };
+
+  const handleSOSRelease = () => {
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
     console.log('SOS pressed');
     // Add your SOS logic here
   };
@@ -43,7 +49,8 @@ export default function App() {
 
       <TouchableOpacity
         style={styles.sosButton}
-        onPress={handleSOS}
+        onPressIn={handleSOSPress}
+        onPressOut={handleSOSRelease}
         activeOpacity={0.7}
       >
         <Text style={styles.sosText}>sos</Text>
