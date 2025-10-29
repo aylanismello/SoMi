@@ -20,6 +20,7 @@ export default function PlayerScreen({ navigation }) {
   const progressBarRef = useRef(null);
   const hideTimeoutRef = useRef(null);
   const thumbScale = useRef(new Animated.Value(1)).current;
+  const isSeekingRef = useRef(false);
 
   const player = useVideoPlayer(videoSource, player => {
     player.play();
@@ -31,7 +32,10 @@ export default function PlayerScreen({ navigation }) {
   useEffect(() => {
     const interval = setInterval(() => {
       if (player) {
-        setCurrentTime(player.currentTime || 0);
+        // Don't update currentTime from player if we just seeked
+        if (!isSeekingRef.current) {
+          setCurrentTime(player.currentTime || 0);
+        }
         setDuration(player.duration || 0);
       }
     }, 100); // Update every 100ms for smooth progress
@@ -147,6 +151,7 @@ export default function PlayerScreen({ navigation }) {
     if (!isScrubbing) return;
 
     // Actually seek to the scrubbed position
+    isSeekingRef.current = true;
     player.currentTime = scrubbingPosition;
     setCurrentTime(scrubbingPosition);
 
@@ -155,6 +160,11 @@ export default function PlayerScreen({ navigation }) {
       toValue: 1,
       useNativeDriver: true,
     }).start();
+
+    // Allow interval to resume updating after seek completes
+    setTimeout(() => {
+      isSeekingRef.current = false;
+    }, 500);
   };
 
   const formatTime = (seconds) => {
