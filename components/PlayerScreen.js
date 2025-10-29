@@ -1,7 +1,7 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useEvent } from 'expo';
 import { useVideoPlayer, VideoView } from 'expo-video';
-import { StyleSheet, View, TouchableOpacity, Text, Pressable, Dimensions } from 'react-native';
+import { StyleSheet, View, TouchableOpacity, Text, Pressable, Dimensions, Animated } from 'react-native';
 import * as Haptics from 'expo-haptics';
 
 const videoSource = 'https://qujifwhwntqxziymqdwu.supabase.co/storage/v1/object/public/test/overwhelmed_vagus_tone.mp4';
@@ -14,6 +14,9 @@ export default function PlayerScreen({ navigation }) {
   const [showControls, setShowControls] = useState(true);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
+  const controlsOpacity = useRef(new Animated.Value(1)).current;
+  const progressBarRef = useRef(null);
+  const hideTimeoutRef = useRef(null);
 
   const player = useVideoPlayer(videoSource, player => {
     player.play();
@@ -33,16 +36,41 @@ export default function PlayerScreen({ navigation }) {
     return () => clearInterval(interval);
   }, [player]);
 
-  // Auto-hide controls after 3 seconds
+  // Animate controls visibility
   useEffect(() => {
-    if (showControls && isPlaying) {
-      const timeout = setTimeout(() => {
-        setShowControls(false);
-      }, 3000);
+    Animated.timing(controlsOpacity, {
+      toValue: showControls ? 1 : 0,
+      duration: 300,
+      useNativeDriver: true,
+    }).start();
+  }, [showControls, controlsOpacity]);
 
-      return () => clearTimeout(timeout);
+  // Auto-hide controls after 3 seconds when playing
+  useEffect(() => {
+    // Clear any existing timeout
+    if (hideTimeoutRef.current) {
+      clearTimeout(hideTimeoutRef.current);
+      hideTimeoutRef.current = null;
     }
-  }, [showControls, isPlaying]);
+
+    // Only set timeout if controls are visible
+    if (showControls) {
+      hideTimeoutRef.current = setTimeout(() => {
+        // Check if still playing when timer fires
+        if (player.playing) {
+          setShowControls(false);
+        }
+        hideTimeoutRef.current = null;
+      }, 3000);
+    }
+
+    return () => {
+      if (hideTimeoutRef.current) {
+        clearTimeout(hideTimeoutRef.current);
+        hideTimeoutRef.current = null;
+      }
+    };
+  }, [showControls, player]);
 
   const handlePlayPause = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -78,6 +106,20 @@ export default function PlayerScreen({ navigation }) {
     setShowControls(!showControls);
   };
 
+  const handleProgressBarPress = (event) => {
+    if (!progressBarRef.current || !duration) return;
+
+    progressBarRef.current.measure((x, y, width, height, pageX, pageY) => {
+      const touchX = event.nativeEvent.pageX - pageX;
+      const seekPosition = (touchX / width) * duration;
+      const clampedPosition = Math.max(0, Math.min(duration, seekPosition));
+
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      player.currentTime = clampedPosition;
+      setShowControls(true);
+    });
+  };
+
   const formatTime = (seconds) => {
     if (!seconds || isNaN(seconds)) return '0:00';
     const mins = Math.floor(seconds / 60);
@@ -98,57 +140,68 @@ export default function PlayerScreen({ navigation }) {
         />
       </Pressable>
 
-      {showControls && (
-        <>
+      <Animated.View
+        style={[styles.controlsOverlay, { opacity: controlsOpacity }]}
+        pointerEvents={showControls ? 'auto' : 'none'}
+      >
+        <TouchableOpacity
+          style={styles.closeButton}
+          onPress={handleClose}
+        >
+          <Text style={styles.closeText}>✕</Text>
+        </TouchableOpacity>
+
+        <View style={styles.controlsContainer}>
+          {/* Skip backward button */}
           <TouchableOpacity
-            style={styles.closeButton}
-            onPress={handleClose}
+            style={styles.skipButton}
+            onPress={handleSkipBackward}
           >
-            <Text style={styles.closeText}>✕</Text>
+            <View style={styles.skipBackIcon}>
+              <Text style={styles.skipArrow}>⟲</Text>
+            </View>
+            <Text style={styles.skipText}>15</Text>
           </TouchableOpacity>
 
-          <View style={styles.controlsContainer}>
-            {/* Skip backward button */}
-            <TouchableOpacity
-              style={styles.skipButton}
-              onPress={handleSkipBackward}
-            >
-              <Text style={styles.skipIcon}>↶</Text>
-              <Text style={styles.skipText}>15</Text>
-            </TouchableOpacity>
+          {/* Play/Pause button */}
+          <TouchableOpacity
+            style={styles.playPauseButton}
+            onPress={handlePlayPause}
+          >
+            <Text style={styles.playPauseText}>
+              {isPlaying ? '❚❚' : '▶'}
+            </Text>
+          </TouchableOpacity>
 
-            {/* Play/Pause button */}
-            <TouchableOpacity
-              style={styles.playPauseButton}
-              onPress={handlePlayPause}
-            >
-              <Text style={styles.playPauseText}>
-                {isPlaying ? '❚❚' : '▶'}
-              </Text>
-            </TouchableOpacity>
+          {/* Skip forward button */}
+          <TouchableOpacity
+            style={styles.skipButton}
+            onPress={handleSkipForward}
+          >
+            <View style={styles.skipForwardIcon}>
+              <Text style={styles.skipArrow}>⟳</Text>
+            </View>
+            <Text style={styles.skipText}>15</Text>
+          </TouchableOpacity>
+        </View>
 
-            {/* Skip forward button */}
-            <TouchableOpacity
-              style={styles.skipButton}
-              onPress={handleSkipForward}
-            >
-              <Text style={styles.skipIcon}>↷</Text>
-              <Text style={styles.skipText}>15</Text>
-            </TouchableOpacity>
-          </View>
-
-          {/* Progress bar */}
-          <View style={styles.progressContainer}>
+        {/* Progress bar */}
+        <View style={styles.progressContainer}>
+          <Pressable
+            ref={progressBarRef}
+            style={styles.progressBarTouchable}
+            onPress={handleProgressBarPress}
+          >
             <View style={styles.progressBar}>
               <View style={[styles.progressFill, { width: `${progress * 100}%` }]} />
             </View>
-            <View style={styles.timeContainer}>
-              <Text style={styles.timeText}>{formatTime(currentTime)}</Text>
-              <Text style={styles.timeText}>{formatTime(duration)}</Text>
-            </View>
+          </Pressable>
+          <View style={styles.timeContainer}>
+            <Text style={styles.timeText}>{formatTime(currentTime)}</Text>
+            <Text style={styles.timeText}>{formatTime(duration)}</Text>
           </View>
-        </>
-      )}
+        </View>
+      </Animated.View>
     </View>
   );
 }
@@ -171,6 +224,9 @@ const styles = StyleSheet.create({
     height: screenWidth * (16 / 9), // 9:16 aspect ratio (vertical)
     maxHeight: screenHeight,
   },
+  controlsOverlay: {
+    ...StyleSheet.absoluteFillObject,
+  },
   closeButton: {
     position: 'absolute',
     top: 60,
@@ -192,6 +248,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     width: '100%',
+    top: '50%',
+    transform: [{ translateY: -50 }],
     gap: 40,
   },
   playPauseButton: {
@@ -219,21 +277,31 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  skipIcon: {
+  skipBackIcon: {
+    marginBottom: -6,
+  },
+  skipForwardIcon: {
+    marginBottom: -6,
+  },
+  skipArrow: {
     color: '#ffffff',
-    fontSize: 28,
-    marginBottom: -8,
+    fontSize: 32,
+    fontWeight: '300',
   },
   skipText: {
     color: '#ffffff',
-    fontSize: 14,
+    fontSize: 12,
     fontWeight: '600',
+    marginTop: -4,
   },
   progressContainer: {
     position: 'absolute',
     bottom: 40,
     left: 30,
     right: 30,
+  },
+  progressBarTouchable: {
+    paddingVertical: 10,
   },
   progressBar: {
     height: 4,
