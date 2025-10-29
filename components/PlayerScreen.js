@@ -102,7 +102,6 @@ export default function PlayerScreen({ navigation }) {
   };
 
   const toggleControls = () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setShowControls(!showControls);
   };
 
@@ -114,7 +113,6 @@ export default function PlayerScreen({ navigation }) {
       const seekPosition = (touchX / width) * duration;
       const clampedPosition = Math.max(0, Math.min(duration, seekPosition));
 
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       player.currentTime = clampedPosition;
       setShowControls(true);
     });
