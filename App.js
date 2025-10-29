@@ -22,6 +22,7 @@ export default function App() {
           component={PlayerScreen}
           options={{
             presentation: 'fullScreenModal',
+            gestureEnabled: false,
           }}
         />
       </Stack.Navigator>

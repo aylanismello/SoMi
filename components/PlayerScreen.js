@@ -11,12 +11,12 @@ const screenWidth = Dimensions.get('window').width;
 const screenHeight = Dimensions.get('window').height;
 
 export default function PlayerScreen({ navigation }) {
-  const [showControls, setShowControls] = useState(true);
+  const [showControls, setShowControls] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
   const [isScrubbing, setIsScrubbing] = useState(false);
   const [scrubbingPosition, setScrubbingPosition] = useState(0);
-  const controlsOpacity = useRef(new Animated.Value(1)).current;
+  const controlsOpacity = useRef(new Animated.Value(0)).current;
   const progressBarRef = useRef(null);
   const hideTimeoutRef = useRef(null);
   const thumbScale = useRef(new Animated.Value(1)).current;
@@ -60,8 +60,8 @@ export default function PlayerScreen({ navigation }) {
       hideTimeoutRef.current = null;
     }
 
-    // Only set timeout if controls are visible
-    if (showControls) {
+    // Don't hide if user is actively scrubbing
+    if (showControls && !isScrubbing) {
       hideTimeoutRef.current = setTimeout(() => {
         // Check if still playing when timer fires
         if (player.playing) {
@@ -77,7 +77,7 @@ export default function PlayerScreen({ navigation }) {
         hideTimeoutRef.current = null;
       }
     };
-  }, [showControls, player]);
+  }, [showControls, isScrubbing, player]);
 
   const handlePlayPause = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -85,6 +85,9 @@ export default function PlayerScreen({ navigation }) {
       player.pause();
     } else {
       player.play();
+      // Reset the auto-hide timer when resuming playback
+      setShowControls(false);
+      setTimeout(() => setShowControls(true), 10);
     }
   };
 
@@ -92,14 +95,20 @@ export default function PlayerScreen({ navigation }) {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     const newTime = Math.max(0, currentTime - 15);
     player.currentTime = newTime;
-    setShowControls(true);
+
+    // Reset the auto-hide timer
+    setShowControls(false);
+    setTimeout(() => setShowControls(true), 10);
   };
 
   const handleSkipForward = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     const newTime = Math.min(duration, currentTime + 15);
     player.currentTime = newTime;
-    setShowControls(true);
+
+    // Reset the auto-hide timer
+    setShowControls(false);
+    setTimeout(() => setShowControls(true), 10);
   };
 
   const handleClose = () => {
@@ -125,7 +134,7 @@ export default function PlayerScreen({ navigation }) {
     setIsScrubbing(true);
     setShowControls(true);
     Animated.spring(thumbScale, {
-      toValue: 1.5,
+      toValue: 2,
       useNativeDriver: true,
     }).start();
 
@@ -161,6 +170,10 @@ export default function PlayerScreen({ navigation }) {
       useNativeDriver: true,
     }).start();
 
+    // Reset the auto-hide timer by toggling controls
+    setShowControls(false);
+    setTimeout(() => setShowControls(true), 10);
+
     // Allow interval to resume updating after seek completes
     setTimeout(() => {
       isSeekingRef.current = false;
@@ -192,6 +205,9 @@ export default function PlayerScreen({ navigation }) {
         style={[styles.controlsOverlay, { opacity: controlsOpacity }]}
         pointerEvents={showControls ? 'box-none' : 'none'}
       >
+        {/* Dark overlay scrim */}
+        <View style={styles.overlayScrim} pointerEvents="none" />
+
         <TouchableOpacity
           style={styles.closeButton}
           onPress={handleClose}
@@ -205,9 +221,7 @@ export default function PlayerScreen({ navigation }) {
             style={styles.skipButton}
             onPress={handleSkipBackward}
           >
-            <View style={styles.skipBackIcon}>
-              <Text style={styles.skipArrow}>⟲</Text>
-            </View>
+            <Text style={styles.skipArrow}>⟲</Text>
             <Text style={styles.skipText}>15</Text>
           </TouchableOpacity>
 
@@ -226,9 +240,7 @@ export default function PlayerScreen({ navigation }) {
             style={styles.skipButton}
             onPress={handleSkipForward}
           >
-            <View style={styles.skipForwardIcon}>
-              <Text style={styles.skipArrow}>⟳</Text>
-            </View>
+            <Text style={styles.skipArrow}>⟳</Text>
             <Text style={styles.skipText}>15</Text>
           </TouchableOpacity>
         </View>
@@ -288,6 +300,10 @@ const styles = StyleSheet.create({
   controlsOverlay: {
     ...StyleSheet.absoluteFillObject,
   },
+  overlayScrim: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0, 0, 0, 0.4)',
+  },
   closeButton: {
     position: 'absolute',
     top: 60,
@@ -331,29 +347,20 @@ const styles = StyleSheet.create({
     fontSize: 36,
   },
   skipButton: {
-    width: 70,
-    height: 70,
-    borderRadius: 35,
-    backgroundColor: 'rgba(255, 255, 255, 0.3)',
     justifyContent: 'center',
     alignItems: 'center',
-  },
-  skipBackIcon: {
-    marginBottom: -6,
-  },
-  skipForwardIcon: {
-    marginBottom: -6,
+    padding: 15,
   },
   skipArrow: {
     color: '#ffffff',
-    fontSize: 32,
+    fontSize: 38,
     fontWeight: '300',
+    marginBottom: -8,
   },
   skipText: {
     color: '#ffffff',
-    fontSize: 12,
+    fontSize: 13,
     fontWeight: '600',
-    marginTop: -4,
   },
   progressContainer: {
     position: 'absolute',
@@ -362,13 +369,13 @@ const styles = StyleSheet.create({
     right: 30,
   },
   progressBarTouchable: {
-    paddingVertical: 15,
+    paddingVertical: 20,
     paddingHorizontal: 5,
   },
   progressBar: {
-    height: 4,
+    height: 6,
     backgroundColor: 'rgba(255, 255, 255, 0.3)',
-    borderRadius: 2,
+    borderRadius: 3,
     position: 'relative',
     justifyContent: 'center',
   },
@@ -376,16 +383,16 @@ const styles = StyleSheet.create({
     position: 'absolute',
     height: '100%',
     backgroundColor: '#ff6b6b',
-    borderRadius: 2,
+    borderRadius: 3,
   },
   progressThumb: {
     position: 'absolute',
-    width: 14,
-    height: 14,
-    borderRadius: 7,
+    width: 18,
+    height: 18,
+    borderRadius: 9,
     backgroundColor: '#ffffff',
-    marginLeft: -7,
-    top: -5,
+    marginLeft: -9,
+    top: -6,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.3,
