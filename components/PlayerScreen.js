@@ -14,9 +14,12 @@ export default function PlayerScreen({ navigation }) {
   const [showControls, setShowControls] = useState(true);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
+  const [isScrubbing, setIsScrubbing] = useState(false);
+  const [scrubbingPosition, setScrubbingPosition] = useState(0);
   const controlsOpacity = useRef(new Animated.Value(1)).current;
   const progressBarRef = useRef(null);
   const hideTimeoutRef = useRef(null);
+  const thumbScale = useRef(new Animated.Value(1)).current;
 
   const player = useVideoPlayer(videoSource, player => {
     player.play();
@@ -105,17 +108,53 @@ export default function PlayerScreen({ navigation }) {
     setShowControls(!showControls);
   };
 
-  const handleProgressBarPress = (event) => {
+  const calculatePosition = (touchX, barWidth) => {
+    const seekPosition = (touchX / barWidth) * duration;
+    return Math.max(0, Math.min(duration, seekPosition));
+  };
+
+  const handleProgressBarTouch = (event) => {
     if (!progressBarRef.current || !duration) return;
 
-    progressBarRef.current.measure((x, y, width, height, pageX, pageY) => {
-      const touchX = event.nativeEvent.pageX - pageX;
-      const seekPosition = (touchX / width) * duration;
-      const clampedPosition = Math.max(0, Math.min(duration, seekPosition));
+    const touch = event.nativeEvent;
 
-      player.currentTime = clampedPosition;
-      setShowControls(true);
+    setIsScrubbing(true);
+    setShowControls(true);
+    Animated.spring(thumbScale, {
+      toValue: 1.5,
+      useNativeDriver: true,
+    }).start();
+
+    progressBarRef.current.measure((x, y, width, height, pageX, pageY) => {
+      const touchX = touch.pageX - pageX;
+      const position = calculatePosition(touchX, width);
+      setScrubbingPosition(position);
     });
+  };
+
+  const handleProgressBarMove = (event) => {
+    if (!isScrubbing || !progressBarRef.current || !duration) return;
+
+    const touch = event.nativeEvent;
+    progressBarRef.current.measure((x, y, width, height, pageX, pageY) => {
+      const touchX = touch.pageX - pageX;
+      const position = calculatePosition(touchX, width);
+      setScrubbingPosition(position);
+    });
+  };
+
+  const handleProgressBarRelease = () => {
+    if (!isScrubbing) return;
+
+    // Actually seek to the scrubbed position
+    player.currentTime = scrubbingPosition;
+    setCurrentTime(scrubbingPosition);
+
+    setIsScrubbing(false);
+    Animated.spring(thumbScale, {
+      toValue: 1,
+      useNativeDriver: true,
+    }).start();
   };
 
   const formatTime = (seconds) => {
@@ -125,7 +164,8 @@ export default function PlayerScreen({ navigation }) {
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
-  const progress = duration > 0 ? currentTime / duration : 0;
+  const displayTime = isScrubbing ? scrubbingPosition : currentTime;
+  const progress = duration > 0 ? displayTime / duration : 0;
 
   return (
     <View style={styles.container}>
@@ -185,17 +225,30 @@ export default function PlayerScreen({ navigation }) {
 
         {/* Progress bar */}
         <View style={styles.progressContainer}>
-          <Pressable
+          <View
             ref={progressBarRef}
             style={styles.progressBarTouchable}
-            onPress={handleProgressBarPress}
+            onStartShouldSetResponder={() => true}
+            onMoveShouldSetResponder={() => true}
+            onResponderGrant={handleProgressBarTouch}
+            onResponderMove={handleProgressBarMove}
+            onResponderRelease={handleProgressBarRelease}
           >
             <View style={styles.progressBar}>
               <View style={[styles.progressFill, { width: `${progress * 100}%` }]} />
+              <Animated.View
+                style={[
+                  styles.progressThumb,
+                  {
+                    left: `${progress * 100}%`,
+                    transform: [{ scale: thumbScale }],
+                  },
+                ]}
+              />
             </View>
-          </Pressable>
+          </View>
           <View style={styles.timeContainer}>
-            <Text style={styles.timeText}>{formatTime(currentTime)}</Text>
+            <Text style={styles.timeText}>{formatTime(displayTime)}</Text>
             <Text style={styles.timeText}>{formatTime(duration)}</Text>
           </View>
         </View>
@@ -299,17 +352,35 @@ const styles = StyleSheet.create({
     right: 30,
   },
   progressBarTouchable: {
-    paddingVertical: 10,
+    paddingVertical: 15,
+    paddingHorizontal: 5,
   },
   progressBar: {
     height: 4,
     backgroundColor: 'rgba(255, 255, 255, 0.3)',
     borderRadius: 2,
-    overflow: 'hidden',
+    position: 'relative',
+    justifyContent: 'center',
   },
   progressFill: {
+    position: 'absolute',
     height: '100%',
     backgroundColor: '#ff6b6b',
+    borderRadius: 2,
+  },
+  progressThumb: {
+    position: 'absolute',
+    width: 14,
+    height: 14,
+    borderRadius: 7,
+    backgroundColor: '#ffffff',
+    marginLeft: -7,
+    top: -5,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 3,
+    elevation: 5,
   },
   timeContainer: {
     flexDirection: 'row',
