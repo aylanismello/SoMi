@@ -142,7 +142,7 @@ export default function PlayerScreen({ navigation }) {
 
       <Animated.View
         style={[styles.controlsOverlay, { opacity: controlsOpacity }]}
-        pointerEvents={showControls ? 'auto' : 'none'}
+        pointerEvents={showControls ? 'box-none' : 'none'}
       >
         <TouchableOpacity
           style={styles.closeButton}
