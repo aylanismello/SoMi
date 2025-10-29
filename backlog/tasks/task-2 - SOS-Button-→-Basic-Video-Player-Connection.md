@@ -1,11 +1,11 @@
 ---
 id: task-2
 title: SOS Button → Basic Video Player Connection
-status: To Do
+status: Done
 assignee:
   - Claude
 created_date: '2025-10-29 06:02'
-updated_date: '2025-10-29 06:32'
+updated_date: '2025-10-29 06:40'
 labels: []
 dependencies: []
 priority: high
@@ -22,11 +22,11 @@ Create a basic connection from the SOS button to a simple video player. This is 
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 SOS button on main screen navigates to a player screen
-- [ ] #2 Video player displays and plays a video from a URL
-- [ ] #3 Player has a functional play/pause button
-- [ ] #4 Basic navigation structure is set up (Stack Navigator)
-- [ ] #5 Video playback uses expo-video (SDK 54 compatible)
+- [x] #1 SOS button on main screen navigates to a player screen
+- [x] #2 Video player displays and plays a video from a URL
+- [x] #3 Player has a functional play/pause button
+- [x] #4 Basic navigation structure is set up (Stack Navigator)
+- [x] #5 Video playback uses expo-video (SDK 54 compatible)
 <!-- AC:END -->
 
 ## Implementation Plan
@@ -60,7 +60,7 @@ Create a basic connection from the SOS button to a simple video player. This is 
 ## Implementation Notes
 
 <!-- SECTION:NOTES:BEGIN -->
-Implementation completed with placeholder video URL (Big Buck Bunny). User will replace with Dropbox link for testing.
+Implementation completed with 'https://qujifwhwntqxziymqdwu.supabase.co/storage/v1/object/public/test/overwhelmed_vagus_tone.mp4' as url. We will only be pulling from supabase.co - so our player MUST be compatible with that.
 
 Created three new files: components/SomiPlayer.js (main player component), components/MainScreen.js (existing slider UI), components/PlayerScreen.js (player screen wrapper)
 
