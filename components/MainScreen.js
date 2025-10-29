@@ -2,9 +2,27 @@ import { useState } from 'react';
 import { StyleSheet, Text, View, TouchableOpacity } from 'react-native';
 import Slider from '@react-native-community/slider';
 import * as Haptics from 'expo-haptics';
+import { VIDEOS, getVideoForSliderValue } from '../constants/videos';
+
+// Polyvagal state labels (embodiment-focused, neutral/positive)
+const STATE_LABELS = [
+  { range: [0, 20], label: 'Withdrawn' },      // Dorsal Vagal - Shutdown
+  { range: [20, 40], label: 'Stirring' },      // Dorsal → Sympathetic transition
+  { range: [40, 60], label: 'Activated' },     // Sympathetic - Fight/Flight
+  { range: [60, 80], label: 'Settling' },      // Sympathetic → Ventral transition
+  { range: [80, 100], label: 'Connected' },    // Ventral Vagal - Social Engagement
+];
 
 export default function MainScreen({ navigation }) {
   const [sliderValue, setSliderValue] = useState(50);
+
+  // Get current state label based on slider value
+  const getCurrentLabel = () => {
+    const currentState = STATE_LABELS.find(state =>
+      sliderValue >= state.range[0] && sliderValue < state.range[1]
+    );
+    return currentState ? currentState.label : STATE_LABELS[STATE_LABELS.length - 1].label;
+  };
 
   const handleSOSPress = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
@@ -12,7 +30,17 @@ export default function MainScreen({ navigation }) {
 
   const handleSOSRelease = () => {
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
-    navigation.navigate('Player');
+    navigation.navigate('Player', { videoUrl: VIDEOS.SOS });
+  };
+
+  const handleSoMiTimePress = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+  };
+
+  const handleSoMiTimeRelease = () => {
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    const videoUrl = getVideoForSliderValue(sliderValue);
+    navigation.navigate('Player', { videoUrl });
   };
 
   return (
@@ -23,6 +51,12 @@ export default function MainScreen({ navigation }) {
         </Text>
 
         <View style={styles.sliderContainer}>
+          <View style={styles.stateLabelContainer}>
+            <Text style={styles.stateLabel}>
+              {getCurrentLabel()}
+            </Text>
+          </View>
+
           <View style={styles.sliderWrapper}>
             <Slider
               style={styles.slider}
@@ -43,14 +77,25 @@ export default function MainScreen({ navigation }) {
         </View>
       </View>
 
-      <TouchableOpacity
-        style={styles.sosButton}
-        onPressIn={handleSOSPress}
-        onPressOut={handleSOSRelease}
-        activeOpacity={0.7}
-      >
-        <Text style={styles.sosText}>sos</Text>
-      </TouchableOpacity>
+      <View style={styles.buttonsContainer}>
+        <TouchableOpacity
+          style={styles.somiTimeButton}
+          onPressIn={handleSoMiTimePress}
+          onPressOut={handleSoMiTimeRelease}
+          activeOpacity={0.7}
+        >
+          <Text style={styles.somiTimeText}>somi{'\n'}time</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={styles.sosButton}
+          onPressIn={handleSOSPress}
+          onPressOut={handleSOSRelease}
+          activeOpacity={0.7}
+        >
+          <Text style={styles.sosText}>sos</Text>
+        </TouchableOpacity>
+      </View>
     </View>
   );
 }
@@ -95,6 +140,41 @@ const styles = StyleSheet.create({
     fontSize: 32,
     fontWeight: '400',
   },
+  stateLabelContainer: {
+    height: 40,
+    marginBottom: 15,
+    alignItems: 'center',
+    justifyContent: 'center',
+    position: 'relative',
+  },
+  stateLabel: {
+    color: '#ffffff',
+    fontSize: 18,
+    fontWeight: '300',
+  },
+  buttonsContainer: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 30,
+    marginTop: 40,
+  },
+  somiTimeButton: {
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    borderWidth: 3,
+    borderColor: '#4a90e2',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  somiTimeText: {
+    color: '#4a90e2',
+    fontSize: 20,
+    fontWeight: '400',
+    textAlign: 'center',
+    lineHeight: 24,
+  },
   sosButton: {
     width: 100,
     height: 100,
@@ -103,8 +183,6 @@ const styles = StyleSheet.create({
     borderColor: '#ff6b6b',
     alignItems: 'center',
     justifyContent: 'center',
-    alignSelf: 'center',
-    marginTop: 40,
   },
   sosText: {
     color: '#ff6b6b',

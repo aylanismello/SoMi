@@ -4,13 +4,12 @@ import { useVideoPlayer, VideoView } from 'expo-video';
 import { StyleSheet, View, TouchableOpacity, Text, Pressable, Dimensions, Animated } from 'react-native';
 import * as Haptics from 'expo-haptics';
 
-const videoSource = 'https://qujifwhwntqxziymqdwu.supabase.co/storage/v1/object/public/test/output_tiktok.mp4';
-// const videoSource = 'https://qujifwhwntqxziymqdwu.supabase.co/storage/v1/object/public/test/overwhelmed_vagus_tone.mp4';
 // Get screen dimensions for 9:16 aspect ratio calculation
 const screenWidth = Dimensions.get('window').width;
 const screenHeight = Dimensions.get('window').height;
 
-export default function PlayerScreen({ navigation }) {
+export default function PlayerScreen({ navigation, route }) {
+  const { videoUrl } = route.params;
   const [showControls, setShowControls] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
@@ -22,7 +21,7 @@ export default function PlayerScreen({ navigation }) {
   const thumbScale = useRef(new Animated.Value(1)).current;
   const isSeekingRef = useRef(false);
 
-  const player = useVideoPlayer(videoSource, player => {
+  const player = useVideoPlayer(videoUrl, player => {
     player.play();
   });
 

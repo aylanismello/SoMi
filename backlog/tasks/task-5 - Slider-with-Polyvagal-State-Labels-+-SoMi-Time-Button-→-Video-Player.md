@@ -1,10 +1,10 @@
 ---
 id: task-5
 title: Slider with Polyvagal State Labels + SoMi Time Button → Video Player
-status: To Do
+status: Done
 assignee: []
 created_date: '2025-10-29 07:45'
-updated_date: '2025-10-29 07:47'
+updated_date: '2025-10-29 08:00'
 labels:
   - ui
   - slider
@@ -76,15 +76,19 @@ All labels should be embodiment-focused, neutral/positive (never negative or pat
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 Slider ranges from 0-100 with no numeric value shown
-- [ ] #2 Polyvagal state labels fade in/out smoothly as slider moves across thresholds
-- [ ] #3 State labels are embodiment-focused, neutral/positive (never negative)
-- [ ] #4 SoMi Time button placed horizontally next to SOS button
-- [ ] #5 SoMi Time button uses slider value to determine which video to play
-- [ ] #6 constants/videos.js created with 5 video mappings (all pointing to same source for MVP)
-- [ ] #7 PlayerScreen accepts video URL via route params
-- [ ] #8 SOS button continues to work with dedicated video
+- [x] #1 Slider ranges from 0-100 with no numeric value shown
+- [x] #2 Polyvagal state labels fade in/out smoothly as slider moves across thresholds
+- [x] #3 State labels are embodiment-focused, neutral/positive (never negative)
+- [x] #4 SoMi Time button placed horizontally next to SOS button
+- [x] #5 SoMi Time button uses slider value to determine which video to play
+- [x] #6 constants/videos.js created with 5 video mappings (all pointing to same source for MVP)
+- [x] #7 PlayerScreen accepts video URL via route params
+- [x] #8 SOS button continues to work with dedicated video
 
-- [ ] #9 Hardcoded videoSource removed from PlayerScreen.js - all videos come from constants/videos.js
-- [ ] #10 SOS button retrieves video from constants file
+- [x] #9 Hardcoded videoSource removed from PlayerScreen.js - all videos come from constants/videos.js
+- [x] #10 SOS button retrieves video from constants file
+
+- [x] #11 Remove ghost-like fade transitions - text should update immediately when slider enters new range
+- [x] #12 Text updates while finger is still on slider (not just on release)
+- [x] #13 Text stays at final state when finger is released
 <!-- AC:END -->
