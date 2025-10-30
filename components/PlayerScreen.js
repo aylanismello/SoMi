@@ -1,45 +1,45 @@
-import { useState, useEffect, useRef } from 'react';
-import { useEvent } from 'expo';
-import { useVideoPlayer, VideoView } from 'expo-video';
-import { useAudioPlayer } from 'expo-audio';
-import { StyleSheet, View, TouchableOpacity, Text, Pressable, Dimensions, Animated } from 'react-native';
-import * as Haptics from 'expo-haptics';
+import { useState, useEffect, useRef } from 'react'
+import { useEvent } from 'expo'
+import { useVideoPlayer, VideoView } from 'expo-video'
+import { useAudioPlayer } from 'expo-audio'
+import { StyleSheet, View, TouchableOpacity, Text, Pressable, Dimensions, Animated } from 'react-native'
+import * as Haptics from 'expo-haptics'
 
 // Get screen dimensions for 9:16 aspect ratio calculation
-const screenWidth = Dimensions.get('window').width;
-const screenHeight = Dimensions.get('window').height;
+const screenWidth = Dimensions.get('window').width
+const screenHeight = Dimensions.get('window').height
 
 export default function PlayerScreen({ navigation, route }) {
-  const { media } = route.params;
-  const isAudio = media.type === 'audio';
-  const [showControls, setShowControls] = useState(false);
-  const [currentTime, setCurrentTime] = useState(0);
-  const [duration, setDuration] = useState(0);
-  const [isScrubbing, setIsScrubbing] = useState(false);
-  const [scrubbingPosition, setScrubbingPosition] = useState(0);
-  const [isPlayingState, setIsPlayingState] = useState(false);
-  const controlsOpacity = useRef(new Animated.Value(0)).current;
-  const progressBarRef = useRef(null);
-  const hideTimeoutRef = useRef(null);
-  const thumbScale = useRef(new Animated.Value(1)).current;
-  const isSeekingRef = useRef(false);
+  const { media } = route.params
+  const isAudio = media.type === 'audio'
+  const [showControls, setShowControls] = useState(false)
+  const [currentTime, setCurrentTime] = useState(0)
+  const [duration, setDuration] = useState(0)
+  const [isScrubbing, setIsScrubbing] = useState(false)
+  const [scrubbingPosition, setScrubbingPosition] = useState(0)
+  const [isPlayingState, setIsPlayingState] = useState(false)
+  const controlsOpacity = useRef(new Animated.Value(0)).current
+  const progressBarRef = useRef(null)
+  const hideTimeoutRef = useRef(null)
+  const thumbScale = useRef(new Animated.Value(1)).current
+  const isSeekingRef = useRef(false)
 
   // Conditionally create audio or video player based on media type
   // Safe because media.type never changes during component lifecycle
   const player = isAudio
     ? useAudioPlayer(media.url)
     : useVideoPlayer(media.url, player => {
-        player.play();
-      });
+        player.play()
+      })
 
-  const { isPlaying } = useEvent(player, 'playingChange', { isPlaying: player.playing });
+  const { isPlaying } = useEvent(player, 'playingChange', { isPlaying: player.playing })
 
   // Auto-play when player is ready
   useEffect(() => {
     if (player) {
-      player.play();
+      player.play()
     }
-  }, [player]);
+  }, [player])
 
   // Track media playback progress
   useEffect(() => {
@@ -47,16 +47,16 @@ export default function PlayerScreen({ navigation, route }) {
       if (player) {
         // Don't update currentTime from player if we just seeked
         if (!isSeekingRef.current) {
-          setCurrentTime(player.currentTime || 0);
+          setCurrentTime(player.currentTime || 0)
         }
-        setDuration(player.duration || 0);
+        setDuration(player.duration || 0)
         // Update playing state (especially important for audio player)
-        setIsPlayingState(player.playing);
+        setIsPlayingState(player.playing)
       }
     }, 100); // Update every 100ms for smooth progress
 
-    return () => clearInterval(interval);
-  }, [player]);
+    return () => clearInterval(interval)
+  }, [player])
 
   // Animate controls visibility
   useEffect(() => {
@@ -64,15 +64,15 @@ export default function PlayerScreen({ navigation, route }) {
       toValue: showControls ? 1 : 0,
       duration: 300,
       useNativeDriver: true,
-    }).start();
-  }, [showControls, controlsOpacity]);
+    }).start()
+  }, [showControls, controlsOpacity])
 
   // Auto-hide controls after 3 seconds when playing
   useEffect(() => {
     // Clear any existing timeout
     if (hideTimeoutRef.current) {
-      clearTimeout(hideTimeoutRef.current);
-      hideTimeoutRef.current = null;
+      clearTimeout(hideTimeoutRef.current)
+      hideTimeoutRef.current = null
     }
 
     // Don't hide if user is actively scrubbing
@@ -80,152 +80,152 @@ export default function PlayerScreen({ navigation, route }) {
       hideTimeoutRef.current = setTimeout(() => {
         // Check if still playing when timer fires
         if (player.playing) {
-          setShowControls(false);
+          setShowControls(false)
         }
-        hideTimeoutRef.current = null;
-      }, 3000);
+        hideTimeoutRef.current = null
+      }, 3000)
     }
 
     return () => {
       if (hideTimeoutRef.current) {
-        clearTimeout(hideTimeoutRef.current);
-        hideTimeoutRef.current = null;
+        clearTimeout(hideTimeoutRef.current)
+        hideTimeoutRef.current = null
       }
-    };
-  }, [showControls, isScrubbing, player]);
+    }
+  }, [showControls, isScrubbing, player])
 
   const handlePlayPause = () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
 
     // Check current playing state directly from player
-    const currentlyPlaying = player.playing;
+    const currentlyPlaying = player.playing
 
     if (currentlyPlaying) {
-      player.pause();
+      player.pause()
     } else {
-      player.play();
+      player.play()
       // Reset the auto-hide timer when resuming playback
-      setShowControls(false);
-      setTimeout(() => setShowControls(true), 10);
+      setShowControls(false)
+      setTimeout(() => setShowControls(true), 10)
     }
-  };
+  }
 
   const handleSkipBackward = () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    const newTime = Math.max(0, currentTime - 15);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
+    const newTime = Math.max(0, currentTime - 15)
 
     // Audio player uses seekTo(), video player uses currentTime property
     if (isAudio) {
-      player.seekTo(newTime);
+      player.seekTo(newTime)
     } else {
-      player.currentTime = newTime;
+      player.currentTime = newTime
     }
 
     // Reset the auto-hide timer
-    setShowControls(false);
-    setTimeout(() => setShowControls(true), 10);
-  };
+    setShowControls(false)
+    setTimeout(() => setShowControls(true), 10)
+  }
 
   const handleSkipForward = () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    const newTime = Math.min(duration, currentTime + 15);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
+    const newTime = Math.min(duration, currentTime + 15)
 
     // Audio player uses seekTo(), video player uses currentTime property
     if (isAudio) {
-      player.seekTo(newTime);
+      player.seekTo(newTime)
     } else {
-      player.currentTime = newTime;
+      player.currentTime = newTime
     }
 
     // Reset the auto-hide timer
-    setShowControls(false);
-    setTimeout(() => setShowControls(true), 10);
-  };
+    setShowControls(false)
+    setTimeout(() => setShowControls(true), 10)
+  }
 
   const handleClose = () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    player.pause();
-    navigation.goBack();
-  };
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium)
+    player.pause()
+    navigation.goBack()
+  }
 
   const toggleControls = () => {
-    setShowControls(!showControls);
-  };
+    setShowControls(!showControls)
+  }
 
   const calculatePosition = (touchX, barWidth) => {
-    const seekPosition = (touchX / barWidth) * duration;
-    return Math.max(0, Math.min(duration, seekPosition));
-  };
+    const seekPosition = (touchX / barWidth) * duration
+    return Math.max(0, Math.min(duration, seekPosition))
+  }
 
   const handleProgressBarTouch = (event) => {
-    if (!progressBarRef.current || !duration) return;
+    if (!progressBarRef.current || !duration) return
 
-    const touch = event.nativeEvent;
+    const touch = event.nativeEvent
 
-    setIsScrubbing(true);
-    setShowControls(true);
+    setIsScrubbing(true)
+    setShowControls(true)
     Animated.spring(thumbScale, {
       toValue: 2,
       useNativeDriver: true,
-    }).start();
+    }).start()
 
     progressBarRef.current.measure((x, y, width, height, pageX, pageY) => {
-      const touchX = touch.pageX - pageX;
-      const position = calculatePosition(touchX, width);
-      setScrubbingPosition(position);
-    });
-  };
+      const touchX = touch.pageX - pageX
+      const position = calculatePosition(touchX, width)
+      setScrubbingPosition(position)
+    })
+  }
 
   const handleProgressBarMove = (event) => {
-    if (!isScrubbing || !progressBarRef.current || !duration) return;
+    if (!isScrubbing || !progressBarRef.current || !duration) return
 
-    const touch = event.nativeEvent;
+    const touch = event.nativeEvent
     progressBarRef.current.measure((x, y, width, height, pageX, pageY) => {
-      const touchX = touch.pageX - pageX;
-      const position = calculatePosition(touchX, width);
-      setScrubbingPosition(position);
-    });
-  };
+      const touchX = touch.pageX - pageX
+      const position = calculatePosition(touchX, width)
+      setScrubbingPosition(position)
+    })
+  }
 
   const handleProgressBarRelease = () => {
-    if (!isScrubbing) return;
+    if (!isScrubbing) return
 
     // Actually seek to the scrubbed position
-    isSeekingRef.current = true;
+    isSeekingRef.current = true
 
     // Audio player uses seekTo(), video player uses currentTime property
     if (isAudio) {
-      player.seekTo(scrubbingPosition);
+      player.seekTo(scrubbingPosition)
     } else {
-      player.currentTime = scrubbingPosition;
+      player.currentTime = scrubbingPosition
     }
-    setCurrentTime(scrubbingPosition);
+    setCurrentTime(scrubbingPosition)
 
-    setIsScrubbing(false);
+    setIsScrubbing(false)
     Animated.spring(thumbScale, {
       toValue: 1,
       useNativeDriver: true,
-    }).start();
+    }).start()
 
     // Reset the auto-hide timer by toggling controls
-    setShowControls(false);
-    setTimeout(() => setShowControls(true), 10);
+    setShowControls(false)
+    setTimeout(() => setShowControls(true), 10)
 
     // Allow interval to resume updating after seek completes
     setTimeout(() => {
-      isSeekingRef.current = false;
-    }, 500);
-  };
+      isSeekingRef.current = false
+    }, 500)
+  }
 
   const formatTime = (seconds) => {
-    if (!seconds || isNaN(seconds)) return '0:00';
-    const mins = Math.floor(seconds / 60);
-    const secs = Math.floor(seconds % 60);
-    return `${mins}:${secs.toString().padStart(2, '0')}`;
-  };
+    if (!seconds || isNaN(seconds)) return '0:00'
+    const mins = Math.floor(seconds / 60)
+    const secs = Math.floor(seconds % 60)
+    return `${mins}:${secs.toString().padStart(2, '0')}`
+  }
 
-  const displayTime = isScrubbing ? scrubbingPosition : currentTime;
-  const progress = duration > 0 ? displayTime / duration : 0;
+  const displayTime = isScrubbing ? scrubbingPosition : currentTime
+  const progress = duration > 0 ? displayTime / duration : 0
 
   return (
     <View style={styles.container}>
@@ -317,7 +317,7 @@ export default function PlayerScreen({ navigation, route }) {
         </View>
       </Animated.View>
     </View>
-  );
+  )
 }
 
 const styles = StyleSheet.create({
@@ -455,4 +455,4 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '500',
   },
-});
+})

@@ -27,6 +27,7 @@ SoMi is a React Native mobile application built with Expo that helps users asses
 - Keep dependencies minimal and well-justified
 
 ### Code Style
+- **No semicolons**: This project does not use semicolons in JavaScript
 - Use functional components with hooks
 - Follow React Native best practices for performance
 - Keep components focused and single-purpose

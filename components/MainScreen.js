@@ -1,8 +1,8 @@
-import { useState } from 'react';
-import { StyleSheet, Text, View, TouchableOpacity } from 'react-native';
-import Slider from '@react-native-community/slider';
-import * as Haptics from 'expo-haptics';
-import { MEDIA, getMediaForSliderValue } from '../constants/media';
+import { useState } from 'react'
+import { StyleSheet, Text, View, TouchableOpacity } from 'react-native'
+import Slider from '@react-native-community/slider'
+import * as Haptics from 'expo-haptics'
+import { MEDIA, getMediaForSliderValue } from '../constants/media'
 
 // Polyvagal state labels (embodiment-focused, neutral/positive)
 const STATE_LABELS = [
@@ -11,37 +11,37 @@ const STATE_LABELS = [
   { range: [40, 60], label: 'Activated' },     // Sympathetic - Fight/Flight
   { range: [60, 80], label: 'Settling' },      // Sympathetic → Ventral transition
   { range: [80, 100], label: 'Connected' },    // Ventral Vagal - Social Engagement
-];
+]
 
 export default function MainScreen({ navigation }) {
-  const [sliderValue, setSliderValue] = useState(50);
+  const [sliderValue, setSliderValue] = useState(50)
 
   // Get current state label based on slider value
   const getCurrentLabel = () => {
     const currentState = STATE_LABELS.find(state =>
       sliderValue >= state.range[0] && sliderValue < state.range[1]
-    );
-    return currentState ? currentState.label : STATE_LABELS[STATE_LABELS.length - 1].label;
-  };
+    )
+    return currentState ? currentState.label : STATE_LABELS[STATE_LABELS.length - 1].label
+  }
 
   const handleSOSPress = () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
-  };
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy)
+  }
 
   const handleSOSRelease = () => {
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
-    navigation.navigate('Player', { media: MEDIA.SOS });
-  };
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning)
+    navigation.navigate('Player', { media: MEDIA.SOS })
+  }
 
   const handleSoMiTimePress = () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-  };
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium)
+  }
 
   const handleSoMiTimeRelease = () => {
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    const media = getMediaForSliderValue(sliderValue);
-    navigation.navigate('Player', { media });
-  };
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success)
+    const media = getMediaForSliderValue(sliderValue)
+    navigation.navigate('Player', { media })
+  }
 
   return (
     <View style={styles.container}>
@@ -97,7 +97,7 @@ export default function MainScreen({ navigation }) {
         </TouchableOpacity>
       </View>
     </View>
-  );
+  )
 }
 
 const styles = StyleSheet.create({
@@ -189,4 +189,4 @@ const styles = StyleSheet.create({
     fontSize: 24,
     fontWeight: '400',
   },
-});
+})
