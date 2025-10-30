@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { StyleSheet, Text, View, TouchableOpacity } from 'react-native';
 import Slider from '@react-native-community/slider';
 import * as Haptics from 'expo-haptics';
-import { VIDEOS, getVideoForSliderValue } from '../constants/videos';
+import { MEDIA, getMediaForSliderValue } from '../constants/media';
 
 // Polyvagal state labels (embodiment-focused, neutral/positive)
 const STATE_LABELS = [
@@ -30,7 +30,7 @@ export default function MainScreen({ navigation }) {
 
   const handleSOSRelease = () => {
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
-    navigation.navigate('Player', { videoUrl: VIDEOS.SOS });
+    navigation.navigate('Player', { media: MEDIA.SOS });
   };
 
   const handleSoMiTimePress = () => {
@@ -39,8 +39,8 @@ export default function MainScreen({ navigation }) {
 
   const handleSoMiTimeRelease = () => {
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    const videoUrl = getVideoForSliderValue(sliderValue);
-    navigation.navigate('Player', { videoUrl });
+    const media = getMediaForSliderValue(sliderValue);
+    navigation.navigate('Player', { media });
   };
 
   return (

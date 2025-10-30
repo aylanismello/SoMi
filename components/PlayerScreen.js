@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useEvent } from 'expo';
 import { useVideoPlayer, VideoView } from 'expo-video';
+import { useAudioPlayer } from 'expo-audio';
 import { StyleSheet, View, TouchableOpacity, Text, Pressable, Dimensions, Animated } from 'react-native';
 import * as Haptics from 'expo-haptics';
 
@@ -9,25 +10,38 @@ const screenWidth = Dimensions.get('window').width;
 const screenHeight = Dimensions.get('window').height;
 
 export default function PlayerScreen({ navigation, route }) {
-  const { videoUrl } = route.params;
+  const { media } = route.params;
+  const isAudio = media.type === 'audio';
   const [showControls, setShowControls] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
   const [isScrubbing, setIsScrubbing] = useState(false);
   const [scrubbingPosition, setScrubbingPosition] = useState(0);
+  const [isPlayingState, setIsPlayingState] = useState(false);
   const controlsOpacity = useRef(new Animated.Value(0)).current;
   const progressBarRef = useRef(null);
   const hideTimeoutRef = useRef(null);
   const thumbScale = useRef(new Animated.Value(1)).current;
   const isSeekingRef = useRef(false);
 
-  const player = useVideoPlayer(videoUrl, player => {
-    player.play();
-  });
+  // Conditionally create audio or video player based on media type
+  // Safe because media.type never changes during component lifecycle
+  const player = isAudio
+    ? useAudioPlayer(media.url)
+    : useVideoPlayer(media.url, player => {
+        player.play();
+      });
 
   const { isPlaying } = useEvent(player, 'playingChange', { isPlaying: player.playing });
 
-  // Track video progress
+  // Auto-play when player is ready
+  useEffect(() => {
+    if (player) {
+      player.play();
+    }
+  }, [player]);
+
+  // Track media playback progress
   useEffect(() => {
     const interval = setInterval(() => {
       if (player) {
@@ -36,6 +50,8 @@ export default function PlayerScreen({ navigation, route }) {
           setCurrentTime(player.currentTime || 0);
         }
         setDuration(player.duration || 0);
+        // Update playing state (especially important for audio player)
+        setIsPlayingState(player.playing);
       }
     }, 100); // Update every 100ms for smooth progress
 
@@ -80,7 +96,11 @@ export default function PlayerScreen({ navigation, route }) {
 
   const handlePlayPause = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    if (isPlaying) {
+
+    // Check current playing state directly from player
+    const currentlyPlaying = player.playing;
+
+    if (currentlyPlaying) {
       player.pause();
     } else {
       player.play();
@@ -93,7 +113,13 @@ export default function PlayerScreen({ navigation, route }) {
   const handleSkipBackward = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     const newTime = Math.max(0, currentTime - 15);
-    player.currentTime = newTime;
+
+    // Audio player uses seekTo(), video player uses currentTime property
+    if (isAudio) {
+      player.seekTo(newTime);
+    } else {
+      player.currentTime = newTime;
+    }
 
     // Reset the auto-hide timer
     setShowControls(false);
@@ -103,7 +129,13 @@ export default function PlayerScreen({ navigation, route }) {
   const handleSkipForward = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     const newTime = Math.min(duration, currentTime + 15);
-    player.currentTime = newTime;
+
+    // Audio player uses seekTo(), video player uses currentTime property
+    if (isAudio) {
+      player.seekTo(newTime);
+    } else {
+      player.currentTime = newTime;
+    }
 
     // Reset the auto-hide timer
     setShowControls(false);
@@ -160,7 +192,13 @@ export default function PlayerScreen({ navigation, route }) {
 
     // Actually seek to the scrubbed position
     isSeekingRef.current = true;
-    player.currentTime = scrubbingPosition;
+
+    // Audio player uses seekTo(), video player uses currentTime property
+    if (isAudio) {
+      player.seekTo(scrubbingPosition);
+    } else {
+      player.currentTime = scrubbingPosition;
+    }
     setCurrentTime(scrubbingPosition);
 
     setIsScrubbing(false);
@@ -192,12 +230,16 @@ export default function PlayerScreen({ navigation, route }) {
   return (
     <View style={styles.container}>
       <Pressable style={styles.videoContainer} onPress={toggleControls}>
-        <VideoView
-          style={styles.video}
-          player={player}
-          nativeControls={false}
-          contentFit="contain"
-        />
+        {isAudio ? (
+          <View style={styles.audioBackground} />
+        ) : (
+          <VideoView
+            style={styles.video}
+            player={player}
+            nativeControls={false}
+            contentFit="contain"
+          />
+        )}
       </Pressable>
 
       <Animated.View
@@ -230,7 +272,7 @@ export default function PlayerScreen({ navigation, route }) {
             onPress={handlePlayPause}
           >
             <Text style={styles.playPauseText}>
-              {isPlaying ? '❚❚' : '▶'}
+              {isPlayingState ? '❚❚' : '▶'}
             </Text>
           </TouchableOpacity>
 
@@ -295,6 +337,11 @@ const styles = StyleSheet.create({
     width: screenWidth,
     height: screenWidth * (16 / 9), // 9:16 aspect ratio (vertical)
     maxHeight: screenHeight,
+  },
+  audioBackground: {
+    width: '100%',
+    height: '100%',
+    backgroundColor: '#000000',
   },
   controlsOverlay: {
     ...StyleSheet.absoluteFillObject,
