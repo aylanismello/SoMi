@@ -84,7 +84,7 @@ export default function MainScreen({ navigation }) {
           onPressOut={handleSoMiTimeRelease}
           activeOpacity={0.7}
         >
-          <Text style={styles.somiTimeText}>somi{'\n'}time</Text>
+          <Text style={styles.somiTimeText}>regulate</Text>
         </TouchableOpacity>
 
         <TouchableOpacity
