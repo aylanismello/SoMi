@@ -3,7 +3,6 @@ import { NavigationContainer } from '@react-navigation/native'
 import { createStackNavigator } from '@react-navigation/stack'
 import MainScreen from './components/MainScreen'
 import PlayerScreen from './components/PlayerScreen'
-import PostMediaCheckIn from './components/PostMediaCheckIn'
 
 const Stack = createStackNavigator()
 
@@ -25,10 +24,6 @@ export default function App() {
             presentation: 'fullScreenModal',
             gestureEnabled: false,
           }}
-        />
-        <Stack.Screen
-          name="PostMediaCheckIn"
-          component={PostMediaCheckIn}
         />
       </Stack.Navigator>
     </NavigationContainer>

@@ -10,7 +10,7 @@ const screenWidth = Dimensions.get('window').width
 const screenHeight = Dimensions.get('window').height
 
 export default function PlayerScreen({ navigation, route }) {
-  const { media, initialValue } = route.params
+  const { media } = route.params
   const isAudio = media.type === 'audio'
   const [showControls, setShowControls] = useState(false)
   const [currentTime, setCurrentTime] = useState(0)
@@ -58,14 +58,13 @@ export default function PlayerScreen({ navigation, route }) {
     return () => clearInterval(interval)
   }, [player])
 
-  // Detect when media playback completes
+  // Auto-navigate back when media ends
   useEffect(() => {
-    // Check if media has completed (within 1 second threshold)
-    if (duration > 0 && currentTime >= duration - 1) {
-      // Navigate to PostMediaCheckIn screen
-      navigation.replace('PostMediaCheckIn', { initialValue })
+    if (duration > 0 && currentTime >= duration - 0.5) {
+      player.pause()
+      navigation.goBack()
     }
-  }, [currentTime, duration, initialValue, navigation])
+  }, [currentTime, duration, navigation, player])
 
   // Animate controls visibility
   useEffect(() => {
