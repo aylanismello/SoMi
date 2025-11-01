@@ -1,16 +1,17 @@
 ---
 id: task-8
 title: Show embodiment slider at end of media playback with progress feedback
-status: Done
+status: To Do
 assignee: []
 created_date: '2025-10-31 23:39'
-updated_date: '2025-11-01 02:32'
+updated_date: '2025-11-01 02:40'
 labels:
   - feature
   - ux
 dependencies:
   - task-7
 priority: high
+ordinal: 3000
 ---
 
 ## Description

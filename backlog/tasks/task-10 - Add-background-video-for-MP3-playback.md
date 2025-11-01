@@ -4,13 +4,14 @@ title: Add background video for MP3 playback
 status: To Do
 assignee: []
 created_date: '2025-10-31 23:41'
-updated_date: '2025-10-31 23:45'
+updated_date: '2025-11-01 02:35'
 labels:
   - feature
   - player
   - ux
 dependencies: []
 priority: high
+ordinal: 1000
 ---
 
 ## Description

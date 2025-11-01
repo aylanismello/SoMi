@@ -4,7 +4,7 @@ title: Add toggle button to switch between main video and background video
 status: To Do
 assignee: []
 created_date: '2025-10-31 23:41'
-updated_date: '2025-10-31 23:47'
+updated_date: '2025-11-01 02:35'
 labels:
   - feature
   - player
@@ -12,6 +12,7 @@ labels:
 dependencies:
   - task-10
 priority: high
+ordinal: 2000
 ---
 
 ## Description
