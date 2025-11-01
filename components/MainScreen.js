@@ -1,28 +1,11 @@
 import { useState } from 'react'
 import { StyleSheet, Text, View, TouchableOpacity } from 'react-native'
-import Slider from '@react-native-community/slider'
 import * as Haptics from 'expo-haptics'
 import { MEDIA, getMediaForSliderValue } from '../constants/media'
-
-// Polyvagal state labels (embodiment-focused, neutral/positive)
-const STATE_LABELS = [
-  { range: [0, 20], label: 'Withdrawn' },      // Dorsal Vagal - Shutdown
-  { range: [20, 40], label: 'Stirring' },      // Dorsal → Sympathetic transition
-  { range: [40, 60], label: 'Activated' },     // Sympathetic - Fight/Flight
-  { range: [60, 80], label: 'Settling' },      // Sympathetic → Ventral transition
-  { range: [80, 100], label: 'Connected' },    // Ventral Vagal - Social Engagement
-]
+import EmbodimentSlider from './EmbodimentSlider'
 
 export default function MainScreen({ navigation }) {
   const [sliderValue, setSliderValue] = useState(50)
-
-  // Get current state label based on slider value
-  const getCurrentLabel = () => {
-    const currentState = STATE_LABELS.find(state =>
-      sliderValue >= state.range[0] && sliderValue < state.range[1]
-    )
-    return currentState ? currentState.label : STATE_LABELS[STATE_LABELS.length - 1].label
-  }
 
   const handleSOSPress = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy)
@@ -30,7 +13,7 @@ export default function MainScreen({ navigation }) {
 
   const handleSOSRelease = () => {
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning)
-    navigation.navigate('Player', { media: MEDIA.SOS })
+    navigation.navigate('Player', { media: MEDIA.SOS, initialValue: sliderValue })
   }
 
   const handleSoMiTimePress = () => {
@@ -40,41 +23,17 @@ export default function MainScreen({ navigation }) {
   const handleSoMiTimeRelease = () => {
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success)
     const media = getMediaForSliderValue(sliderValue)
-    navigation.navigate('Player', { media })
+    navigation.navigate('Player', { media, initialValue: sliderValue })
   }
 
   return (
     <View style={styles.container}>
       <View style={styles.content}>
-        <Text style={styles.question}>
-          how in your body{'\n'}do you feel right now?
-        </Text>
-
-        <View style={styles.sliderContainer}>
-          <View style={styles.stateLabelContainer}>
-            <Text style={styles.stateLabel}>
-              {getCurrentLabel()}
-            </Text>
-          </View>
-
-          <View style={styles.sliderWrapper}>
-            <Slider
-              style={styles.slider}
-              minimumValue={0}
-              maximumValue={100}
-              value={sliderValue}
-              onValueChange={setSliderValue}
-              minimumTrackTintColor="#ffffff"
-              maximumTrackTintColor="#ffffff"
-              thumbTintColor="#ffffff"
-            />
-          </View>
-
-          <View style={styles.labelsContainer}>
-            <Text style={styles.label}>0%</Text>
-            <Text style={styles.label}>100%</Text>
-          </View>
-        </View>
+        <EmbodimentSlider
+          value={sliderValue}
+          onValueChange={setSliderValue}
+          question={"how in your body\ndo you feel right now?"}
+        />
       </View>
 
       <View style={styles.buttonsContainer}>
@@ -111,46 +70,6 @@ const styles = StyleSheet.create({
   content: {
     flex: 1,
     justifyContent: 'center',
-  },
-  question: {
-    color: '#ffffff',
-    fontSize: 28,
-    fontWeight: '400',
-    marginBottom: 60,
-    textAlign: 'left',
-    lineHeight: 36,
-  },
-  sliderContainer: {
-    width: '100%',
-  },
-  sliderWrapper: {
-    paddingHorizontal: 10,
-  },
-  slider: {
-    width: '100%',
-    height: 40,
-  },
-  labelsContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginTop: 10,
-  },
-  label: {
-    color: '#ffffff',
-    fontSize: 32,
-    fontWeight: '400',
-  },
-  stateLabelContainer: {
-    height: 40,
-    marginBottom: 15,
-    alignItems: 'center',
-    justifyContent: 'center',
-    position: 'relative',
-  },
-  stateLabel: {
-    color: '#ffffff',
-    fontSize: 18,
-    fontWeight: '300',
   },
   buttonsContainer: {
     flexDirection: 'row',

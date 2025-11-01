@@ -1,9 +1,10 @@
 ---
 id: task-7
 title: Refactor embodiment slider into reusable component
-status: To Do
+status: Done
 assignee: []
 created_date: '2025-10-31 23:39'
+updated_date: '2025-10-31 23:51'
 labels:
   - refactoring
   - component
@@ -21,9 +22,9 @@ This will enable the slider to be used in multiple contexts (e.g., as an interst
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 Embodiment slider is extracted into a separate component file
-- [ ] #2 Component accepts necessary props for customization
-- [ ] #3 Component maintains all existing functionality
-- [ ] #4 Component can be imported and used in multiple locations
-- [ ] #5 Existing usage is updated to use the new component
+- [x] #1 Embodiment slider is extracted into a separate component file
+- [x] #2 Component accepts necessary props for customization
+- [x] #3 Component maintains all existing functionality
+- [x] #4 Component can be imported and used in multiple locations
+- [x] #5 Existing usage is updated to use the new component
 <!-- AC:END -->
