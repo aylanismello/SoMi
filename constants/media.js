@@ -9,6 +9,12 @@ const BODY_SCAN = {
   type: 'audio',
 }
 
+// Background video for audio playback and toggle option
+export const BACKGROUND_VIDEO = {
+  url: 'https://qujifwhwntqxziymqdwu.supabase.co/storage/v1/object/public/test/mountains_boomerang.mp4',
+  type: 'video',
+}
+
 
 // Media mappings for polyvagal slider states
 export const MEDIA = {

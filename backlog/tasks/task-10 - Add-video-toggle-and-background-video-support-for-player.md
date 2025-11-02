@@ -1,9 +1,10 @@
 ---
 id: task-10
 title: Add video toggle and background video support for player
-status: To Do
+status: Done
 assignee: []
 created_date: '2025-10-31 23:39'
+updated_date: '2025-11-02 06:48'
 labels:
   - feature
   - player
@@ -28,12 +29,12 @@ Key requirements:
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 mountain.mp4 URL added to media.js constants file
-- [ ] #2 Toggle button appears in player overlay UI
-- [ ] #3 Toggle button switches between main video and background video visuals
-- [ ] #4 Background video loops continuously without sound
-- [ ] #5 Main audio/video sound continues playing when background video is shown
-- [ ] #6 MP3 playback automatically displays background video
-- [ ] #7 Background video plays smoothly without audio
-- [ ] #8 Toggle state is visually indicated to user
+- [x] #1 mountain.mp4 URL added to media.js constants file
+- [x] #2 Toggle button appears in player overlay UI
+- [x] #3 Toggle button switches between main video and background video visuals
+- [x] #4 Background video loops continuously without sound
+- [x] #5 Main audio/video sound continues playing when background video is shown
+- [x] #6 MP3 playback automatically displays background video
+- [x] #7 Background video plays smoothly without audio
+- [x] #8 Toggle state is visually indicated to user
 <!-- AC:END -->

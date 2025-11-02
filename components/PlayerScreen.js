@@ -4,6 +4,7 @@ import { useVideoPlayer, VideoView } from 'expo-video'
 import { useAudioPlayer } from 'expo-audio'
 import { StyleSheet, View, TouchableOpacity, Text, Pressable, Dimensions, Animated } from 'react-native'
 import * as Haptics from 'expo-haptics'
+import { BACKGROUND_VIDEO } from '../constants/media'
 
 // Get screen dimensions for 9:16 aspect ratio calculation
 const screenWidth = Dimensions.get('window').width
@@ -18,6 +19,7 @@ export default function PlayerScreen({ navigation, route }) {
   const [isScrubbing, setIsScrubbing] = useState(false)
   const [scrubbingPosition, setScrubbingPosition] = useState(0)
   const [isPlayingState, setIsPlayingState] = useState(false)
+  const [showBackgroundVideo, setShowBackgroundVideo] = useState(isAudio) // Auto-show for audio
   const controlsOpacity = useRef(new Animated.Value(0)).current
   const progressBarRef = useRef(null)
   const hideTimeoutRef = useRef(null)
@@ -31,6 +33,13 @@ export default function PlayerScreen({ navigation, route }) {
     : useVideoPlayer(media.url, player => {
         player.play()
       })
+
+  // Background video player for looping background visuals
+  const backgroundPlayer = useVideoPlayer(BACKGROUND_VIDEO.url, player => {
+    player.loop = true
+    player.muted = true
+    player.play()
+  })
 
   const { isPlaying } = useEvent(player, 'playingChange', { isPlaying: player.playing })
 
@@ -160,6 +169,14 @@ export default function PlayerScreen({ navigation, route }) {
     setShowControls(!showControls)
   }
 
+  const handleToggleBackgroundVideo = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
+    setShowBackgroundVideo(!showBackgroundVideo)
+    // Reset the auto-hide timer
+    setShowControls(false)
+    setTimeout(() => setShowControls(true), 10)
+  }
+
   const calculatePosition = (touchX, barWidth) => {
     const seekPosition = (touchX / barWidth) * duration
     return Math.max(0, Math.min(duration, seekPosition))
@@ -238,7 +255,14 @@ export default function PlayerScreen({ navigation, route }) {
   return (
     <View style={styles.container}>
       <Pressable style={styles.videoContainer} onPress={toggleControls}>
-        {isAudio ? (
+        {showBackgroundVideo ? (
+          <VideoView
+            style={styles.video}
+            player={backgroundPlayer}
+            nativeControls={false}
+            contentFit="contain"
+          />
+        ) : isAudio ? (
           <View style={styles.audioBackground} />
         ) : (
           <VideoView
@@ -262,6 +286,14 @@ export default function PlayerScreen({ navigation, route }) {
           onPress={handleClose}
         >
           <Text style={styles.closeText}>✕</Text>
+        </TouchableOpacity>
+
+        {/* Toggle button for background video */}
+        <TouchableOpacity
+          style={styles.toggleButton}
+          onPress={handleToggleBackgroundVideo}
+        >
+          <Text style={styles.toggleText}>{showBackgroundVideo ? '🎬' : '🏔️'}</Text>
         </TouchableOpacity>
 
         <View style={styles.controlsContainer}>
@@ -371,6 +403,20 @@ const styles = StyleSheet.create({
   },
   closeText: {
     color: '#ffffff',
+    fontSize: 24,
+  },
+  toggleButton: {
+    position: 'absolute',
+    top: 60,
+    left: 30,
+    width: 44,
+    height: 44,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    borderRadius: 22,
+  },
+  toggleText: {
     fontSize: 24,
   },
   controlsContainer: {
