@@ -9,6 +9,28 @@ import PlayerScreen from './components/PlayerScreen'
 const Stack = createStackNavigator()
 const Tab = createBottomTabNavigator()
 
+// Stack navigator for Home tab (includes Player modal)
+function HomeStack() {
+  return (
+    <Stack.Navigator
+      screenOptions={{
+        headerShown: false,
+        cardStyle: { backgroundColor: '#000000' },
+      }}
+    >
+      <Stack.Screen name="HomeMain" component={HomeScreen} />
+      <Stack.Screen
+        name="Player"
+        component={PlayerScreen}
+        options={{
+          presentation: 'fullScreenModal',
+          gestureEnabled: false,
+        }}
+      />
+    </Stack.Navigator>
+  )
+}
+
 // Stack navigator for Check In tab (includes Player modal)
 function CheckInStack() {
   return (
@@ -48,14 +70,20 @@ export default function App() {
       >
         <Tab.Screen
           name="Home"
-          component={HomeScreen}
-          options={{
+          component={HomeStack}
+          options={({ route }) => ({
             tabBarLabel: 'Home',
-            tabBarStyle: {
-              backgroundColor: '#000000',
-              borderTopColor: '#333333',
-            },
-          }}
+            tabBarStyle: (() => {
+              const routeName = getFocusedRouteNameFromRoute(route)
+              if (routeName === 'Player') {
+                return { display: 'none' }
+              }
+              return {
+                backgroundColor: '#000000',
+                borderTopColor: '#333333',
+              }
+            })(),
+          })}
         />
         <Tab.Screen
           name="Check In"

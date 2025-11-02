@@ -1,10 +1,10 @@
 ---
 id: task-9
 title: Build home screen with video carousel
-status: To Do
+status: Done
 assignee: []
 created_date: '2025-11-02 06:24'
-updated_date: '2025-11-02 06:28'
+updated_date: '2025-11-02 06:32'
 labels:
   - feature
   - home
@@ -33,7 +33,7 @@ The home screen will serve as the landing page and include:
 - Clean, minimalist aesthetic following SoMi design principles (black background #000000, white text #ffffff, red accents #ff6b6b)
 
 **TODO: Thumbnail URL to be provided by user**
-- Placeholder for thumbnail image URL will be needed
+- thumnail image url is: https://qujifwhwntqxziymqdwu.supabase.co/storage/v1/object/public/test/video_thumbnail.png
 - Carousel will use this URL to display video preview images
 
 This is an MVP feature to test the carousel interaction pattern and see how it feels in the app.
@@ -41,12 +41,54 @@ This is an MVP feature to test the carousel interaction pattern and see how it f
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 Home screen component created with minimalist layout
-- [ ] #2 Carousel component implemented at bottom of screen
-- [ ] #3 Carousel displays video thumbnails (using placeholder URL)
-- [ ] #4 Tapping thumbnail navigates to video player
-- [ ] #5 Styling matches SoMi aesthetic (black bg, white text, red accents)
-- [ ] #6 Carousel is scrollable/swipeable horizontally
-- [ ] #7 Layout matches provided mockup concept
-- [ ] #8 Placeholder ready for thumbnail URL input
+- [x] #1 Home screen component created with minimalist layout
+- [x] #2 Carousel component implemented at bottom of screen
+- [x] #3 Carousel displays video thumbnails (using placeholder URL)
+- [x] #4 Tapping thumbnail navigates to video player
+- [x] #5 Styling matches SoMi aesthetic (black bg, white text, red accents)
+- [x] #6 Carousel is scrollable/swipeable horizontally
+- [x] #7 Layout matches provided mockup concept
+- [x] #8 Placeholder ready for thumbnail URL input
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+## Implementation Summary
+
+Successfully implemented the home screen with video carousel feature. Here's what was built:
+
+### Changes Made:
+
+1. **App.js** - Added HomeStack navigator
+   - Created HomeStack similar to CheckInStack to enable navigation from Home to Player
+   - Configured tab bar to hide when Player modal is open
+   - Updated Home tab to use HomeStack instead of direct HomeScreen component
+
+2. **HomeScreen.js** - Complete rebuild with carousel
+   - Added welcome section with greeting text and stats placeholder
+   - Implemented horizontal scrollable video carousel using ScrollView
+   - Added three sample videos using the provided thumbnail URL
+   - Integrated haptic feedback for all interactions
+   - Added navigation to PlayerScreen when thumbnail is tapped
+   - Styled according to SoMi design principles (black #000000, white #ffffff, red #ff6b6b)
+
+### Key Features:
+- Minimalist welcome text inspired by mockup design
+- Horizontal carousel with smooth scrolling (snapToInterval for nice UX)
+- Video thumbnails with rounded corners and titles
+- "Browse Videos" section header with red "See All" button
+- Haptic feedback on tap for enhanced user experience
+- Clean navigation to fullscreen video player
+- Tab bar properly hides during video playback
+
+### Video Data Structure:
+The videos array is easily extensible - just add more objects with:
+- id: unique identifier
+- title: video name
+- thumbnail: URL to thumbnail image
+- url: URL to video file
+- type: 'video' or 'audio'
+
+All acceptance criteria have been met and the feature is ready for testing on device.
+<!-- SECTION:NOTES:END -->
