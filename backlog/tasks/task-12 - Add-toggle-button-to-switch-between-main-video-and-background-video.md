@@ -1,5 +1,5 @@
 ---
-id: task-11
+id: task-12
 title: Add toggle button to switch between main video and background video
 status: To Do
 assignee: []
@@ -10,7 +10,7 @@ labels:
   - player
   - ux
 dependencies:
-  - task-10
+  - task-11
 priority: high
 ordinal: 2000
 ---
@@ -18,15 +18,15 @@ ordinal: 2000
 ## Description
 
 <!-- SECTION:DESCRIPTION:BEGIN -->
-Add a toggle button to the player overlay that lets users manually switch between the main video and the background video (built in task-10). This is purely UI and state management - the background video player already exists.
+Add a toggle button to the player overlay that lets users manually switch between the main video and the background video (built in task-11). This is purely UI and state management - the background video player already exists.
 
-**IMPORTANT**: The toggle button should ONLY appear when playing video content. For MP3s, the background video shows automatically (task-10) and there's no toggle needed since there's no main video to switch back to.
+**IMPORTANT**: The toggle button should ONLY appear when playing video content. For MP3s, the background video shows automatically (task-11) and there's no toggle needed since there's no main video to switch back to.
 
 Scope:
 - Design and add toggle button to player overlay
 - Toggle button only appears when playing video content (NOT for MP3s)
 - Add state to track whether user wants to see main video or background video
-- When toggled, show background video (from task-10) instead of main video
+- When toggled, show background video (from task-11) instead of main video
 - Visually indicate current toggle state
 - Ensure smooth transitions and that audio continues uninterrupted
 <!-- SECTION:DESCRIPTION:END -->
