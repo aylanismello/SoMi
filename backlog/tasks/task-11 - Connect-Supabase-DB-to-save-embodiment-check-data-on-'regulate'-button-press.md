@@ -1,9 +1,10 @@
 ---
 id: task-11
 title: Connect Supabase DB to save embodiment check data on 'regulate' button press
-status: To Do
+status: Done
 assignee: []
 created_date: '2025-11-02 07:32'
+updated_date: '2025-11-02 07:45'
 labels: []
 dependencies: []
 priority: high
@@ -19,9 +20,9 @@ Table already created in Supabase with columns: id (int8), created_at (timestamp
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 Install @supabase/supabase-js package
-- [ ] #2 Create supabase.js config file with client initialization (need to get anon key from Supabase dashboard)
-- [ ] #3 Update SoMeCheckIn.js to save slider_value to database when 'regulate' button is pressed
-- [ ] #4 Verify data is being saved in Supabase table editor after pressing regulate button
-- [ ] #5 Handle errors gracefully (console log for MVP is fine)
+- [x] #1 Install @supabase/supabase-js package
+- [x] #2 Create supabase.js config file with client initialization (need to get anon key from Supabase dashboard)
+- [x] #3 Update SoMeCheckIn.js to save slider_value to database when 'regulate' button is pressed
+- [x] #4 Verify data is being saved in Supabase table editor after pressing regulate button
+- [x] #5 Handle errors gracefully (console log for MVP is fine)
 <!-- AC:END -->

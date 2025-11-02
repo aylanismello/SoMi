@@ -1,4 +1,6 @@
 import { StyleSheet, View, Text, ScrollView, TouchableOpacity, Image } from 'react-native'
+import { LinearGradient } from 'expo-linear-gradient'
+import { BlurView } from 'expo-blur'
 import * as Haptics from 'expo-haptics'
 
 export default function HomeScreen({ navigation }) {
@@ -33,7 +35,10 @@ export default function HomeScreen({ navigation }) {
   }
 
   return (
-    <View style={styles.container}>
+    <LinearGradient
+      colors={['#0f0c29', '#302b63', '#24243e']}
+      style={styles.container}
+    >
       {/* SoMi Logo at top */}
       <View style={styles.logoSection}>
         <Text style={styles.logoText}>SoMi</Text>
@@ -42,15 +47,30 @@ export default function HomeScreen({ navigation }) {
       {/* Welcome section - vertically centered */}
       <View style={styles.welcomeSection}>
         <View style={styles.welcomeContent}>
-          <Text style={styles.welcomeText}>hi there.{'\n'}welcome back to SoMi.</Text>
-          <Text style={styles.statsText}>"Last check-in: +35%{'\n'}— Mobilized to Ventral."</Text>
+          <Text style={styles.welcomeText}>Hi there.</Text>
+          <Text style={styles.welcomeSubtext}>Welcome back</Text>
+
+          <BlurView intensity={20} tint="dark" style={styles.statsCard}>
+            <View style={styles.statsContent}>
+              <Text style={styles.statsLabel}>Last check-in</Text>
+              <View style={styles.statRow}>
+                <LinearGradient
+                  colors={['#4ecdc4', '#44a08d']}
+                  style={styles.progressIndicator}
+                >
+                  <Text style={styles.statsChange}>+35%</Text>
+                </LinearGradient>
+              </View>
+              <Text style={styles.statsDetail}>Mobilized → Ventral</Text>
+            </View>
+          </BlurView>
         </View>
       </View>
 
       {/* Video carousel section */}
       <View style={styles.carouselSection}>
         <View style={styles.carouselHeader}>
-          <Text style={styles.carouselTitle}>Browse Videos</Text>
+          <Text style={styles.carouselTitle}>Regulation Practices</Text>
           <TouchableOpacity onPress={() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)}>
             <Text style={styles.seeAllText}>See All</Text>
           </TouchableOpacity>
@@ -75,6 +95,10 @@ export default function HomeScreen({ navigation }) {
                 style={styles.thumbnail}
                 resizeMode="cover"
               />
+              <LinearGradient
+                colors={['transparent', 'rgba(0,0,0,0.8)']}
+                style={styles.thumbnailOverlay}
+              />
               <View style={styles.videoInfo}>
                 <Text style={styles.videoTitle}>{video.title}</Text>
               </View>
@@ -82,90 +106,154 @@ export default function HomeScreen({ navigation }) {
           ))}
         </ScrollView>
       </View>
-    </View>
+    </LinearGradient>
   )
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#000000',
   },
   logoSection: {
-    paddingTop: 60,
-    paddingBottom: 20,
+    paddingTop: 70,
+    paddingBottom: 30,
     alignItems: 'center',
   },
   logoText: {
-    color: '#ffffff',
-    fontSize: 28,
-    fontWeight: '600',
-    letterSpacing: 1,
+    color: '#f7f9fb',
+    fontSize: 36,
+    fontWeight: '700',
+    letterSpacing: 2,
+    marginBottom: 4,
+  },
+  logoSubtext: {
+    color: 'rgba(247, 249, 251, 0.6)',
+    fontSize: 13,
+    fontWeight: '500',
+    letterSpacing: 1.5,
+    textTransform: 'uppercase',
   },
   welcomeSection: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    paddingHorizontal: 30,
+    paddingHorizontal: 24,
   },
   welcomeContent: {
     alignItems: 'center',
+    width: '100%',
   },
   welcomeText: {
-    color: '#ffffff',
-    fontSize: 32,
+    color: '#f7f9fb',
+    fontSize: 28,
     fontWeight: '600',
-    lineHeight: 40,
-    marginBottom: 30,
+    marginBottom: 8,
     textAlign: 'center',
+    letterSpacing: 0.5,
   },
-  statsText: {
-    color: '#ffffff',
-    fontSize: 18,
-    lineHeight: 26,
-    opacity: 0.8,
+  welcomeSubtext: {
+    color: 'rgba(247, 249, 251, 0.7)',
+    fontSize: 20,
+    fontWeight: '400',
+    marginBottom: 40,
     textAlign: 'center',
+    letterSpacing: 0.3,
+  },
+  statsCard: {
+    borderRadius: 20,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
+    width: '100%',
+  },
+  statsContent: {
+    padding: 24,
+    alignItems: 'center',
+  },
+  statsLabel: {
+    color: 'rgba(247, 249, 251, 0.7)',
+    fontSize: 14,
+    fontWeight: '500',
+    marginBottom: 12,
+    letterSpacing: 0.5,
+  },
+  statRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  progressIndicator: {
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    borderRadius: 16,
+  },
+  statsChange: {
+    color: '#ffffff',
+    fontSize: 28,
+    fontWeight: '700',
+    letterSpacing: 0.5,
+  },
+  statsDetail: {
+    color: 'rgba(247, 249, 251, 0.8)',
+    fontSize: 16,
+    fontWeight: '500',
+    letterSpacing: 0.3,
   },
   carouselSection: {
-    paddingBottom: 40,
+    paddingBottom: 20,
+    paddingTop: 30,
   },
   carouselHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: 30,
+    paddingHorizontal: 24,
     marginBottom: 20,
   },
   carouselTitle: {
-    color: '#ffffff',
-    fontSize: 20,
+    color: '#f7f9fb',
+    fontSize: 22,
     fontWeight: '600',
+    letterSpacing: 0.3,
   },
   seeAllText: {
-    color: '#ff6b6b',
+    color: '#4ecdc4',
     fontSize: 16,
-    fontWeight: '500',
+    fontWeight: '600',
+    letterSpacing: 0.3,
   },
   carouselContent: {
-    paddingHorizontal: 30,
-    gap: 20,
+    paddingHorizontal: 24,
+    gap: 16,
   },
   videoCard: {
-    width: 240,
-    marginRight: 20,
+    width: 260,
+    marginRight: 16,
+    borderRadius: 16,
+    overflow: 'hidden',
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
   },
   thumbnail: {
     width: '100%',
-    height: 160,
-    borderRadius: 12,
-    backgroundColor: '#1a1a1a',
+    height: 180,
+    backgroundColor: 'rgba(0, 0, 0, 0.3)',
+  },
+  thumbnailOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    height: 180,
   },
   videoInfo: {
-    marginTop: 12,
+    padding: 16,
   },
   videoTitle: {
-    color: '#ffffff',
-    fontSize: 16,
-    fontWeight: '500',
+    color: '#f7f9fb',
+    fontSize: 17,
+    fontWeight: '600',
+    letterSpacing: 0.3,
   },
 })
