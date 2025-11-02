@@ -4,12 +4,13 @@ title: Refactor embodiment slider into reusable component
 status: Done
 assignee: []
 created_date: '2025-10-31 23:39'
-updated_date: '2025-10-31 23:51'
+updated_date: '2025-11-02 05:56'
 labels:
   - refactoring
   - component
 dependencies: []
 priority: medium
+ordinal: 2000
 ---
 
 ## Description

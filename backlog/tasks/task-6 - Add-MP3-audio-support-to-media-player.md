@@ -4,10 +4,11 @@ title: Add MP3/audio support to media player
 status: Done
 assignee: []
 created_date: '2025-10-30 06:10'
-updated_date: '2025-10-30 06:53'
+updated_date: '2025-11-02 05:56'
 labels: []
 dependencies: []
 priority: medium
+ordinal: 3000
 ---
 
 ## Description

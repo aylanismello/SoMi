@@ -4,9 +4,11 @@ title: SoMi MVP Bootstrap
 status: Done
 assignee: []
 created_date: '2025-10-29 06:02'
+updated_date: '2025-11-02 05:56'
 labels: []
 dependencies: []
 priority: high
+ordinal: 7000
 ---
 
 ## Description

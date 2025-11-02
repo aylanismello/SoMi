@@ -4,7 +4,7 @@ title: Smooth Control Animations & Interactive Progress Scrubbing
 status: Done
 assignee: []
 created_date: '2025-10-29 06:54'
-updated_date: '2025-10-29 07:02'
+updated_date: '2025-11-02 05:56'
 labels:
   - ui
   - video
@@ -13,6 +13,7 @@ labels:
 dependencies:
   - task-3
 priority: high
+ordinal: 5000
 ---
 
 ## Description

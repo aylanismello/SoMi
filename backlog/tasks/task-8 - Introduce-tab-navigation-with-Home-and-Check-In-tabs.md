@@ -1,17 +1,17 @@
 ---
 id: task-8
 title: Introduce tab navigation with Home and Check In tabs
-status: To Do
+status: Done
 assignee: []
 created_date: '2025-10-31 23:39'
-updated_date: '2025-11-02 05:42'
+updated_date: '2025-11-02 05:56'
 labels:
   - feature
   - ux
 dependencies:
   - task-7
 priority: high
-ordinal: 3000
+ordinal: 8000
 ---
 
 ## Description

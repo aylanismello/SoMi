@@ -4,7 +4,7 @@ title: Slider with Polyvagal State Labels + SoMi Time Button → Video Player
 status: Done
 assignee: []
 created_date: '2025-10-29 07:45'
-updated_date: '2025-10-29 08:00'
+updated_date: '2025-11-02 05:56'
 labels:
   - ui
   - slider
@@ -13,6 +13,7 @@ labels:
 dependencies:
   - task-4
 priority: high
+ordinal: 4000
 ---
 
 ## Description

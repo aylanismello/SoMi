@@ -4,7 +4,7 @@ title: 'Advanced Player UI - Controls, Progress, and Styling'
 status: Done
 assignee: []
 created_date: '2025-10-29 06:32'
-updated_date: '2025-10-29 06:51'
+updated_date: '2025-11-02 05:56'
 labels:
   - ui
   - video
@@ -12,6 +12,7 @@ labels:
 dependencies:
   - task-2
 priority: high
+ordinal: 6000
 ---
 
 ## Description
