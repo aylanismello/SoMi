@@ -6,21 +6,21 @@ export default function HomeScreen({ navigation }) {
   const videos = [
     {
       id: '1',
-      title: 'Calming Meditation',
+      title: 'Deep Breathing Exercise',
       thumbnail: 'https://qujifwhwntqxziymqdwu.supabase.co/storage/v1/object/public/test/video_thumbnail.png',
       url: 'https://qujifwhwntqxziymqdwu.supabase.co/storage/v1/object/public/test/test.mov',
       type: 'video',
     },
     {
       id: '2',
-      title: 'Ocean Sounds',
+      title: 'Vagus Nerve Activation',
       thumbnail: 'https://qujifwhwntqxziymqdwu.supabase.co/storage/v1/object/public/test/video_thumbnail.png',
       url: 'https://qujifwhwntqxziymqdwu.supabase.co/storage/v1/object/public/test/test.mov',
       type: 'video',
     },
     {
       id: '3',
-      title: 'Forest Walk',
+      title: 'Calming Breath Work',
       thumbnail: 'https://qujifwhwntqxziymqdwu.supabase.co/storage/v1/object/public/test/video_thumbnail.png',
       url: 'https://qujifwhwntqxziymqdwu.supabase.co/storage/v1/object/public/test/test.mov',
       type: 'video',
@@ -34,10 +34,17 @@ export default function HomeScreen({ navigation }) {
 
   return (
     <View style={styles.container}>
-      {/* Welcome section */}
+      {/* SoMi Logo at top */}
+      <View style={styles.logoSection}>
+        <Text style={styles.logoText}>SoMi</Text>
+      </View>
+
+      {/* Welcome section - vertically centered */}
       <View style={styles.welcomeSection}>
-        <Text style={styles.welcomeText}>hi there.{'\n'}welcome back to SoMi.</Text>
-        <Text style={styles.statsText}>"Last check-in: +35%{'\n'}— Mobilized to Ventral."</Text>
+        <View style={styles.welcomeContent}>
+          <Text style={styles.welcomeText}>hi there.{'\n'}welcome back to SoMi.</Text>
+          <Text style={styles.statsText}>"Last check-in: +35%{'\n'}— Mobilized to Ventral."</Text>
+        </View>
       </View>
 
       {/* Video carousel section */}
@@ -84,10 +91,25 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#000000',
   },
+  logoSection: {
+    paddingTop: 60,
+    paddingBottom: 20,
+    alignItems: 'center',
+  },
+  logoText: {
+    color: '#ffffff',
+    fontSize: 28,
+    fontWeight: '600',
+    letterSpacing: 1,
+  },
   welcomeSection: {
     flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
     paddingHorizontal: 30,
-    paddingTop: 80,
+  },
+  welcomeContent: {
+    alignItems: 'center',
   },
   welcomeText: {
     color: '#ffffff',
@@ -95,12 +117,14 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     lineHeight: 40,
     marginBottom: 30,
+    textAlign: 'center',
   },
   statsText: {
     color: '#ffffff',
     fontSize: 18,
     lineHeight: 26,
     opacity: 0.8,
+    textAlign: 'center',
   },
   carouselSection: {
     paddingBottom: 40,
