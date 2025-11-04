@@ -1,5 +1,5 @@
 import { StyleSheet, Text, View, PanResponder, TouchableOpacity, ScrollView, Animated } from 'react-native'
-import { useRef, useState, useEffect } from 'react'
+import { useRef, useState, useEffect, useMemo } from 'react'
 import Svg, { Circle, Defs, LinearGradient, Stop, G, Path } from 'react-native-svg'
 import * as Haptics from 'expo-haptics'
 
@@ -37,28 +37,42 @@ export default function EmbodimentSlider({
   onConfirm = null,
 }) {
   const previousValueRef = useRef(value)
-  const scrollViewRef = useRef(null)
-  const hasInitialized = useRef(false)
   const touchStartedOnRing = useRef(false)
 
   // Get current selected state index
   const selectedIndex = states.findIndex(s => s.id === selectedStateId)
-  const CHIP_WIDTH = 100
 
-  // Initialize scroll position to middle set of states
-  useEffect(() => {
-    if (showCarousel && states.length > 0 && scrollViewRef.current && !hasInitialized.current) {
-      // Wait a bit for layout to complete
-      setTimeout(() => {
-        if (scrollViewRef.current) {
-          const middleSetOffset = states.length * CHIP_WIDTH
-          const selectedOffset = selectedIndex * CHIP_WIDTH
-          scrollViewRef.current.scrollTo({ x: middleSetOffset + selectedOffset, animated: false })
-          hasInitialized.current = true
+  // Create PanResponder for carousel swipes - use useMemo to recreate when dependencies change
+  const carouselPanResponder = useMemo(() => {
+    if (!showCarousel) return null
+
+    return PanResponder.create({
+      onStartShouldSetPanResponder: () => true,
+      onMoveShouldSetPanResponder: () => true,
+      onPanResponderRelease: (evt, gestureState) => {
+        const { dx } = gestureState
+
+        // Swipe threshold
+        if (Math.abs(dx) > 30) {
+          if (dx > 0) {
+            // Swiped right - go to previous state
+            const newIndex = (selectedIndex - 1 + states.length) % states.length
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
+            if (onStateChange) {
+              onStateChange(states[newIndex].id)
+            }
+          } else {
+            // Swiped left - go to next state
+            const newIndex = (selectedIndex + 1) % states.length
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
+            if (onStateChange) {
+              onStateChange(states[newIndex].id)
+            }
+          }
         }
-      }, 100)
-    }
-  }, [showCarousel, states.length, selectedIndex])
+      },
+    })
+  }, [showCarousel, selectedIndex, states, onStateChange])
 
   // Get current state label and color based on slider value
   const getCurrentState = () => {
@@ -94,16 +108,6 @@ export default function EmbodimentSlider({
     const outerBound = RADIUS + STROKE_WIDTH / 2 + 5 // 92 + 8 + 5 = 105px (with 5px tolerance)
 
     const isOnRing = distanceFromCenter >= innerBound && distanceFromCenter <= outerBound
-
-    console.log('Touch check:', {
-      touchX,
-      touchY,
-      distanceFromCenter,
-      innerBound,
-      outerBound,
-      isOnRing
-    })
-
     return isOnRing
   }
 
@@ -115,34 +119,26 @@ export default function EmbodimentSlider({
         const shouldRespond = isTouchOnRing(evt)
         if (shouldRespond) {
           touchStartedOnRing.current = true
-          console.log('✓ Touch STARTED on ring - claiming responder')
         } else {
           touchStartedOnRing.current = false
-          console.log('✗ Touch started OUTSIDE ring - rejecting')
         }
         return shouldRespond
       },
-      onMoveShouldSetPanResponder: (evt) => {
+      onMoveShouldSetPanResponder: () => {
         // NEVER claim responder on move - only if we claimed it on start
         // This prevents center touches from being claimed mid-gesture
-        console.log('onMoveShouldSetPanResponder - returning false to prevent mid-gesture claim')
         return false
       },
       onPanResponderGrant: (evt) => {
-        console.log('onPanResponderGrant called')
         handleTouch(evt.nativeEvent, true)
       },
       onPanResponderMove: (evt) => {
         // Only handle if touch started on ring
         if (touchStartedOnRing.current) {
-          console.log('Move: touch started on ring, handling')
           handleTouch(evt.nativeEvent, false)
-        } else {
-          console.log('Move: REJECTED - touch did not start on ring')
         }
       },
       onPanResponderRelease: () => {
-        console.log('Touch released')
         touchStartedOnRing.current = false
         previousValueRef.current = value
       },
@@ -150,7 +146,6 @@ export default function EmbodimentSlider({
   ).current
 
   const handleTouch = (evt, isInitialTap) => {
-    console.log('handleTouch called')
     // Get touch position relative to circle center
     const touchX = evt.locationX - CENTER
     const touchY = evt.locationY - CENTER
@@ -184,28 +179,6 @@ export default function EmbodimentSlider({
 
     previousValueRef.current = newValue
     onValueChange(newValue)
-  }
-
-  // Handle carousel scroll to update current visible state
-  const handleScroll = (event) => {
-    if (!states.length || !onStateChange) return
-
-    const scrollPosition = event.nativeEvent.contentOffset.x
-    const containerWidth = 120
-    const centerPosition = scrollPosition + (containerWidth / 2)
-
-    // Calculate which chip is at center (accounting for padding)
-    const paddingOffset = (containerWidth - CHIP_WIDTH) / 2
-    const relativePosition = centerPosition - paddingOffset
-
-    // Find the index in the tripled array
-    const rawIndex = Math.round(relativePosition / CHIP_WIDTH)
-    const actualIndex = rawIndex % states.length
-
-    if (actualIndex !== selectedIndex && actualIndex >= 0 && actualIndex < states.length) {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
-      onStateChange(states[actualIndex].id)
-    }
   }
 
   // Handle tap on centered chip to confirm
@@ -328,77 +301,55 @@ export default function EmbodimentSlider({
           </TouchableOpacity>
         )}
 
-        {/* Center touch blocker - blocks all touches in the center */}
-        <View
-          style={{
-            position: 'absolute',
-            top: CENTER - 70,
-            left: CENTER - 70,
-            width: 140,
-            height: 140,
-            borderRadius: 70,
-            backgroundColor: 'rgba(255, 0, 0, 0.1)', // Red tint for debugging
-          }}
-          onStartShouldSetResponder={() => true}
-          onMoveShouldSetResponder={() => true}
-          onResponderGrant={() => console.log('Center blocked a touch')}
-        />
-
-        {/* State carousel in center - TEMPORARILY DISABLED FOR DEBUGGING */}
-        {false && showCarousel && states.length > 0 && (
+        {/* State carousel in center - simple swipeable */}
+        {showCarousel && states.length > 0 && carouselPanResponder && (
           <View
             style={styles.carouselContainer}
-            onStartShouldSetResponderCapture={() => true}
-            onMoveShouldSetResponderCapture={() => true}
+            {...carouselPanResponder.panHandlers}
           >
-            {/* Circular blocker for center area */}
-            <View
-              style={styles.carouselBlocker}
-              onStartShouldSetResponderCapture={() => true}
-            />
-
-            <ScrollView
-              ref={scrollViewRef}
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              snapToInterval={100}
-              decelerationRate="fast"
-              onMomentumScrollEnd={handleScroll}
-              contentContainerStyle={styles.carouselContent}
-              style={styles.carouselScrollView}
+            {/* Show current state centered */}
+            <TouchableOpacity
+              onPress={handleChipTap}
+              activeOpacity={0.7}
+              style={styles.carouselChipContainer}
             >
-              {/* Render states multiple times for infinite loop effect */}
-              {[...states, ...states, ...states].map((state, idx) => {
-                const actualIndex = idx % states.length
-                const isCentered = selectedIndex === actualIndex
+              <View style={[
+                styles.carouselChipInner,
+                styles.carouselChipCentered,
+                isConfirmed && styles.carouselChipConfirmed,
+                isConfirmed && {
+                  backgroundColor: states[selectedIndex]?.color + '40',
+                  borderColor: states[selectedIndex]?.color
+                }
+              ]}>
+                <Text style={[
+                  styles.carouselChipText,
+                  { color: isConfirmed ? states[selectedIndex]?.color : '#f7f9fb' }
+                ]}>
+                  {states[selectedIndex]?.label}
+                </Text>
+              </View>
+            </TouchableOpacity>
 
-                return (
-                  <TouchableOpacity
-                    key={`${state.id}-${idx}`}
-                    onPress={isCentered ? handleChipTap : null}
-                    activeOpacity={isCentered ? 0.7 : 1}
-                    style={styles.carouselChip}
-                    disabled={!isCentered}
-                  >
-                    <View style={[
-                      styles.carouselChipInner,
-                      isCentered && styles.carouselChipCentered,
-                      isCentered && isConfirmed && styles.carouselChipConfirmed,
-                      isCentered && isConfirmed && { backgroundColor: state.color + '40', borderColor: state.color },
-                      !isCentered && styles.carouselChipGhost
-                    ]}>
-                      <Text style={[
-                        styles.carouselChipText,
-                        isCentered && { color: isConfirmed ? state.color : '#f7f9fb' },
-                        !isCentered && styles.carouselChipTextGhost
-                      ]}>
-                        {state.label}
-                      </Text>
-                    </View>
-                  </TouchableOpacity>
-                )
-              })}
-            </ScrollView>
+            {/* Swipe hint - show ghost states on sides (only when not confirmed) */}
+            {!isConfirmed && (
+              <>
+                <View style={styles.carouselGhostLeft}>
+                  <View style={[styles.carouselChipInner, styles.carouselChipGhost]}>
+                    <Text style={[styles.carouselChipText, styles.carouselChipTextGhost]}>
+                      {states[(selectedIndex - 1 + states.length) % states.length]?.label}
+                    </Text>
+                  </View>
+                </View>
+                <View style={styles.carouselGhostRight}>
+                  <View style={[styles.carouselChipInner, styles.carouselChipGhost]}>
+                    <Text style={[styles.carouselChipText, styles.carouselChipTextGhost]}>
+                      {states[(selectedIndex + 1) % states.length]?.label}
+                    </Text>
+                  </View>
+                </View>
+              </>
+            )}
           </View>
         )}
       </View>
@@ -484,31 +435,28 @@ const styles = StyleSheet.create({
   },
   carouselContainer: {
     position: 'absolute',
-    top: CENTER - 60,  // Center the 120px container
-    left: CENTER - 60,
-    width: 120,  // Only cover center area
-    height: 120,
+    top: CENTER - 30,
+    left: 0,
+    width: CIRCLE_SIZE,
+    height: 60,
     alignItems: 'center',
     justifyContent: 'center',
-    overflow: 'visible',  // Allow ScrollView to be visible
+    flexDirection: 'row',
   },
-  carouselBlocker: {
-    position: 'absolute',
-    width: 120,
-    height: 120,
-    borderRadius: 60,
-    backgroundColor: 'transparent',
-  },
-  carouselScrollView: {
+  carouselChipContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
     zIndex: 10,
   },
-  carouselContent: {
+  carouselGhostLeft: {
+    position: 'absolute',
+    left: 20,
     alignItems: 'center',
-    paddingHorizontal: (120 - 100) / 2,  // Adjust for smaller container
+    justifyContent: 'center',
   },
-  carouselChip: {
-    width: 100,
-    height: 60,
+  carouselGhostRight: {
+    position: 'absolute',
+    right: 20,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -532,8 +480,8 @@ const styles = StyleSheet.create({
     borderWidth: 2,
   },
   carouselChipGhost: {
-    opacity: 0.3,
-    transform: [{ scale: 0.85 }],
+    opacity: 0.25,
+    transform: [{ scale: 0.8 }],
   },
   carouselChipText: {
     color: 'rgba(247, 249, 251, 0.8)',
