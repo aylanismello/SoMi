@@ -71,6 +71,10 @@ export default function SoMeCheckIn({ navigation }) {
   const handleSliderChange = (value) => {
     setSliderValue(value)
     setSliderChanged(true)
+    // Reset confirmation when slider changes
+    if (isConfirmed) {
+      setIsConfirmed(false)
+    }
   }
 
   const handleConfirm = () => {
@@ -177,12 +181,12 @@ export default function SoMeCheckIn({ navigation }) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    paddingTop: 60,
+    paddingTop: 75,
     paddingBottom: 40,
     paddingHorizontal: 24,
   },
   header: {
-    marginBottom: 25,
+    marginBottom: 30,
     position: 'relative',
   },
   greeting: {
@@ -224,7 +228,7 @@ const styles = StyleSheet.create({
   },
   card: {
     borderRadius: 24,
-    overflow: 'hidden',
+    overflow: 'visible',
     marginBottom: 25,
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.1)',

@@ -13,9 +13,11 @@ const STATE_LABELS = [
 ]
 
 const CIRCLE_SIZE = 200
+const PADDING = 20 // Extra space for handle glow
+const SVG_SIZE = CIRCLE_SIZE + PADDING * 2
 const STROKE_WIDTH = 16
 const RADIUS = (CIRCLE_SIZE - STROKE_WIDTH) / 2
-const CENTER = CIRCLE_SIZE / 2
+const CENTER = SVG_SIZE / 2
 const CIRCUMFERENCE = 2 * Math.PI * RADIUS
 
 export default function EmbodimentSlider({
@@ -39,8 +41,32 @@ export default function EmbodimentSlider({
   const previousValueRef = useRef(value)
   const touchStartedOnRing = useRef(false)
 
+  // Animation values for carousel
+  const slideAnim = useRef(new Animated.Value(0)).current
+  const previousIndexRef = useRef(0)
+
   // Get current selected state index
   const selectedIndex = states.findIndex(s => s.id === selectedStateId)
+
+  // Animate slide when state changes
+  useEffect(() => {
+    if (selectedIndex !== previousIndexRef.current) {
+      const direction = selectedIndex > previousIndexRef.current ? 1 : -1
+
+      // Start from offset position
+      slideAnim.setValue(direction * 50)
+
+      // Animate to center
+      Animated.spring(slideAnim, {
+        toValue: 0,
+        tension: 80,
+        friction: 10,
+        useNativeDriver: true,
+      }).start()
+
+      previousIndexRef.current = selectedIndex
+    }
+  }, [selectedIndex])
 
   // Create PanResponder for carousel swipes - use useMemo to recreate when dependencies change
   const carouselPanResponder = useMemo(() => {
@@ -112,7 +138,7 @@ export default function EmbodimentSlider({
   }
 
   // PanResponder for handling touch
-  const panResponder = useRef(
+  const panResponder = useMemo(() =>
     PanResponder.create({
       onStartShouldSetPanResponder: (evt) => {
         // Only respond if touch starts on the ring
@@ -142,8 +168,8 @@ export default function EmbodimentSlider({
         touchStartedOnRing.current = false
         previousValueRef.current = value
       },
-    })
-  ).current
+    }), [value, onValueChange] // Recreate when these change
+  )
 
   const handleTouch = (evt, isInitialTap) => {
     // Get touch position relative to circle center
@@ -212,7 +238,7 @@ export default function EmbodimentSlider({
         style={styles.circularSliderContainer}
         {...panResponder.panHandlers}
       >
-        <Svg width={CIRCLE_SIZE} height={CIRCLE_SIZE}>
+        <Svg width={SVG_SIZE} height={SVG_SIZE}>
           <Defs>
             <LinearGradient id="gradient" x1="0%" y1="0%" x2="100%" y2="100%">
               <Stop offset="0%" stopColor="#7b68ee" stopOpacity="1" />
@@ -307,29 +333,33 @@ export default function EmbodimentSlider({
             style={styles.carouselContainer}
             {...carouselPanResponder.panHandlers}
           >
-            {/* Show current state centered */}
-            <TouchableOpacity
-              onPress={handleChipTap}
-              activeOpacity={0.7}
-              style={styles.carouselChipContainer}
-            >
-              <View style={[
-                styles.carouselChipInner,
-                styles.carouselChipCentered,
-                isConfirmed && styles.carouselChipConfirmed,
-                isConfirmed && {
-                  backgroundColor: states[selectedIndex]?.color + '40',
-                  borderColor: states[selectedIndex]?.color
-                }
-              ]}>
-                <Text style={[
-                  styles.carouselChipText,
-                  { color: isConfirmed ? states[selectedIndex]?.color : '#f7f9fb' }
+            {/* Show current state centered with animation */}
+            <Animated.View style={{ transform: [{ translateX: slideAnim }] }}>
+              <TouchableOpacity
+                onPress={handleChipTap}
+                activeOpacity={0.7}
+                style={styles.carouselChipContainer}
+              >
+                <View style={[
+                  styles.carouselChipInner,
+                  styles.carouselChipCentered,
+                  isConfirmed && styles.carouselChipConfirmed,
+                  isConfirmed && {
+                    backgroundColor: states[selectedIndex]?.color + '40',
+                    borderColor: states[selectedIndex]?.color
+                  }
                 ]}>
-                  {states[selectedIndex]?.label}
-                </Text>
-              </View>
-            </TouchableOpacity>
+                  <Text style={[
+                    styles.carouselChipText,
+                    { color: isConfirmed ? states[selectedIndex]?.color : '#f7f9fb' }
+                  ]}>
+                    {states[selectedIndex]?.label}
+                  </Text>
+                </View>
+                {/* Show percentage below chip */}
+                <Text style={styles.percentageText}>{Math.round(value)}%</Text>
+              </TouchableOpacity>
+            </Animated.View>
 
             {/* Swipe hint - show ghost states on sides (only when not confirmed) */}
             {!isConfirmed && (
@@ -354,12 +384,6 @@ export default function EmbodimentSlider({
         )}
       </View>
 
-      {showLabels && (
-        <View style={styles.labelsContainer}>
-          <Text style={styles.label}>Dysregulated</Text>
-          <Text style={styles.label}>Regulated</Text>
-        </View>
-      )}
     </View>
   )
 }
@@ -403,12 +427,13 @@ const styles = StyleSheet.create({
     letterSpacing: 0.5,
   },
   circularSliderContainer: {
-    width: CIRCLE_SIZE,
-    height: CIRCLE_SIZE,
+    width: SVG_SIZE,
+    height: SVG_SIZE,
     alignItems: 'center',
     justifyContent: 'center',
     marginVertical: 10,
     position: 'relative',
+    overflow: 'visible',
   },
   checkButton: {
     position: 'absolute',
@@ -435,10 +460,10 @@ const styles = StyleSheet.create({
   },
   carouselContainer: {
     position: 'absolute',
-    top: CENTER - 30,
+    top: CENTER - 40,
     left: 0,
-    width: CIRCLE_SIZE,
-    height: 60,
+    width: SVG_SIZE,
+    height: 80,
     alignItems: 'center',
     justifyContent: 'center',
     flexDirection: 'row',
@@ -480,8 +505,16 @@ const styles = StyleSheet.create({
     borderWidth: 2,
   },
   carouselChipGhost: {
-    opacity: 0.25,
-    transform: [{ scale: 0.8 }],
+    opacity: 0.4,
+    transform: [{ scale: 0.75 }],
+  },
+  percentageText: {
+    color: 'rgba(247, 249, 251, 0.7)',
+    fontSize: 16,
+    fontWeight: '600',
+    marginTop: 10,
+    textAlign: 'center',
+    letterSpacing: 1,
   },
   carouselChipText: {
     color: 'rgba(247, 249, 251, 0.8)',
