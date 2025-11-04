@@ -23,8 +23,9 @@ const POLYVAGAL_STATES = [
 
 export default function SoMeCheckIn({ navigation }) {
   const [sliderValue, setSliderValue] = useState(50)
-  const [polyvagalState, setPolyvagalState] = useState(null)
-  const [isChecked, setIsChecked] = useState(false)
+  const [sliderChanged, setSliderChanged] = useState(false)
+  const [polyvagalState, setPolyvagalState] = useState(POLYVAGAL_STATES[2].id) // Default to middle state
+  const [isConfirmed, setIsConfirmed] = useState(false)
 
   const saveEmbodimentCheck = async (value) => {
     try {
@@ -67,14 +68,22 @@ export default function SoMeCheckIn({ navigation }) {
     navigation.navigate('Player', { media, initialValue: sliderValue })
   }
 
-  const handleStateSelect = (stateId) => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
-    setPolyvagalState(stateId)
+  const handleSliderChange = (value) => {
+    setSliderValue(value)
+    setSliderChanged(true)
   }
 
-  const handleCheckToggle = () => {
+  const handleConfirm = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium)
-    setIsChecked(!isChecked)
+    setIsConfirmed(true)
+  }
+
+  const handleStateChange = (stateId) => {
+    setPolyvagalState(stateId)
+    // Reset confirmation when state changes
+    if (isConfirmed) {
+      setIsConfirmed(false)
+    }
   }
 
   const handleBodyScanPress = () => {
@@ -117,52 +126,33 @@ export default function SoMeCheckIn({ navigation }) {
         <View style={styles.cardContent}>
           <EmbodimentSlider
             value={sliderValue}
-            onValueChange={setSliderValue}
+            onValueChange={handleSliderChange}
             question={"how in your body\ndo you feel right now?"}
             showStateLabel={false}
-            showCheckButton={true}
-            isChecked={isChecked}
-            onCheckToggle={handleCheckToggle}
+            showCarousel={true}
+            states={POLYVAGAL_STATES}
+            selectedStateId={polyvagalState}
+            onStateChange={handleStateChange}
+            isConfirmed={isConfirmed}
+            onConfirm={handleConfirm}
           />
 
-          {/* Polyvagal state chips */}
-          <View style={styles.stateChipsContainer}>
-            {POLYVAGAL_STATES.map((state) => (
-              <TouchableOpacity
-                key={state.id}
-                onPress={() => handleStateSelect(state.id)}
-                activeOpacity={0.7}
-              >
-                <View style={[
-                  styles.stateChip,
-                  polyvagalState === state.id && styles.stateChipSelected,
-                  polyvagalState === state.id && { backgroundColor: state.color + '40' }
-                ]}>
-                  <Text style={[
-                    styles.stateChipText,
-                    polyvagalState === state.id && { color: state.color }
-                  ]}>
-                    {state.label}
-                  </Text>
-                </View>
-              </TouchableOpacity>
-            ))}
-          </View>
-
           {/* Body scan button */}
-          <TouchableOpacity
-            onPressIn={handleBodyScanPress}
-            onPressOut={handleBodyScanRelease}
-            activeOpacity={0.8}
-            style={styles.bodyScanButton}
-          >
-            <Text style={styles.bodyScanText}>not sure? do a body scan</Text>
-          </TouchableOpacity>
+          {!isConfirmed && (
+            <TouchableOpacity
+              onPressIn={handleBodyScanPress}
+              onPressOut={handleBodyScanRelease}
+              activeOpacity={0.8}
+              style={styles.bodyScanButton}
+            >
+              <Text style={styles.bodyScanText}>not sure? do a body scan</Text>
+            </TouchableOpacity>
+          )}
         </View>
       </BlurView>
 
       {/* Conditional regulate button */}
-      {isChecked && (
+      {isConfirmed && (
         <View style={styles.regulateContainer}>
           <TouchableOpacity
             onPressIn={handleSoMiTimePress}
@@ -241,31 +231,6 @@ const styles = StyleSheet.create({
   },
   cardContent: {
     padding: 20,
-  },
-  stateChipsContainer: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'center',
-    gap: 8,
-    marginTop: 20,
-    marginBottom: 15,
-  },
-  stateChip: {
-    paddingVertical: 8,
-    paddingHorizontal: 16,
-    borderRadius: 20,
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.15)',
-  },
-  stateChipSelected: {
-    borderWidth: 2,
-  },
-  stateChipText: {
-    color: 'rgba(247, 249, 251, 0.6)',
-    fontSize: 13,
-    fontWeight: '600',
-    letterSpacing: 0.3,
   },
   bodyScanButton: {
     marginTop: 15,

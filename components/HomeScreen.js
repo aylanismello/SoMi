@@ -70,7 +70,7 @@ export default function HomeScreen({ navigation }) {
       {/* Video carousel section */}
       <View style={styles.carouselSection}>
         <View style={styles.carouselHeader}>
-          <Text style={styles.carouselTitle}>Regulation Practices</Text>
+          <Text style={styles.carouselTitle}>Regulation Exercises</Text>
           <TouchableOpacity onPress={() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)}>
             <Text style={styles.seeAllText}>See All</Text>
           </TouchableOpacity>
