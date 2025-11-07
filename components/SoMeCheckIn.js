@@ -46,10 +46,14 @@ export default function SoMeCheckIn({ navigation, route }) {
   const step4Opacity = useRef(new Animated.Value(fromPlayer ? 1 : 0)).current
   const step4TranslateX = useRef(new Animated.Value(fromPlayer ? 0 : 50)).current
 
+  // Ref to track if we just came from player (prevents race condition with useFocusEffect)
+  const justCameFromPlayer = useRef(false)
+
   // Watch for route param changes to handle coming back from Player
   useEffect(() => {
     const isFromPlayer = route?.params?.fromPlayer
     if (isFromPlayer) {
+      justCameFromPlayer.current = true
       // Coming from Player - go to Step 4
       setCurrentStep(4)
 
@@ -69,8 +73,7 @@ export default function SoMeCheckIn({ navigation, route }) {
   // Reset to Step 1 when screen is focused (only if not coming from Player)
   useFocusEffect(
     React.useCallback(() => {
-      const isFromPlayer = route?.params?.fromPlayer
-      if (!isFromPlayer) {
+      if (!justCameFromPlayer.current) {
         // Reset state when coming back to check-in (not from player)
         setSliderValue(50)
         setPolyvagalState(POLYVAGAL_STATES[2].id)
@@ -86,7 +89,9 @@ export default function SoMeCheckIn({ navigation, route }) {
         step4Opacity.setValue(0)
         step4TranslateX.setValue(50)
       }
-    }, [route?.params?.fromPlayer])
+      // Reset the flag after handling
+      justCameFromPlayer.current = false
+    }, [])
   )
 
   const saveEmbodimentCheck = async (value) => {
@@ -512,6 +517,11 @@ export default function SoMeCheckIn({ navigation, route }) {
         ]}
         pointerEvents={currentStep === 4 ? 'auto' : 'none'}
       >
+        {/* Welcome message for Step 4 */}
+        <Text style={styles.step4WelcomeText}>
+          Hello, welcome to step four
+        </Text>
+
         <BlurView intensity={20} tint="dark" style={styles.card}>
           <View style={styles.cardContent}>
             <EmbodimentSlider
@@ -752,6 +762,14 @@ const styles = StyleSheet.create({
     lineHeight: 22,
     marginBottom: 24,
     paddingHorizontal: 12,
+  },
+  step4WelcomeText: {
+    color: '#4ecdc4',
+    fontSize: 18,
+    fontWeight: '600',
+    textAlign: 'center',
+    marginBottom: 20,
+    letterSpacing: 0.5,
   },
   optionsContainer: {
     gap: 16,
