@@ -321,71 +321,49 @@ export default function EmbodimentSlider({
         )}
       </View>
 
-      {/* Polyvagal state chips */}
+      {/* Polyvagal state chips carousel */}
       {showChips && states.length > 0 && (
-        <View style={styles.chipsContainer}>
-          <View style={styles.chipsRow}>
-            {states.slice(0, 3).map((state) => (
+        <View style={styles.carouselContainer}>
+          <ScrollView
+            horizontal
+            pagingEnabled={false}
+            showsHorizontalScrollIndicator={false}
+            decelerationRate="fast"
+            snapToInterval={140}
+            snapToAlignment="center"
+            contentContainerStyle={styles.carouselContent}
+            style={styles.carousel}
+          >
+            {states.map((state) => (
               <TouchableOpacity
                 key={state.id}
                 onPress={() => handleChipPress(state.id)}
                 activeOpacity={0.7}
                 style={[
-                  styles.chip,
-                  selectedStateId === state.id && styles.chipSelected,
+                  styles.carouselChip,
+                  selectedStateId === state.id && styles.carouselChipSelected,
                   { borderColor: state.color }
                 ]}
               >
-                <View style={styles.chipContent}>
-                  <Text style={styles.chipIcon}>{STATE_DESCRIPTIONS[state.id]?.icon}</Text>
+                <View style={styles.carouselChipContent}>
+                  <Text style={styles.carouselChipIcon}>{STATE_DESCRIPTIONS[state.id]?.icon}</Text>
                   <Text style={[
-                    styles.chipLabel,
+                    styles.carouselChipLabel,
                     selectedStateId === state.id && { color: state.color }
                   ]}>
                     {state.label}
                   </Text>
                   <TouchableOpacity
                     onPress={() => handleInfoPress(state.id)}
-                    style={styles.chipInfoButton}
+                    style={styles.carouselChipInfoButton}
                     hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
                   >
-                    <Text style={styles.chipInfoIcon}>ⓘ</Text>
+                    <Text style={styles.carouselChipInfoIcon}>ⓘ</Text>
                   </TouchableOpacity>
                 </View>
               </TouchableOpacity>
             ))}
-          </View>
-          <View style={styles.chipsRow}>
-            {states.slice(3).map((state) => (
-              <TouchableOpacity
-                key={state.id}
-                onPress={() => handleChipPress(state.id)}
-                activeOpacity={0.7}
-                style={[
-                  styles.chip,
-                  selectedStateId === state.id && styles.chipSelected,
-                  { borderColor: state.color }
-                ]}
-              >
-                <View style={styles.chipContent}>
-                  <Text style={styles.chipIcon}>{STATE_DESCRIPTIONS[state.id]?.icon}</Text>
-                  <Text style={[
-                    styles.chipLabel,
-                    selectedStateId === state.id && { color: state.color }
-                  ]}>
-                    {state.label}
-                  </Text>
-                  <TouchableOpacity
-                    onPress={() => handleInfoPress(state.id)}
-                    style={styles.chipInfoButton}
-                    hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-                  >
-                    <Text style={styles.chipInfoIcon}>ⓘ</Text>
-                  </TouchableOpacity>
-                </View>
-              </TouchableOpacity>
-            ))}
-          </View>
+          </ScrollView>
         </View>
       )}
 
@@ -511,49 +489,62 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     letterSpacing: 1,
   },
-  chipsContainer: {
-    marginTop: 20,
+  carouselContainer: {
+    marginTop: 24,
     width: '100%',
+    height: 72,
+  },
+  carousel: {
+    flexGrow: 0,
+  },
+  carouselContent: {
+    paddingHorizontal: 24,
+    alignItems: 'center',
     gap: 12,
   },
-  chipsRow: {
-    flexDirection: 'row',
+  carouselChip: {
+    borderRadius: 24,
+    borderWidth: 2.5,
+    backgroundColor: 'rgba(255, 255, 255, 0.06)',
+    paddingVertical: 14,
+    paddingHorizontal: 18,
+    minWidth: 128,
+    height: 56,
     justifyContent: 'center',
-    gap: 8,
-    flexWrap: 'wrap',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 4,
+    elevation: 3,
   },
-  chip: {
-    borderRadius: 20,
-    borderWidth: 2,
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
-    paddingVertical: 10,
-    paddingHorizontal: 14,
-    minWidth: 105,
+  carouselChipSelected: {
+    backgroundColor: 'rgba(255, 255, 255, 0.18)',
+    borderWidth: 3,
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 5,
   },
-  chipSelected: {
-    backgroundColor: 'rgba(255, 255, 255, 0.15)',
-  },
-  chipContent: {
+  carouselChipContent: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 6,
+    gap: 7,
   },
-  chipIcon: {
-    fontSize: 18,
+  carouselChipIcon: {
+    fontSize: 22,
   },
-  chipLabel: {
-    color: 'rgba(247, 249, 251, 0.8)',
-    fontSize: 14,
+  carouselChipLabel: {
+    color: 'rgba(247, 249, 251, 0.85)',
+    fontSize: 15,
     fontWeight: '600',
-    letterSpacing: 0.3,
+    letterSpacing: 0.4,
   },
-  chipInfoButton: {
-    marginLeft: 2,
+  carouselChipInfoButton: {
+    marginLeft: 3,
   },
-  chipInfoIcon: {
+  carouselChipInfoIcon: {
     color: 'rgba(247, 249, 251, 0.5)',
-    fontSize: 14,
+    fontSize: 15,
     fontWeight: '600',
   },
   modalOverlay: {
