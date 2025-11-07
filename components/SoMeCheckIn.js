@@ -392,6 +392,7 @@ export default function SoMeCheckIn({ navigation, route }) {
         <Animated.View
           style={[
             styles.stepContainer,
+            currentStep === 1 && styles.stepContainerCentered,
             {
               opacity: step1Opacity,
               transform: [{ translateX: step1TranslateX }],
@@ -421,6 +422,22 @@ export default function SoMeCheckIn({ navigation, route }) {
             {/* Body scan button with checkbox for Step 1 */}
             {!showConfirmMessage && (
               <View style={styles.bodyScanContainer}>
+                <TouchableOpacity
+                  onPressIn={handleSOSPress}
+                  onPressOut={handleSOSRelease}
+                  activeOpacity={0.85}
+                  style={styles.sosButtonSmall}
+                >
+                  <LinearGradient
+                    colors={['#ff6b9d', '#ffa8b3']}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                    style={styles.sosButtonSmallGradient}
+                  >
+                    <Text style={styles.sosTextSmall}>SOS</Text>
+                  </LinearGradient>
+                </TouchableOpacity>
+
                 <TouchableOpacity
                   onPressIn={handleBodyScanPress}
                   onPressOut={handleBodyScanRelease}
@@ -537,6 +554,22 @@ export default function SoMeCheckIn({ navigation, route }) {
             {!showConfirmMessage && (
               <View style={styles.bodyScanContainer}>
                 <TouchableOpacity
+                  onPressIn={handleSOSPress}
+                  onPressOut={handleSOSRelease}
+                  activeOpacity={0.85}
+                  style={styles.sosButtonSmall}
+                >
+                  <LinearGradient
+                    colors={['#ff6b9d', '#ffa8b3']}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                    style={styles.sosButtonSmallGradient}
+                  >
+                    <Text style={styles.sosTextSmall}>SOS</Text>
+                  </LinearGradient>
+                </TouchableOpacity>
+
+                <TouchableOpacity
                   onPressIn={handleBodyScanPress}
                   onPressOut={handleBodyScanRelease}
                   activeOpacity={0.8}
@@ -589,31 +622,12 @@ export default function SoMeCheckIn({ navigation, route }) {
             style={[styles.step4Button, styles.step4ButtonSecondary]}
           >
             <BlurView intensity={15} tint="dark" style={styles.step4ButtonBlur}>
-              <Text style={styles.step4ButtonTextSecondary}>Close</Text>
+              <Text style={styles.step4ButtonTextSecondary}>I'm Done</Text>
             </BlurView>
           </TouchableOpacity>
         </View>
       </Animated.View>
       </View>
-
-      {/* SOS button at bottom left - hide on Step 2 and Step 4 */}
-      {currentStep !== 2 && currentStep !== 4 && (
-        <TouchableOpacity
-          onPressIn={handleSOSPress}
-          onPressOut={handleSOSRelease}
-          activeOpacity={0.85}
-          style={styles.sosButtonBottom}
-        >
-          <LinearGradient
-            colors={['#ff6b9d', '#ffa8b3']}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-            style={styles.sosButtonBottomGradient}
-          >
-            <Text style={styles.sosTextBottom}>SOS</Text>
-          </LinearGradient>
-        </TouchableOpacity>
-      )}
     </LinearGradient>
   )
 }
@@ -663,30 +677,9 @@ const styles = StyleSheet.create({
   stepContainer: {
     width: '100%',
   },
-  sosButtonBottom: {
-    position: 'absolute',
-    bottom: 40,
-    left: 24,
-  },
-  sosButtonBottomGradient: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    alignItems: 'center',
+  stepContainerCentered: {
+    flex: 1,
     justifyContent: 'center',
-    shadowColor: '#ff6b9d',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 5,
-  },
-  sosTextBottom: {
-    color: '#ffffff',
-    fontSize: 13,
-    fontWeight: '600',
-    letterSpacing: 1.5,
-    textTransform: 'uppercase',
-    opacity: 0.9,
   },
   card: {
     borderRadius: 24,
@@ -766,8 +759,10 @@ const styles = StyleSheet.create({
   step4ButtonsContainer: {
     marginTop: 24,
     gap: 12,
+    flexDirection: 'row',
   },
   step4Button: {
+    flex: 1,
     borderRadius: 20,
     overflow: 'hidden',
     borderWidth: 1,
@@ -784,14 +779,14 @@ const styles = StyleSheet.create({
   },
   step4ButtonText: {
     color: '#4ecdc4',
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: '600',
     textAlign: 'center',
     letterSpacing: 0.3,
   },
   step4ButtonTextSecondary: {
     color: 'rgba(247, 249, 251, 0.7)',
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: '600',
     textAlign: 'center',
     letterSpacing: 0.3,
@@ -818,5 +813,27 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '400',
     letterSpacing: 0.2,
+  },
+  sosButtonSmall: {
+    shadowColor: '#ff6b9d',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  sosButtonSmallGradient: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  sosTextSmall: {
+    color: '#ffffff',
+    fontSize: 9,
+    fontWeight: '700',
+    letterSpacing: 0.8,
+    textTransform: 'uppercase',
+    opacity: 0.95,
   },
 })
