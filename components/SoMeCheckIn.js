@@ -517,10 +517,6 @@ export default function SoMeCheckIn({ navigation, route }) {
         ]}
         pointerEvents={currentStep === 4 ? 'auto' : 'none'}
       >
-        {/* Welcome message for Step 4 */}
-        <Text style={styles.step4WelcomeText}>
-          Hello, welcome to step four
-        </Text>
 
         <BlurView intensity={20} tint="dark" style={styles.card}>
           <View style={styles.cardContent}>
@@ -762,14 +758,6 @@ const styles = StyleSheet.create({
     lineHeight: 22,
     marginBottom: 24,
     paddingHorizontal: 12,
-  },
-  step4WelcomeText: {
-    color: '#4ecdc4',
-    fontSize: 18,
-    fontWeight: '600',
-    textAlign: 'center',
-    marginBottom: 20,
-    letterSpacing: 0.5,
   },
   optionsContainer: {
     gap: 16,
