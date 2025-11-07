@@ -405,7 +405,7 @@ export default function SoMeCheckIn({ navigation, route }) {
               onValueChange={handleSliderChange}
               question={"how in your body\ndo you feel right now?"}
               showStateLabel={false}
-              showCarousel={true}
+              showChips={true}
               states={POLYVAGAL_STATES}
               selectedStateId={polyvagalState}
               onStateChange={handleStateChange}
@@ -519,7 +519,7 @@ export default function SoMeCheckIn({ navigation, route }) {
               onValueChange={handleLoopSliderChange}
               question={"after doing those exercises,\nhow in your body do you feel right now?"}
               showStateLabel={false}
-              showCarousel={true}
+              showChips={true}
               states={POLYVAGAL_STATES}
               selectedStateId={loopPolyvagalState}
               onStateChange={handleLoopStateChange}

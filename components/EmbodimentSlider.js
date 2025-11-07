@@ -1,7 +1,8 @@
-import { StyleSheet, Text, View, PanResponder, TouchableOpacity, ScrollView, Animated } from 'react-native'
+import { StyleSheet, Text, View, PanResponder, TouchableOpacity, ScrollView, Animated, Modal } from 'react-native'
 import { useRef, useState, useEffect, useMemo } from 'react'
 import Svg, { Circle, Defs, LinearGradient, Stop, G, Path } from 'react-native-svg'
 import * as Haptics from 'expo-haptics'
+import { BlurView } from 'expo-blur'
 
 // Polyvagal state labels (embodiment-focused, neutral/positive)
 const STATE_LABELS = [
@@ -11,6 +12,35 @@ const STATE_LABELS = [
   { range: [60, 80], label: 'Settling', color: '#68c9ba' },      // Sympathetic → Ventral transition
   { range: [80, 100], label: 'Connected', color: '#4ecdc4' },    // Ventral Vagal - Social Engagement
 ]
+
+// Polyvagal state descriptions for tooltips
+const STATE_DESCRIPTIONS = {
+  withdrawn: {
+    label: 'Withdrawn',
+    description: 'You might feel shut down, numb, disconnected, or dissociated. Your body is in conservation mode, protecting you by reducing energy and engagement.',
+    icon: '🌑',
+  },
+  stirring: {
+    label: 'Stirring',
+    description: 'You\'re beginning to feel a shift from stillness. You might notice subtle restlessness, tension, or the first hints of energy building in your body.',
+    icon: '🌘',
+  },
+  activated: {
+    label: 'Activated',
+    description: 'Your nervous system is mobilized - you might feel anxious, alert, energized, or ready for action. Heart rate may be elevated and muscles engaged.',
+    icon: '⚡',
+  },
+  settling: {
+    label: 'Settling',
+    description: 'You\'re transitioning toward calm. You might notice your breath deepening, tension releasing, and a growing sense of ease in your body.',
+    icon: '🌤',
+  },
+  connected: {
+    label: 'Connected',
+    description: 'You feel safe, grounded, and present. Your body is relaxed yet alert, and you\'re able to connect with yourself and others with ease.',
+    icon: '🌕',
+  },
+}
 
 const CIRCLE_SIZE = 200
 const PADDING = 20 // Extra space for handle glow
@@ -30,8 +60,8 @@ export default function EmbodimentSlider({
   isChecked = false,
   onCheckToggle = null,
   canCheck = true,
-  // New carousel props
-  showCarousel = false,
+  // New chip-based props
+  showChips = false,
   states = [],
   selectedStateId = null,
   onStateChange = null,
@@ -40,65 +70,8 @@ export default function EmbodimentSlider({
 }) {
   const previousValueRef = useRef(value)
   const touchStartedOnRing = useRef(false)
-
-  // Animation values for carousel
-  const slideAnim = useRef(new Animated.Value(0)).current
-  const previousIndexRef = useRef(0)
-
-  // Get current selected state index
-  const selectedIndex = states.findIndex(s => s.id === selectedStateId)
-
-  // Animate slide when state changes
-  useEffect(() => {
-    if (selectedIndex !== previousIndexRef.current) {
-      const direction = selectedIndex > previousIndexRef.current ? 1 : -1
-
-      // Start from offset position
-      slideAnim.setValue(direction * 50)
-
-      // Animate to center
-      Animated.spring(slideAnim, {
-        toValue: 0,
-        tension: 80,
-        friction: 10,
-        useNativeDriver: true,
-      }).start()
-
-      previousIndexRef.current = selectedIndex
-    }
-  }, [selectedIndex])
-
-  // Create PanResponder for carousel swipes - use useMemo to recreate when dependencies change
-  const carouselPanResponder = useMemo(() => {
-    if (!showCarousel) return null
-
-    return PanResponder.create({
-      onStartShouldSetPanResponder: () => true,
-      onMoveShouldSetPanResponder: () => true,
-      onPanResponderRelease: (evt, gestureState) => {
-        const { dx } = gestureState
-
-        // Swipe threshold
-        if (Math.abs(dx) > 30) {
-          if (dx > 0) {
-            // Swiped right - go to previous state
-            const newIndex = (selectedIndex - 1 + states.length) % states.length
-            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
-            if (onStateChange) {
-              onStateChange(states[newIndex].id)
-            }
-          } else {
-            // Swiped left - go to next state
-            const newIndex = (selectedIndex + 1) % states.length
-            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
-            if (onStateChange) {
-              onStateChange(states[newIndex].id)
-            }
-          }
-        }
-      },
-    })
-  }, [showCarousel, selectedIndex, states, onStateChange])
+  const [tooltipVisible, setTooltipVisible] = useState(false)
+  const [tooltipState, setTooltipState] = useState(null)
 
   // Get current state label and color based on slider value
   const getCurrentState = () => {
@@ -121,6 +94,27 @@ export default function EmbodimentSlider({
   // Calculate stroke dash offset for progress arc
   const progress = value / 100
   const strokeDashoffset = CIRCUMFERENCE * (1 - progress)
+
+  // Handle chip selection
+  const handleChipPress = (stateId) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium)
+    if (onStateChange) {
+      onStateChange(stateId)
+    }
+  }
+
+  // Handle info button press
+  const handleInfoPress = (stateId) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
+    setTooltipState(stateId)
+    setTooltipVisible(true)
+  }
+
+  // Close tooltip
+  const closeTooltip = () => {
+    setTooltipVisible(false)
+    setTimeout(() => setTooltipState(null), 300)
+  }
 
   // Helper function to check if touch is on the ring
   const isTouchOnRing = (evt) => {
@@ -205,15 +199,6 @@ export default function EmbodimentSlider({
 
     previousValueRef.current = newValue
     onValueChange(newValue)
-  }
-
-  // Handle tap on centered chip to confirm
-  const handleChipTap = () => {
-    // Only trigger if onConfirm is provided (null disables this functionality)
-    if (onConfirm && selectedStateId) {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium)
-      onConfirm()
-    }
   }
 
   return (
@@ -328,62 +313,114 @@ export default function EmbodimentSlider({
           </TouchableOpacity>
         )}
 
-        {/* State carousel in center - clean text with color background */}
-        {showCarousel && states.length > 0 && carouselPanResponder && (
-          <>
-            {/* Colored background circle */}
-            <Animated.View style={[
-              styles.innerColorCircle,
-              {
-                backgroundColor: states[selectedIndex]?.color + '15',
-                opacity: slideAnim.interpolate({
-                  inputRange: [-50, 0, 50],
-                  outputRange: [0.7, 1, 0.7]
-                })
-              }
-            ]} />
-
-            {/* Swipeable text container */}
-            <View
-              style={styles.carouselContainer}
-              {...carouselPanResponder.panHandlers}
-            >
-              <Animated.View style={{ transform: [{ translateX: slideAnim }] }}>
-                {onConfirm ? (
-                  <TouchableOpacity
-                    onPress={handleChipTap}
-                    activeOpacity={0.7}
-                  >
-                    <Text style={{
-                      color: states[selectedIndex]?.color,
-                      fontSize: 20,
-                      fontWeight: '600',
-                      textAlign: 'center',
-                      letterSpacing: 0.5,
-                    }}>
-                      {states[selectedIndex]?.label}
-                    </Text>
-                    <Text style={styles.percentageText}>{Math.round(value)}%</Text>
-                  </TouchableOpacity>
-                ) : (
-                  <View>
-                    <Text style={{
-                      color: states[selectedIndex]?.color,
-                      fontSize: 20,
-                      fontWeight: '600',
-                      textAlign: 'center',
-                      letterSpacing: 0.5,
-                    }}>
-                      {states[selectedIndex]?.label}
-                    </Text>
-                    <Text style={styles.percentageText}>{Math.round(value)}%</Text>
-                  </View>
-                )}
-              </Animated.View>
-            </View>
-          </>
+        {/* Centered percentage display */}
+        {showChips && (
+          <View style={styles.centeredPercentageContainer}>
+            <Text style={styles.centeredPercentageText}>{Math.round(value)}%</Text>
+          </View>
         )}
       </View>
+
+      {/* Polyvagal state chips */}
+      {showChips && states.length > 0 && (
+        <View style={styles.chipsContainer}>
+          <View style={styles.chipsRow}>
+            {states.slice(0, 3).map((state) => (
+              <TouchableOpacity
+                key={state.id}
+                onPress={() => handleChipPress(state.id)}
+                activeOpacity={0.7}
+                style={[
+                  styles.chip,
+                  selectedStateId === state.id && styles.chipSelected,
+                  { borderColor: state.color }
+                ]}
+              >
+                <View style={styles.chipContent}>
+                  <Text style={styles.chipIcon}>{STATE_DESCRIPTIONS[state.id]?.icon}</Text>
+                  <Text style={[
+                    styles.chipLabel,
+                    selectedStateId === state.id && { color: state.color }
+                  ]}>
+                    {state.label}
+                  </Text>
+                  <TouchableOpacity
+                    onPress={() => handleInfoPress(state.id)}
+                    style={styles.chipInfoButton}
+                    hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                  >
+                    <Text style={styles.chipInfoIcon}>ⓘ</Text>
+                  </TouchableOpacity>
+                </View>
+              </TouchableOpacity>
+            ))}
+          </View>
+          <View style={styles.chipsRow}>
+            {states.slice(3).map((state) => (
+              <TouchableOpacity
+                key={state.id}
+                onPress={() => handleChipPress(state.id)}
+                activeOpacity={0.7}
+                style={[
+                  styles.chip,
+                  selectedStateId === state.id && styles.chipSelected,
+                  { borderColor: state.color }
+                ]}
+              >
+                <View style={styles.chipContent}>
+                  <Text style={styles.chipIcon}>{STATE_DESCRIPTIONS[state.id]?.icon}</Text>
+                  <Text style={[
+                    styles.chipLabel,
+                    selectedStateId === state.id && { color: state.color }
+                  ]}>
+                    {state.label}
+                  </Text>
+                  <TouchableOpacity
+                    onPress={() => handleInfoPress(state.id)}
+                    style={styles.chipInfoButton}
+                    hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                  >
+                    <Text style={styles.chipInfoIcon}>ⓘ</Text>
+                  </TouchableOpacity>
+                </View>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </View>
+      )}
+
+      {/* Tooltip Modal */}
+      <Modal
+        visible={tooltipVisible}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={closeTooltip}
+      >
+        <TouchableOpacity
+          style={styles.modalOverlay}
+          activeOpacity={1}
+          onPress={closeTooltip}
+        >
+          <BlurView intensity={40} tint="dark" style={styles.tooltipContainer}>
+            <View style={styles.tooltipContent}>
+              {tooltipState && STATE_DESCRIPTIONS[tooltipState] && (
+                <>
+                  <Text style={styles.tooltipIcon}>{STATE_DESCRIPTIONS[tooltipState].icon}</Text>
+                  <Text style={styles.tooltipTitle}>{STATE_DESCRIPTIONS[tooltipState].label}</Text>
+                  <Text style={styles.tooltipDescription}>{STATE_DESCRIPTIONS[tooltipState].description}</Text>
+                  <TouchableOpacity
+                    onPress={closeTooltip}
+                    style={styles.tooltipCloseButton}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={styles.tooltipCloseText}>Got it</Text>
+                  </TouchableOpacity>
+                </>
+              )}
+            </View>
+          </BlurView>
+        </TouchableOpacity>
+      </Modal>
 
     </View>
   )
@@ -459,72 +496,119 @@ const styles = StyleSheet.create({
   checkButtonDisabled: {
     opacity: 0.3,
   },
-  carouselContainer: {
+  centeredPercentageContainer: {
     position: 'absolute',
-    top: CENTER - 40,
+    top: CENTER - 30,
     left: 0,
     width: SVG_SIZE,
-    height: 80,
-    alignItems: 'center',
-    justifyContent: 'center',
-    flexDirection: 'row',
-  },
-  carouselChipContainer: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    zIndex: 10,
-  },
-  carouselGhostLeft: {
-    position: 'absolute',
-    left: 20,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  carouselGhostRight: {
-    position: 'absolute',
-    right: 20,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  carouselChipInner: {
-    paddingVertical: 8,
-    paddingHorizontal: 16,
-    borderRadius: 20,
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.15)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  carouselChipCentered: {
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    borderWidth: 2,
-    borderColor: 'rgba(255, 255, 255, 0.4)',
-    transform: [{ scale: 1.1 }],
-  },
-  carouselChipConfirmed: {
-    borderWidth: 2,
-  },
-  carouselChipGhost: {
-    opacity: 0.4,
-    transform: [{ scale: 0.75 }],
-  },
-  percentageText: {
-    color: 'rgba(247, 249, 251, 0.7)',
-    fontSize: 16,
-    fontWeight: '600',
-    marginTop: 10,
+  centeredPercentageText: {
+    color: '#f7f9fb',
+    fontSize: 48,
+    fontWeight: '700',
     textAlign: 'center',
     letterSpacing: 1,
   },
-  carouselChipText: {
+  chipsContainer: {
+    marginTop: 20,
+    width: '100%',
+    gap: 12,
+  },
+  chipsRow: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: 8,
+    flexWrap: 'wrap',
+  },
+  chip: {
+    borderRadius: 20,
+    borderWidth: 2,
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    minWidth: 105,
+  },
+  chipSelected: {
+    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+  },
+  chipContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+  },
+  chipIcon: {
+    fontSize: 18,
+  },
+  chipLabel: {
     color: 'rgba(247, 249, 251, 0.8)',
-    fontSize: 13,
+    fontSize: 14,
     fontWeight: '600',
     letterSpacing: 0.3,
   },
-  carouselChipTextGhost: {
-    color: 'rgba(247, 249, 251, 0.4)',
+  chipInfoButton: {
+    marginLeft: 2,
+  },
+  chipInfoIcon: {
+    color: 'rgba(247, 249, 251, 0.5)',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 24,
+  },
+  tooltipContainer: {
+    borderRadius: 24,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.2)',
+    maxWidth: 340,
+    width: '100%',
+  },
+  tooltipContent: {
+    padding: 24,
+    alignItems: 'center',
+  },
+  tooltipIcon: {
+    fontSize: 48,
+    marginBottom: 12,
+  },
+  tooltipTitle: {
+    color: '#f7f9fb',
+    fontSize: 22,
+    fontWeight: '600',
+    marginBottom: 12,
+    textAlign: 'center',
+    letterSpacing: 0.5,
+  },
+  tooltipDescription: {
+    color: 'rgba(247, 249, 251, 0.8)',
+    fontSize: 15,
+    fontWeight: '400',
+    lineHeight: 22,
+    textAlign: 'center',
+    marginBottom: 20,
+    letterSpacing: 0.2,
+  },
+  tooltipCloseButton: {
+    backgroundColor: 'rgba(78, 205, 196, 0.2)',
+    borderWidth: 2,
+    borderColor: '#4ecdc4',
+    borderRadius: 20,
+    paddingVertical: 12,
+    paddingHorizontal: 32,
+  },
+  tooltipCloseText: {
+    color: '#4ecdc4',
+    fontSize: 16,
+    fontWeight: '600',
+    letterSpacing: 0.3,
   },
   labelsContainer: {
     flexDirection: 'row',
