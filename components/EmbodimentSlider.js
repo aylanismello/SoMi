@@ -17,27 +17,27 @@ const STATE_LABELS = [
 const STATE_DESCRIPTIONS = {
   withdrawn: {
     label: 'Withdrawn',
-    description: 'You might feel shut down, numb, disconnected, or dissociated. Your body is in conservation mode, protecting you by reducing energy and engagement.',
+    description: 'You feel numb, flat, or like you can\'t feel much of anything. Your body might feel heavy, disconnected, or like you\'re watching life from behind glass. Moving or engaging feels exhausting.',
     icon: '🌑',
   },
   stirring: {
     label: 'Stirring',
-    description: 'You\'re beginning to feel a shift from stillness. You might notice subtle restlessness, tension, or the first hints of energy building in your body.',
+    description: 'You\'re going through the motions on autopilot, but inside you feel frozen or stuck. You might look fine to others, but there\'s tension underneath — like pressing the gas and brake at the same time.',
     icon: '🌘',
   },
   activated: {
     label: 'Activated',
-    description: 'Your nervous system is mobilized - you might feel anxious, alert, energized, or ready for action. Heart rate may be elevated and muscles engaged.',
+    description: 'Your body feels wired, tight, or restless. Heart might be racing, jaw clenched, shoulders tense. There\'s energy but it feels anxious or scattered — like you can\'t sit still but also can\'t focus.',
     icon: '⚡',
   },
   settling: {
     label: 'Settling',
-    description: 'You\'re transitioning toward calm. You might notice your breath deepening, tension releasing, and a growing sense of ease in your body.',
+    description: 'Things are starting to slow down. Your breath is deepening, muscles releasing tension. You might feel yourself beginning to relax, like coming down from high alert into a calmer state.',
     icon: '🌤',
   },
   connected: {
     label: 'Connected',
-    description: 'You feel safe, grounded, and present. Your body is relaxed yet alert, and you\'re able to connect with yourself and others with ease.',
+    description: 'You feel present, grounded, and at ease in your body. Your breath flows naturally, muscles are relaxed but alert. You can sense yourself and connect with others without feeling overwhelmed or shut down.',
     icon: '🌕',
   },
 }
@@ -372,13 +372,9 @@ export default function EmbodimentSlider({
         visible={tooltipVisible}
         transparent={true}
         animationType="fade"
-        onRequestClose={closeTooltip}
+        onRequestClose={() => {}}
       >
-        <TouchableOpacity
-          style={styles.modalOverlay}
-          activeOpacity={1}
-          onPress={closeTooltip}
-        >
+        <View style={styles.modalOverlay}>
           <BlurView intensity={40} tint="dark" style={styles.tooltipContainer}>
             <View style={styles.tooltipContent}>
               {tooltipState && STATE_DESCRIPTIONS[tooltipState] && (
@@ -397,7 +393,7 @@ export default function EmbodimentSlider({
               )}
             </View>
           </BlurView>
-        </TouchableOpacity>
+        </View>
       </Modal>
 
     </View>
