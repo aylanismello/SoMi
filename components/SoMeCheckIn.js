@@ -72,29 +72,55 @@ export default function SoMeCheckIn({ navigation, route }) {
   // Watch for route param changes to handle coming back from Player
   useEffect(() => {
     const isFromPlayer = route?.params?.fromPlayer
+    const wasBodyScan = route?.params?.wasBodyScan
+    const returnToStep = route?.params?.returnToStep
+
     if (isFromPlayer) {
       justCameFromPlayer.current = true
-      // Coming from Player - go to Step 4
-      setCurrentStep(4)
 
-      // Restore saved initial values if they exist
-      const savedInitialValue = route?.params?.savedInitialValue
-      const savedInitialState = route?.params?.savedInitialState
-      if (savedInitialValue !== undefined && savedInitialState !== undefined) {
-        setInitialSliderValue(savedInitialValue)
-        setInitialPolyvagalState(savedInitialState)
+      // If it was just a body scan, stay on the same step
+      if (wasBodyScan && returnToStep !== undefined) {
+        setCurrentStep(returnToStep)
+
+        // Set animation values based on which step we're returning to
+        if (returnToStep === 1) {
+          step1Opacity.setValue(1)
+          step1TranslateX.setValue(0)
+          step2Opacity.setValue(0)
+          step2TranslateX.setValue(50)
+          step4Opacity.setValue(0)
+          step4TranslateX.setValue(50)
+        } else if (returnToStep === 4) {
+          step1Opacity.setValue(0)
+          step1TranslateX.setValue(-50)
+          step2Opacity.setValue(0)
+          step2TranslateX.setValue(50)
+          step4Opacity.setValue(1)
+          step4TranslateX.setValue(0)
+        }
+      } else {
+        // Coming from actual exercise - go to Step 4
+        setCurrentStep(4)
+
+        // Restore saved initial values if they exist
+        const savedInitialValue = route?.params?.savedInitialValue
+        const savedInitialState = route?.params?.savedInitialState
+        if (savedInitialValue !== undefined && savedInitialState !== undefined) {
+          setInitialSliderValue(savedInitialValue)
+          setInitialPolyvagalState(savedInitialState)
+        }
+
+        // Set Step 4 animation values
+        step1Opacity.setValue(0)
+        step1TranslateX.setValue(-50)
+        step2Opacity.setValue(0)
+        step2TranslateX.setValue(50)
+        step4Opacity.setValue(1)
+        step4TranslateX.setValue(0)
       }
 
-      // Set Step 4 animation values
-      step1Opacity.setValue(0)
-      step1TranslateX.setValue(-50)
-      step2Opacity.setValue(0)
-      step2TranslateX.setValue(50)
-      step4Opacity.setValue(1)
-      step4TranslateX.setValue(0)
-
-      // Clear the param
-      navigation.setParams({ fromPlayer: false })
+      // Clear the params
+      navigation.setParams({ fromPlayer: false, wasBodyScan: false, returnToStep: undefined })
     }
   }, [route?.params?.fromPlayer])
 
@@ -450,7 +476,12 @@ export default function SoMeCheckIn({ navigation, route }) {
 
   const handleBodyScanRelease = () => {
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success)
-    navigation.navigate('Player', { media: BODY_SCAN_MEDIA, initialValue: sliderValue })
+    navigation.navigate('Player', {
+      media: BODY_SCAN_MEDIA,
+      initialValue: currentStep === 1 ? sliderValue : loopSliderValue,
+      isBodyScan: true, // Flag to indicate this is just a body scan, not an exercise
+      currentStep: currentStep, // Remember which step we're on
+    })
   }
 
   return (
