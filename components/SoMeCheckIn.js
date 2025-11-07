@@ -119,12 +119,13 @@ export default function SoMeCheckIn({ navigation, route }) {
     }, [])
   )
 
-  const saveEmbodimentCheck = async (value) => {
+  const saveEmbodimentCheck = async (value, stateId) => {
     try {
       const { data, error } = await supabase
         .from('embodiment_checks')
         .insert({
           slider_value: Math.round(value),
+          polyvagal_state: stateId,
         })
 
       if (error) {
@@ -150,7 +151,7 @@ export default function SoMeCheckIn({ navigation, route }) {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium)
 
     // Save to Supabase
-    saveEmbodimentCheck(sliderValue)
+    saveEmbodimentCheck(sliderValue, polyvagalState)
 
     const media = getMediaForSliderValue(sliderValue)
     navigation.navigate('Player', {
@@ -165,7 +166,7 @@ export default function SoMeCheckIn({ navigation, route }) {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium)
 
     // Save to Supabase
-    saveEmbodimentCheck(sliderValue)
+    saveEmbodimentCheck(sliderValue, polyvagalState)
 
     // Navigate to player with self-guided option (you can customize this)
     const media = getMediaForSliderValue(sliderValue)
@@ -183,6 +184,12 @@ export default function SoMeCheckIn({ navigation, route }) {
   }
 
   const handleCheckboxPress = () => {
+    // Require polyvagal state to be selected before proceeding
+    if (!polyvagalState) {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error)
+      return
+    }
+
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success)
 
     // Save initial values for later comparison
@@ -256,12 +263,15 @@ export default function SoMeCheckIn({ navigation, route }) {
   }
 
   const handleLoopCheckboxPress = () => {
+    // Require polyvagal state to be selected before proceeding
+    if (!loopPolyvagalState) {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error)
+      return
+    }
+
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success)
 
-    // Save loop check to database
-    saveEmbodimentCheck(loopSliderValue)
-
-    // Show confirmation message briefly (but don't navigate)
+    // Show confirmation message briefly (but don't save yet - wait for Continue/Done)
     setShowConfirmMessage(true)
 
     Animated.sequence([
@@ -282,14 +292,34 @@ export default function SoMeCheckIn({ navigation, route }) {
   }
 
   const handleContinueToExercise = () => {
+    // Require polyvagal state to be selected before continuing
+    if (!loopPolyvagalState) {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error)
+      return
+    }
+
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium)
+
+    // Save loop check to database before continuing
+    saveEmbodimentCheck(loopSliderValue, loopPolyvagalState)
+
     // Show transition modal before continuing
     setPendingAction('continue')
     setShowTransitionModal(true)
   }
 
   const handleGoHome = () => {
+    // Require polyvagal state to be selected before going home
+    if (!loopPolyvagalState) {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error)
+      return
+    }
+
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium)
+
+    // Save loop check to database before going home
+    saveEmbodimentCheck(loopSliderValue, loopPolyvagalState)
+
     // Show transition modal before going home
     setPendingAction('done')
     setShowTransitionModal(true)

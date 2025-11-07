@@ -46,6 +46,13 @@ SoMi is a React Native mobile application built with Expo that helps users asses
 3. Use Context7 MCP to reference up-to-date library documentation
 4. Focus on iOS development
 
+### Testing & Running the App
+- **NEVER run `npx expo start` or any development server commands**
+- **NEVER attempt to start a server, Metro bundler, or test the app**
+- The developer always has their own server running separately
+- Running server commands will cause port conflict errors and fail
+- Only write/edit code - let the developer handle testing and running
+
 ---
 
 <!-- BACKLOG.MD MCP GUIDELINES START -->
