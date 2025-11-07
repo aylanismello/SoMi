@@ -36,20 +36,20 @@ export default function SoMeCheckIn({ navigation, route }) {
   // Check if we're coming back from player (step 4)
   const fromPlayer = route?.params?.fromPlayer || false
 
-  const [sliderValue, setSliderValue] = useState(50)
+  const [sliderValue, setSliderValue] = useState(0)
   const [sliderChanged, setSliderChanged] = useState(false)
-  const [polyvagalState, setPolyvagalState] = useState(POLYVAGAL_STATES[2].id)
+  const [polyvagalState, setPolyvagalState] = useState(null)
   const [currentStep, setCurrentStep] = useState(fromPlayer ? 4 : 1) // 1: initial check-in, 2: selection, 3: player, 4: loop check-in
   const [showConfirmMessage, setShowConfirmMessage] = useState(false)
   const [messageOpacity] = useState(new Animated.Value(0))
 
   // Separate state for loop check-in (Step 4)
-  const [loopSliderValue, setLoopSliderValue] = useState(50)
-  const [loopPolyvagalState, setLoopPolyvagalState] = useState(POLYVAGAL_STATES[2].id)
+  const [loopSliderValue, setLoopSliderValue] = useState(0)
+  const [loopPolyvagalState, setLoopPolyvagalState] = useState(null)
 
   // Store initial values from Step 1 to show transition later
-  const [initialSliderValue, setInitialSliderValue] = useState(50)
-  const [initialPolyvagalState, setInitialPolyvagalState] = useState(POLYVAGAL_STATES[2].id)
+  const [initialSliderValue, setInitialSliderValue] = useState(0)
+  const [initialPolyvagalState, setInitialPolyvagalState] = useState(null)
 
   // Transition modal state
   const [showTransitionModal, setShowTransitionModal] = useState(false)
@@ -100,10 +100,10 @@ export default function SoMeCheckIn({ navigation, route }) {
     React.useCallback(() => {
       if (!justCameFromPlayer.current) {
         // Reset state when coming back to check-in (not from player)
-        setSliderValue(50)
-        setPolyvagalState(POLYVAGAL_STATES[2].id)
-        setLoopSliderValue(50)
-        setLoopPolyvagalState(POLYVAGAL_STATES[2].id)
+        setSliderValue(0)
+        setPolyvagalState(null)
+        setLoopSliderValue(0)
+        setLoopPolyvagalState(null)
         setSliderChanged(false)
         setCurrentStep(1)
 
@@ -363,10 +363,10 @@ export default function SoMeCheckIn({ navigation, route }) {
 
   const resetStateAndGoHome = () => {
     // Reset all state
-    setSliderValue(50)
-    setPolyvagalState(POLYVAGAL_STATES[2].id)
-    setLoopSliderValue(50)
-    setLoopPolyvagalState(POLYVAGAL_STATES[2].id)
+    setSliderValue(0)
+    setPolyvagalState(null)
+    setLoopSliderValue(0)
+    setLoopPolyvagalState(null)
     setSliderChanged(false)
     setCurrentStep(1)
 
