@@ -209,6 +209,7 @@ export default function EmbodimentSlider({
 
   // Handle tap on centered chip to confirm
   const handleChipTap = () => {
+    // Only trigger if onConfirm is provided (null disables this functionality)
     if (onConfirm && selectedStateId) {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium)
       onConfirm()
@@ -327,60 +328,60 @@ export default function EmbodimentSlider({
           </TouchableOpacity>
         )}
 
-        {/* State carousel in center - simple swipeable */}
+        {/* State carousel in center - clean text with color background */}
         {showCarousel && states.length > 0 && carouselPanResponder && (
-          <View
-            style={styles.carouselContainer}
-            {...carouselPanResponder.panHandlers}
-          >
-            {/* Show current state centered with animation */}
-            <Animated.View style={{ transform: [{ translateX: slideAnim }] }}>
-              <TouchableOpacity
-                onPress={handleChipTap}
-                activeOpacity={0.7}
-                style={styles.carouselChipContainer}
-              >
-                <View style={[
-                  styles.carouselChipInner,
-                  styles.carouselChipCentered,
-                  isConfirmed && styles.carouselChipConfirmed,
-                  isConfirmed && {
-                    backgroundColor: states[selectedIndex]?.color + '40',
-                    borderColor: states[selectedIndex]?.color
-                  }
-                ]}>
-                  <Text style={[
-                    styles.carouselChipText,
-                    { color: isConfirmed ? states[selectedIndex]?.color : '#f7f9fb' }
-                  ]}>
-                    {states[selectedIndex]?.label}
-                  </Text>
-                </View>
-                {/* Show percentage below chip */}
-                <Text style={styles.percentageText}>{Math.round(value)}%</Text>
-              </TouchableOpacity>
-            </Animated.View>
+          <>
+            {/* Colored background circle */}
+            <Animated.View style={[
+              styles.innerColorCircle,
+              {
+                backgroundColor: states[selectedIndex]?.color + '15',
+                opacity: slideAnim.interpolate({
+                  inputRange: [-50, 0, 50],
+                  outputRange: [0.7, 1, 0.7]
+                })
+              }
+            ]} />
 
-            {/* Swipe hint - show ghost states on sides (only when not confirmed) */}
-            {!isConfirmed && (
-              <>
-                <View style={styles.carouselGhostLeft}>
-                  <View style={[styles.carouselChipInner, styles.carouselChipGhost]}>
-                    <Text style={[styles.carouselChipText, styles.carouselChipTextGhost]}>
-                      {states[(selectedIndex - 1 + states.length) % states.length]?.label}
+            {/* Swipeable text container */}
+            <View
+              style={styles.carouselContainer}
+              {...carouselPanResponder.panHandlers}
+            >
+              <Animated.View style={{ transform: [{ translateX: slideAnim }] }}>
+                {onConfirm ? (
+                  <TouchableOpacity
+                    onPress={handleChipTap}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={{
+                      color: states[selectedIndex]?.color,
+                      fontSize: 20,
+                      fontWeight: '600',
+                      textAlign: 'center',
+                      letterSpacing: 0.5,
+                    }}>
+                      {states[selectedIndex]?.label}
                     </Text>
-                  </View>
-                </View>
-                <View style={styles.carouselGhostRight}>
-                  <View style={[styles.carouselChipInner, styles.carouselChipGhost]}>
-                    <Text style={[styles.carouselChipText, styles.carouselChipTextGhost]}>
-                      {states[(selectedIndex + 1) % states.length]?.label}
+                    <Text style={styles.percentageText}>{Math.round(value)}%</Text>
+                  </TouchableOpacity>
+                ) : (
+                  <View>
+                    <Text style={{
+                      color: states[selectedIndex]?.color,
+                      fontSize: 20,
+                      fontWeight: '600',
+                      textAlign: 'center',
+                      letterSpacing: 0.5,
+                    }}>
+                      {states[selectedIndex]?.label}
                     </Text>
+                    <Text style={styles.percentageText}>{Math.round(value)}%</Text>
                   </View>
-                </View>
-              </>
-            )}
-          </View>
+                )}
+              </Animated.View>
+            </View>
+          </>
         )}
       </View>
 

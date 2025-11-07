@@ -67,11 +67,12 @@ export default function PlayerScreen({ navigation, route }) {
     return () => clearInterval(interval)
   }, [player])
 
-  // Auto-navigate back when media ends
+  // Auto-navigate to Step 4 (post-session check-in) when media ends
   useEffect(() => {
     if (duration > 0 && currentTime >= duration - 0.5) {
       player.pause()
-      navigation.goBack()
+      // Use replace to ensure params are updated
+      navigation.replace('CheckIn', { fromPlayer: true })
     }
   }, [currentTime, duration, navigation, player])
 
@@ -162,7 +163,8 @@ export default function PlayerScreen({ navigation, route }) {
   const handleClose = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium)
     player.pause()
-    navigation.goBack()
+    // Use replace to ensure params are updated
+    navigation.replace('CheckIn', { fromPlayer: true })
   }
 
   const toggleControls = () => {

@@ -141,8 +141,9 @@ export default function App() {
           options={({ route }) => ({
             tabBarLabel: 'Check In',
             tabBarStyle: (() => {
-              const routeName = getFocusedRouteNameFromRoute(route)
-              if (routeName === 'Player') {
+              const routeName = getFocusedRouteNameFromRoute(route) ?? 'CheckIn'
+              // Hide tab bar when on CheckIn screen or Player
+              if (routeName === 'Player' || routeName === 'CheckIn') {
                 return { display: 'none' }
               }
               return {
