@@ -1,5 +1,6 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useCallback } from 'react'
 import { StyleSheet, Text, View, ScrollView, ActivityIndicator } from 'react-native'
+import { useFocusEffect } from '@react-navigation/native'
 import { LinearGradient } from 'expo-linear-gradient'
 import { BlurView } from 'expo-blur'
 import { supabase } from '../supabase'
@@ -31,9 +32,12 @@ export default function MySomiScreen() {
     recentTrend: null,
   })
 
-  useEffect(() => {
-    fetchCheckIns()
-  }, [])
+  // Fetch fresh data whenever the screen comes into focus
+  useFocusEffect(
+    useCallback(() => {
+      fetchCheckIns()
+    }, [])
+  )
 
   const fetchCheckIns = async () => {
     try {

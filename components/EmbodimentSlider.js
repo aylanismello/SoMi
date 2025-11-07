@@ -67,11 +67,20 @@ export default function EmbodimentSlider({
   onStateChange = null,
   isConfirmed = false,
   onConfirm = null,
+  resetKey = 0, // New prop to force carousel reset
 }) {
   const previousValueRef = useRef(value)
   const touchStartedOnRing = useRef(false)
   const [tooltipVisible, setTooltipVisible] = useState(false)
   const [tooltipState, setTooltipState] = useState(null)
+  const scrollViewRef = useRef(null)
+
+  // Reset carousel scroll position when resetKey changes
+  useEffect(() => {
+    if (scrollViewRef.current) {
+      scrollViewRef.current.scrollTo({ x: 0, animated: false })
+    }
+  }, [resetKey])
 
   // Get current state label and color based on slider value
   const getCurrentState = () => {
@@ -325,6 +334,7 @@ export default function EmbodimentSlider({
       {showChips && states.length > 0 && (
         <View style={styles.carouselContainer}>
           <ScrollView
+            ref={scrollViewRef}
             horizontal
             pagingEnabled={false}
             showsHorizontalScrollIndicator={false}

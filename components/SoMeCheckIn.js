@@ -55,6 +55,9 @@ export default function SoMeCheckIn({ navigation, route }) {
   const [showTransitionModal, setShowTransitionModal] = useState(false)
   const [pendingAction, setPendingAction] = useState(null) // 'continue' or 'done'
 
+  // Reset key to force carousel to scroll back to start
+  const [resetKey, setResetKey] = useState(0)
+
   // Animation values for step transitions
   const step1Opacity = useRef(new Animated.Value(fromPlayer ? 0 : 1)).current
   const step1TranslateX = useRef(new Animated.Value(fromPlayer ? -50 : 0)).current
@@ -106,6 +109,7 @@ export default function SoMeCheckIn({ navigation, route }) {
         setLoopPolyvagalState(null)
         setSliderChanged(false)
         setCurrentStep(1)
+        setResetKey(prev => prev + 1) // Increment to force carousel reset
 
         step1Opacity.setValue(1)
         step1TranslateX.setValue(0)
@@ -399,6 +403,7 @@ export default function SoMeCheckIn({ navigation, route }) {
     setLoopPolyvagalState(null)
     setSliderChanged(false)
     setCurrentStep(1)
+    setResetKey(prev => prev + 1) // Increment to force carousel reset
 
     // Reset animation values
     step1Opacity.setValue(1)
@@ -504,6 +509,7 @@ export default function SoMeCheckIn({ navigation, route }) {
               onStateChange={handleStateChange}
               isConfirmed={false}
               onConfirm={null}
+              resetKey={resetKey}
             />
 
             {/* Body scan button with checkbox for Step 1 */}
@@ -635,6 +641,7 @@ export default function SoMeCheckIn({ navigation, route }) {
               onStateChange={handleLoopStateChange}
               isConfirmed={false}
               onConfirm={null}
+              resetKey={resetKey}
             />
 
             {/* Body scan button with checkbox for Step 4 */}
