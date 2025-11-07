@@ -8,6 +8,7 @@ import HomeScreen from './components/HomeScreen'
 import SoMeCheckIn from './components/SoMeCheckIn'
 import PlayerScreen from './components/PlayerScreen'
 import MySomiScreen from './components/MySomiScreen'
+import SoMiTimer from './components/SoMiTimer'
 
 const Stack = createStackNavigator()
 const Tab = createBottomTabNavigator()
@@ -34,7 +35,7 @@ function HomeStack() {
   )
 }
 
-// Stack navigator for Check In tab (includes Player modal)
+// Stack navigator for Check In tab (includes Player modal and SoMi Timer)
 function CheckInStack() {
   return (
     <Stack.Navigator
@@ -44,6 +45,14 @@ function CheckInStack() {
       }}
     >
       <Stack.Screen name="CheckIn" component={SoMeCheckIn} />
+      <Stack.Screen name="SoMeCheckIn" component={SoMeCheckIn} />
+      <Stack.Screen
+        name="SoMiTimer"
+        component={SoMiTimer}
+        options={{
+          presentation: 'card',
+        }}
+      />
       <Stack.Screen
         name="Player"
         component={PlayerScreen}
@@ -145,8 +154,8 @@ export default function App() {
             tabBarLabel: 'Check In',
             tabBarStyle: (() => {
               const routeName = getFocusedRouteNameFromRoute(route) ?? 'CheckIn'
-              // Hide tab bar when on CheckIn screen or Player
-              if (routeName === 'Player' || routeName === 'CheckIn') {
+              // Hide tab bar when on CheckIn screen, SoMiTimer, or Player
+              if (routeName === 'Player' || routeName === 'CheckIn' || routeName === 'SoMiTimer' || routeName === 'SoMeCheckIn') {
                 return { display: 'none' }
               }
               return {

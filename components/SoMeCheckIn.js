@@ -198,13 +198,10 @@ export default function SoMeCheckIn({ navigation, route }) {
     // Save to Supabase
     saveEmbodimentCheck(sliderValue, polyvagalState)
 
-    // Navigate to player with self-guided option (you can customize this)
-    const media = getMediaForSliderValue(sliderValue)
-    navigation.navigate('Player', {
-      media,
+    // Navigate to SoMi Timer
+    navigation.navigate('SoMiTimer', {
       initialValue: sliderValue,
-      savedInitialValue: initialSliderValue,
-      savedInitialState: initialPolyvagalState,
+      savedInitialState: polyvagalState,
     })
   }
 
@@ -636,8 +633,8 @@ export default function SoMeCheckIn({ navigation, route }) {
             style={styles.optionTile}
           >
             <BlurView intensity={15} tint="dark" style={styles.optionBlur}>
-              <Text style={styles.optionTitle}>Self-Guided Regulation</Text>
-              <Text style={styles.optionSubtitle}>Explore at your own pace</Text>
+              <Text style={styles.optionTitle}>Start SoMi Timer</Text>
+              <Text style={styles.optionSubtitle}>Self-guided practice time</Text>
             </BlurView>
           </TouchableOpacity>
         </View>
