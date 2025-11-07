@@ -74,6 +74,14 @@ export default function SoMeCheckIn({ navigation, route }) {
       // Coming from Player - go to Step 4
       setCurrentStep(4)
 
+      // Restore saved initial values if they exist
+      const savedInitialValue = route?.params?.savedInitialValue
+      const savedInitialState = route?.params?.savedInitialState
+      if (savedInitialValue !== undefined && savedInitialState !== undefined) {
+        setInitialSliderValue(savedInitialValue)
+        setInitialPolyvagalState(savedInitialState)
+      }
+
       // Set Step 4 animation values
       step1Opacity.setValue(0)
       step1TranslateX.setValue(-50)
@@ -145,7 +153,12 @@ export default function SoMeCheckIn({ navigation, route }) {
     saveEmbodimentCheck(sliderValue)
 
     const media = getMediaForSliderValue(sliderValue)
-    navigation.navigate('Player', { media, initialValue: sliderValue })
+    navigation.navigate('Player', {
+      media,
+      initialValue: sliderValue,
+      savedInitialValue: initialSliderValue,
+      savedInitialState: initialPolyvagalState,
+    })
   }
 
   const handleSelfGuidedPress = () => {
@@ -156,7 +169,12 @@ export default function SoMeCheckIn({ navigation, route }) {
 
     // Navigate to player with self-guided option (you can customize this)
     const media = getMediaForSliderValue(sliderValue)
-    navigation.navigate('Player', { media, initialValue: sliderValue })
+    navigation.navigate('Player', {
+      media,
+      initialValue: sliderValue,
+      savedInitialValue: initialSliderValue,
+      savedInitialState: initialPolyvagalState,
+    })
   }
 
   const handleSliderChange = (value) => {
@@ -238,7 +256,7 @@ export default function SoMeCheckIn({ navigation, route }) {
   }
 
   const handleLoopCheckboxPress = () => {
-    Haptics.notificationAsync(Haptics.NotificationFeedbackStyle.Success)
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success)
 
     // Save loop check to database
     saveEmbodimentCheck(loopSliderValue)
@@ -954,48 +972,50 @@ const styles = StyleSheet.create({
   transitionRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 32,
-    gap: 16,
+    justifyContent: 'space-between',
+    marginBottom: 28,
+    paddingHorizontal: 8,
   },
   transitionState: {
     alignItems: 'center',
-    gap: 12,
+    gap: 8,
+    flex: 1,
   },
   transitionStateChip: {
-    borderRadius: 20,
-    borderWidth: 2.5,
-    paddingVertical: 12,
-    paddingHorizontal: 16,
+    borderRadius: 16,
+    borderWidth: 2,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: 6,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 5,
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.25,
+    shadowRadius: 6,
+    elevation: 4,
   },
   transitionEmoji: {
-    fontSize: 24,
+    fontSize: 18,
   },
   transitionStateLabel: {
     color: '#ffffff',
-    fontSize: 16,
+    fontSize: 13,
     fontWeight: '700',
-    letterSpacing: 0.4,
+    letterSpacing: 0.3,
   },
   transitionPercentage: {
     color: '#f7f9fb',
-    fontSize: 28,
+    fontSize: 22,
     fontWeight: '700',
-    letterSpacing: 0.5,
+    letterSpacing: 0.3,
   },
   transitionArrow: {
     color: 'rgba(247, 249, 251, 0.6)',
-    fontSize: 32,
+    fontSize: 24,
     fontWeight: '300',
-    marginHorizontal: 4,
+    marginHorizontal: 8,
+    marginTop: -20,
   },
   transitionModalButton: {
     backgroundColor: 'rgba(78, 205, 196, 0.2)',

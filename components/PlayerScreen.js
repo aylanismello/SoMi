@@ -11,7 +11,7 @@ const screenWidth = Dimensions.get('window').width
 const screenHeight = Dimensions.get('window').height
 
 export default function PlayerScreen({ navigation, route }) {
-  const { media } = route.params
+  const { media, savedInitialValue, savedInitialState } = route.params
   const isAudio = media.type === 'audio'
   const [showControls, setShowControls] = useState(false)
   const [currentTime, setCurrentTime] = useState(0)
@@ -72,9 +72,13 @@ export default function PlayerScreen({ navigation, route }) {
     if (duration > 0 && currentTime >= duration - 0.5) {
       player.pause()
       // Use replace to ensure params are updated
-      navigation.replace('CheckIn', { fromPlayer: true })
+      navigation.replace('CheckIn', {
+        fromPlayer: true,
+        savedInitialValue,
+        savedInitialState,
+      })
     }
-  }, [currentTime, duration, navigation, player])
+  }, [currentTime, duration, navigation, player, savedInitialValue, savedInitialState])
 
   // Animate controls visibility
   useEffect(() => {
@@ -164,7 +168,11 @@ export default function PlayerScreen({ navigation, route }) {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium)
     player.pause()
     // Use replace to ensure params are updated
-    navigation.replace('CheckIn', { fromPlayer: true })
+    navigation.replace('CheckIn', {
+      fromPlayer: true,
+      savedInitialValue,
+      savedInitialState,
+    })
   }
 
   const toggleControls = () => {
