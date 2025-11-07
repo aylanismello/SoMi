@@ -11,7 +11,7 @@ const screenWidth = Dimensions.get('window').width
 const screenHeight = Dimensions.get('window').height
 
 export default function PlayerScreen({ navigation, route }) {
-  const { media, savedInitialValue, savedInitialState, isBodyScan, currentStep } = route.params
+  const { media, savedInitialValue, savedInitialState, isBodyScan, currentStep, savedSliderValue, savedPolyvagalState } = route.params
   const isAudio = media.type === 'audio'
   const [showControls, setShowControls] = useState(false)
   const [currentTime, setCurrentTime] = useState(0)
@@ -78,9 +78,11 @@ export default function PlayerScreen({ navigation, route }) {
         savedInitialState,
         wasBodyScan: isBodyScan,
         returnToStep: currentStep,
+        savedSliderValue,
+        savedPolyvagalState,
       })
     }
-  }, [currentTime, duration, navigation, player, savedInitialValue, savedInitialState, isBodyScan, currentStep])
+  }, [currentTime, duration, navigation, player, savedInitialValue, savedInitialState, isBodyScan, currentStep, savedSliderValue, savedPolyvagalState])
 
   // Animate controls visibility
   useEffect(() => {
@@ -176,6 +178,8 @@ export default function PlayerScreen({ navigation, route }) {
       savedInitialState,
       wasBodyScan: isBodyScan,
       returnToStep: currentStep,
+      savedSliderValue,
+      savedPolyvagalState,
     })
   }
 

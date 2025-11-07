@@ -74,6 +74,8 @@ export default function SoMeCheckIn({ navigation, route }) {
     const isFromPlayer = route?.params?.fromPlayer
     const wasBodyScan = route?.params?.wasBodyScan
     const returnToStep = route?.params?.returnToStep
+    const restoredSliderValue = route?.params?.savedSliderValue
+    const restoredPolyvagalState = route?.params?.savedPolyvagalState
 
     if (isFromPlayer) {
       justCameFromPlayer.current = true
@@ -81,6 +83,23 @@ export default function SoMeCheckIn({ navigation, route }) {
       // If it was just a body scan, stay on the same step
       if (wasBodyScan && returnToStep !== undefined) {
         setCurrentStep(returnToStep)
+
+        // Restore the saved values for the step we're returning to
+        if (restoredSliderValue !== undefined) {
+          if (returnToStep === 1) {
+            setSliderValue(restoredSliderValue)
+          } else if (returnToStep === 4) {
+            setLoopSliderValue(restoredSliderValue)
+          }
+        }
+
+        if (restoredPolyvagalState !== undefined) {
+          if (returnToStep === 1) {
+            setPolyvagalState(restoredPolyvagalState)
+          } else if (returnToStep === 4) {
+            setLoopPolyvagalState(restoredPolyvagalState)
+          }
+        }
 
         // Set animation values based on which step we're returning to
         if (returnToStep === 1) {
@@ -120,7 +139,7 @@ export default function SoMeCheckIn({ navigation, route }) {
       }
 
       // Clear the params
-      navigation.setParams({ fromPlayer: false, wasBodyScan: false, returnToStep: undefined })
+      navigation.setParams({ fromPlayer: false, wasBodyScan: false, returnToStep: undefined, savedSliderValue: undefined, savedPolyvagalState: undefined })
     }
   }, [route?.params?.fromPlayer])
 
@@ -473,11 +492,18 @@ export default function SoMeCheckIn({ navigation, route }) {
 
   const handleBodyScanRelease = () => {
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success)
+
+    // Save current values before navigating to body scan
+    const currentSlider = currentStep === 1 ? sliderValue : loopSliderValue
+    const currentState = currentStep === 1 ? polyvagalState : loopPolyvagalState
+
     navigation.navigate('Player', {
       media: BODY_SCAN_MEDIA,
-      initialValue: currentStep === 1 ? sliderValue : loopSliderValue,
+      initialValue: currentSlider,
       isBodyScan: true, // Flag to indicate this is just a body scan, not an exercise
       currentStep: currentStep, // Remember which step we're on
+      savedSliderValue: currentSlider, // Save slider value to restore
+      savedPolyvagalState: currentState, // Save polyvagal state to restore
     })
   }
 
