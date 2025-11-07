@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react'
-import { StyleSheet, Text, View, TouchableOpacity, Animated } from 'react-native'
+import { StyleSheet, Text, View, TouchableOpacity, Animated, Modal } from 'react-native'
 import { useFocusEffect } from '@react-navigation/native'
 import { LinearGradient } from 'expo-linear-gradient'
 import { BlurView } from 'expo-blur'
@@ -23,6 +23,15 @@ const POLYVAGAL_STATES = [
   { id: 'connected', label: 'Connected', color: '#4ecdc4' },
 ]
 
+// Polyvagal state emojis (matching EmbodimentSlider)
+const STATE_EMOJIS = {
+  withdrawn: '🌑',
+  stirring: '🌘',
+  activated: '⚡',
+  settling: '🌤',
+  connected: '🌕',
+}
+
 export default function SoMeCheckIn({ navigation, route }) {
   // Check if we're coming back from player (step 4)
   const fromPlayer = route?.params?.fromPlayer || false
@@ -37,6 +46,14 @@ export default function SoMeCheckIn({ navigation, route }) {
   // Separate state for loop check-in (Step 4)
   const [loopSliderValue, setLoopSliderValue] = useState(50)
   const [loopPolyvagalState, setLoopPolyvagalState] = useState(POLYVAGAL_STATES[2].id)
+
+  // Store initial values from Step 1 to show transition later
+  const [initialSliderValue, setInitialSliderValue] = useState(50)
+  const [initialPolyvagalState, setInitialPolyvagalState] = useState(POLYVAGAL_STATES[2].id)
+
+  // Transition modal state
+  const [showTransitionModal, setShowTransitionModal] = useState(false)
+  const [pendingAction, setPendingAction] = useState(null) // 'continue' or 'done'
 
   // Animation values for step transitions
   const step1Opacity = useRef(new Animated.Value(fromPlayer ? 0 : 1)).current
@@ -150,6 +167,10 @@ export default function SoMeCheckIn({ navigation, route }) {
   const handleCheckboxPress = () => {
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success)
 
+    // Save initial values for later comparison
+    setInitialSliderValue(sliderValue)
+    setInitialPolyvagalState(polyvagalState)
+
     // Show confirmation message
     setShowConfirmMessage(true)
 
@@ -244,14 +265,32 @@ export default function SoMeCheckIn({ navigation, route }) {
 
   const handleContinueToExercise = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium)
-    // Go from Step 4 back to Step 2 (loop!)
-    transitionFromStep4ToStep2()
+    // Show transition modal before continuing
+    setPendingAction('continue')
+    setShowTransitionModal(true)
   }
 
   const handleGoHome = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium)
-    // Exit the loop and go home
-    resetStateAndGoHome()
+    // Show transition modal before going home
+    setPendingAction('done')
+    setShowTransitionModal(true)
+  }
+
+  const handleTransitionModalClose = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
+    setShowTransitionModal(false)
+
+    // Execute the pending action
+    if (pendingAction === 'continue') {
+      // Go from Step 4 back to Step 2 (loop!)
+      transitionFromStep4ToStep2()
+    } else if (pendingAction === 'done') {
+      // Exit the loop and go home
+      resetStateAndGoHome()
+    }
+
+    setPendingAction(null)
   }
 
   const transitionFromStep4ToStep2 = () => {
@@ -628,6 +667,63 @@ export default function SoMeCheckIn({ navigation, route }) {
         </View>
       </Animated.View>
       </View>
+
+      {/* Transition Modal */}
+      <Modal
+        visible={showTransitionModal}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={handleTransitionModalClose}
+      >
+        <View style={styles.modalOverlay}>
+          <BlurView intensity={40} tint="dark" style={styles.transitionModalContainer}>
+            <View style={styles.transitionModalContent}>
+              {/* Transition display */}
+              <View style={styles.transitionRow}>
+                {/* Before state */}
+                <View style={styles.transitionState}>
+                  <View style={[styles.transitionStateChip, {
+                    backgroundColor: POLYVAGAL_STATES.find(s => s.id === initialPolyvagalState)?.color + 'E6',
+                    borderColor: POLYVAGAL_STATES.find(s => s.id === initialPolyvagalState)?.color,
+                  }]}>
+                    <Text style={styles.transitionEmoji}>{STATE_EMOJIS[initialPolyvagalState]}</Text>
+                    <Text style={styles.transitionStateLabel}>
+                      {POLYVAGAL_STATES.find(s => s.id === initialPolyvagalState)?.label}
+                    </Text>
+                  </View>
+                  <Text style={styles.transitionPercentage}>{Math.round(initialSliderValue)}%</Text>
+                </View>
+
+                {/* Arrow */}
+                <Text style={styles.transitionArrow}>→</Text>
+
+                {/* After state */}
+                <View style={styles.transitionState}>
+                  <View style={[styles.transitionStateChip, {
+                    backgroundColor: POLYVAGAL_STATES.find(s => s.id === loopPolyvagalState)?.color + 'E6',
+                    borderColor: POLYVAGAL_STATES.find(s => s.id === loopPolyvagalState)?.color,
+                  }]}>
+                    <Text style={styles.transitionEmoji}>{STATE_EMOJIS[loopPolyvagalState]}</Text>
+                    <Text style={styles.transitionStateLabel}>
+                      {POLYVAGAL_STATES.find(s => s.id === loopPolyvagalState)?.label}
+                    </Text>
+                  </View>
+                  <Text style={styles.transitionPercentage}>{Math.round(loopSliderValue)}%</Text>
+                </View>
+              </View>
+
+              {/* Got it button */}
+              <TouchableOpacity
+                onPress={handleTransitionModalClose}
+                style={styles.transitionModalButton}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.transitionModalButtonText}>Got it</Text>
+              </TouchableOpacity>
+            </View>
+          </BlurView>
+        </View>
+      </Modal>
     </LinearGradient>
   )
 }
@@ -835,5 +931,84 @@ const styles = StyleSheet.create({
     letterSpacing: 0.8,
     textTransform: 'uppercase',
     opacity: 0.95,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.75)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 24,
+  },
+  transitionModalContainer: {
+    borderRadius: 28,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.2)',
+    maxWidth: 380,
+    width: '100%',
+  },
+  transitionModalContent: {
+    padding: 32,
+    alignItems: 'center',
+  },
+  transitionRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 32,
+    gap: 16,
+  },
+  transitionState: {
+    alignItems: 'center',
+    gap: 12,
+  },
+  transitionStateChip: {
+    borderRadius: 20,
+    borderWidth: 2.5,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 5,
+  },
+  transitionEmoji: {
+    fontSize: 24,
+  },
+  transitionStateLabel: {
+    color: '#ffffff',
+    fontSize: 16,
+    fontWeight: '700',
+    letterSpacing: 0.4,
+  },
+  transitionPercentage: {
+    color: '#f7f9fb',
+    fontSize: 28,
+    fontWeight: '700',
+    letterSpacing: 0.5,
+  },
+  transitionArrow: {
+    color: 'rgba(247, 249, 251, 0.6)',
+    fontSize: 32,
+    fontWeight: '300',
+    marginHorizontal: 4,
+  },
+  transitionModalButton: {
+    backgroundColor: 'rgba(78, 205, 196, 0.2)',
+    borderWidth: 2,
+    borderColor: '#4ecdc4',
+    borderRadius: 22,
+    paddingVertical: 14,
+    paddingHorizontal: 48,
+  },
+  transitionModalButtonText: {
+    color: '#4ecdc4',
+    fontSize: 17,
+    fontWeight: '600',
+    letterSpacing: 0.3,
   },
 })
