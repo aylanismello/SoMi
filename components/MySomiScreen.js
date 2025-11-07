@@ -186,15 +186,58 @@ export default function MySomiScreen() {
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
+        {/* Garden Visualization */}
+        <BlurView intensity={20} tint="dark" style={styles.gardenCard}>
+          <Text style={styles.gardenTitle}>your embodiment garden</Text>
+          <View style={styles.gardenContainer}>
+            {checkIns.slice(0, 20).map((check, index) => {
+              const stateInfo = getStateInfo(check.polyvagal_state)
+              const fillLevel = check.slider_value / 100
+
+              return (
+                <View
+                  key={check.id}
+                  style={[
+                    styles.gardenOrb,
+                    {
+                      left: `${(index * 37) % 85}%`,
+                      top: `${Math.floor(index / 3) * 18}%`,
+                    }
+                  ]}
+                >
+                  {/* Outer ring (always visible) */}
+                  <View
+                    style={[
+                      styles.gardenOrbRing,
+                      { borderColor: stateInfo?.color + '40' }
+                    ]}
+                  >
+                    {/* Inner filled circle (size based on slider value) */}
+                    <View
+                      style={[
+                        styles.gardenOrbFill,
+                        {
+                          backgroundColor: stateInfo?.color,
+                          width: 28 + (fillLevel * 20),
+                          height: 28 + (fillLevel * 20),
+                          opacity: 0.6 + (fillLevel * 0.4),
+                        }
+                      ]}
+                    >
+                      <Text style={styles.gardenOrbEmoji}>
+                        {STATE_EMOJIS[check.polyvagal_state]}
+                      </Text>
+                    </View>
+                  </View>
+                </View>
+              )
+            })}
+          </View>
+        </BlurView>
+
         {/* Stats Overview */}
         <BlurView intensity={20} tint="dark" style={styles.statsCard}>
           <View style={styles.statsGrid}>
-            {/* Average Score */}
-            <View style={styles.statItem}>
-              <Text style={styles.statValue}>{stats.averageScore}%</Text>
-              <Text style={styles.statLabel}>average</Text>
-            </View>
-
             {/* Most Common State */}
             <View style={styles.statItem}>
               <View style={styles.stateChipSmall}>
@@ -228,6 +271,8 @@ export default function MySomiScreen() {
 
         {checkIns.map((check, index) => {
           const stateInfo = getStateInfo(check.polyvagal_state)
+          const fillLevel = check.slider_value / 100
+
           return (
             <View key={check.id} style={styles.checkInItem}>
               {/* Timeline dot and line */}
@@ -253,7 +298,20 @@ export default function MySomiScreen() {
                     </Text>
                   </View>
 
-                  <Text style={styles.checkInScore}>{check.slider_value}%</Text>
+                  {/* Circle progress indicator instead of percentage */}
+                  <View style={styles.progressCircle}>
+                    <View
+                      style={[
+                        styles.progressCircleFill,
+                        {
+                          width: 12 + (fillLevel * 12),
+                          height: 12 + (fillLevel * 12),
+                          backgroundColor: stateInfo?.color,
+                          opacity: 0.7 + (fillLevel * 0.3),
+                        }
+                      ]}
+                    />
+                  </View>
                 </View>
 
                 <Text style={styles.checkInTime}>{formatDate(check.created_at)}</Text>
@@ -327,6 +385,60 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     lineHeight: 22,
     letterSpacing: 0.2,
+  },
+  gardenCard: {
+    borderRadius: 24,
+    overflow: 'hidden',
+    marginBottom: 32,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
+    padding: 24,
+    minHeight: 300,
+  },
+  gardenTitle: {
+    color: 'rgba(247, 249, 251, 0.8)',
+    fontSize: 14,
+    fontWeight: '600',
+    letterSpacing: 1,
+    textTransform: 'lowercase',
+    marginBottom: 20,
+    textAlign: 'center',
+  },
+  gardenContainer: {
+    width: '100%',
+    height: 240,
+    position: 'relative',
+    backgroundColor: 'rgba(15, 12, 41, 0.3)',
+    borderRadius: 16,
+    padding: 16,
+  },
+  gardenOrb: {
+    position: 'absolute',
+    width: 52,
+    height: 52,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  gardenOrbRing: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    borderWidth: 2,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  gardenOrbFill: {
+    borderRadius: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  gardenOrbEmoji: {
+    fontSize: 16,
   },
   statsCard: {
     borderRadius: 24,
@@ -429,11 +541,16 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     letterSpacing: 0.3,
   },
-  checkInScore: {
-    color: '#4ecdc4',
-    fontSize: 20,
-    fontWeight: '700',
-    letterSpacing: 0.3,
+  progressCircle: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  progressCircleFill: {
+    borderRadius: 12,
   },
   checkInTime: {
     color: 'rgba(247, 249, 251, 0.5)',
