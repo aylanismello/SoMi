@@ -7,6 +7,7 @@ import { Ionicons } from '@expo/vector-icons'
 import HomeScreen from './components/HomeScreen'
 import SoMeCheckIn from './components/SoMeCheckIn'
 import PlayerScreen from './components/PlayerScreen'
+import MySomiScreen from './components/MySomiScreen'
 
 const Stack = createStackNavigator()
 const Tab = createBottomTabNavigator()
@@ -69,6 +70,8 @@ export default function App() {
               iconName = focused ? 'home' : 'home-outline'
             } else if (route.name === 'Check In') {
               iconName = focused ? 'heart-circle' : 'heart-circle-outline'
+            } else if (route.name === 'My SoMi') {
+              iconName = focused ? 'leaf' : 'leaf-outline'
             }
 
             return <Ionicons name={iconName} size={24} color={focused ? '#ffffff' : 'rgba(247, 249, 251, 0.6)'} />
@@ -157,6 +160,13 @@ export default function App() {
               }
             })(),
           })}
+        />
+        <Tab.Screen
+          name="My SoMi"
+          component={MySomiScreen}
+          options={{
+            tabBarLabel: 'My SoMi',
+          }}
         />
       </Tab.Navigator>
     </NavigationContainer>
