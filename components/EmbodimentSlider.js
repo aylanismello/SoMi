@@ -341,7 +341,10 @@ export default function EmbodimentSlider({
                 activeOpacity={0.7}
                 style={[
                   styles.carouselChip,
-                  selectedStateId === state.id && styles.carouselChipSelected,
+                  selectedStateId === state.id && [
+                    styles.carouselChipSelected,
+                    { backgroundColor: state.color + 'E6' } // 90% opacity solid fill
+                  ],
                   { borderColor: state.color }
                 ]}
               >
@@ -349,7 +352,7 @@ export default function EmbodimentSlider({
                   <Text style={styles.carouselChipIcon}>{STATE_DESCRIPTIONS[state.id]?.icon}</Text>
                   <Text style={[
                     styles.carouselChipLabel,
-                    selectedStateId === state.id && { color: state.color }
+                    selectedStateId === state.id && styles.carouselChipLabelSelected
                   ]}>
                     {state.label}
                   </Text>
@@ -358,7 +361,10 @@ export default function EmbodimentSlider({
                     style={styles.carouselChipInfoButton}
                     hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
                   >
-                    <Text style={styles.carouselChipInfoIcon}>ⓘ</Text>
+                    <Text style={[
+                      styles.carouselChipInfoIcon,
+                      selectedStateId === state.id && styles.carouselChipInfoIconSelected
+                    ]}>ⓘ</Text>
                   </TouchableOpacity>
                 </View>
               </TouchableOpacity>
@@ -514,11 +520,10 @@ const styles = StyleSheet.create({
     elevation: 3,
   },
   carouselChipSelected: {
-    backgroundColor: 'rgba(255, 255, 255, 0.18)',
     borderWidth: 3,
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 5,
+    shadowOpacity: 0.35,
+    shadowRadius: 10,
+    elevation: 6,
   },
   carouselChipContent: {
     flexDirection: 'row',
@@ -535,6 +540,10 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     letterSpacing: 0.4,
   },
+  carouselChipLabelSelected: {
+    color: '#ffffff',
+    fontWeight: '700',
+  },
   carouselChipInfoButton: {
     marginLeft: 3,
   },
@@ -542,6 +551,9 @@ const styles = StyleSheet.create({
     color: 'rgba(247, 249, 251, 0.5)',
     fontSize: 15,
     fontWeight: '600',
+  },
+  carouselChipInfoIconSelected: {
+    color: 'rgba(255, 255, 255, 0.85)',
   },
   modalOverlay: {
     flex: 1,
