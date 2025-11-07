@@ -1,8 +1,10 @@
 import React, { useState, useCallback } from 'react'
-import { StyleSheet, Text, View, ScrollView, ActivityIndicator } from 'react-native'
+import { StyleSheet, Text, View, ScrollView, ActivityIndicator, TouchableOpacity, Animated } from 'react-native'
 import { useFocusEffect } from '@react-navigation/native'
 import { LinearGradient } from 'expo-linear-gradient'
 import { BlurView } from 'expo-blur'
+import Svg, { Circle } from 'react-native-svg'
+import * as Haptics from 'expo-haptics'
 import { supabase } from '../supabase'
 
 // Match polyvagal states from SoMeCheckIn
@@ -25,6 +27,7 @@ const STATE_EMOJIS = {
 export default function MySomiScreen() {
   const [loading, setLoading] = useState(true)
   const [checkIns, setCheckIns] = useState([])
+  const [selectedOrb, setSelectedOrb] = useState(null)
   const [stats, setStats] = useState({
     averageScore: 0,
     totalCheckIns: 0,
@@ -134,6 +137,11 @@ export default function MySomiScreen() {
     return POLYVAGAL_STATES.find(s => s.id === stateId)
   }
 
+  const handleOrbPress = (check) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
+    setSelectedOrb(selectedOrb?.id === check.id ? null : check)
+  }
+
   const renderEmptyState = () => (
     <View style={styles.emptyContainer}>
       <Text style={styles.emptyEmoji}>🌱</Text>
@@ -188,48 +196,101 @@ export default function MySomiScreen() {
       >
         {/* Garden Visualization */}
         <BlurView intensity={20} tint="dark" style={styles.gardenCard}>
-          <Text style={styles.gardenTitle}>your embodiment garden</Text>
+          <Text style={styles.gardenTitle}>your embodiment river</Text>
           <View style={styles.gardenContainer}>
+            {/* River gradient background */}
+            <LinearGradient
+              colors={[
+                'rgba(30, 60, 114, 0.3)',
+                'rgba(42, 82, 152, 0.4)',
+                'rgba(78, 205, 196, 0.25)',
+                'rgba(42, 82, 152, 0.4)',
+                'rgba(30, 60, 114, 0.3)',
+              ]}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.riverGradient}
+            />
+
             {checkIns.slice(0, 20).map((check, index) => {
               const stateInfo = getStateInfo(check.polyvagal_state)
               const fillLevel = check.slider_value / 100
 
+              // Circle measurements for progress ring
+              const circleSize = 52
+              const strokeWidth = 3
+              const radius = (circleSize - strokeWidth) / 2
+              const circumference = 2 * Math.PI * radius
+              const strokeDashoffset = circumference * (1 - fillLevel)
+
+              // Position: newest at top, oldest at bottom
+              // Use a more organic layout pattern
+              const row = Math.floor(index / 3)
+              const col = index % 3
+              const leftOffset = col === 0 ? 5 : col === 1 ? 40 : 75
+              const topOffset = row * 22 + 5
+
               return (
-                <View
+                <TouchableOpacity
                   key={check.id}
+                  onPress={() => handleOrbPress(check)}
+                  activeOpacity={0.8}
                   style={[
                     styles.gardenOrb,
                     {
-                      left: `${(index * 37) % 85}%`,
-                      top: `${Math.floor(index / 3) * 18}%`,
+                      left: `${leftOffset}%`,
+                      top: `${topOffset}%`,
                     }
                   ]}
                 >
-                  {/* Outer ring (always visible) */}
+                  {/* SVG Progress Ring */}
+                  <Svg width={circleSize} height={circleSize} style={styles.gardenOrbSvg}>
+                    {/* Background ring */}
+                    <Circle
+                      cx={circleSize / 2}
+                      cy={circleSize / 2}
+                      r={radius}
+                      stroke={stateInfo?.color + '30'}
+                      strokeWidth={strokeWidth}
+                      fill="none"
+                    />
+                    {/* Progress ring */}
+                    <Circle
+                      cx={circleSize / 2}
+                      cy={circleSize / 2}
+                      r={radius}
+                      stroke={stateInfo?.color}
+                      strokeWidth={strokeWidth}
+                      fill="none"
+                      strokeDasharray={circumference}
+                      strokeDashoffset={strokeDashoffset}
+                      strokeLinecap="round"
+                      transform={`rotate(-90 ${circleSize / 2} ${circleSize / 2})`}
+                    />
+                  </Svg>
+
+                  {/* Center content */}
                   <View
                     style={[
-                      styles.gardenOrbRing,
-                      { borderColor: stateInfo?.color + '40' }
+                      styles.gardenOrbCenter,
+                      {
+                        backgroundColor: stateInfo?.color + '80',
+                      }
                     ]}
                   >
-                    {/* Inner filled circle (size based on slider value) */}
-                    <View
-                      style={[
-                        styles.gardenOrbFill,
-                        {
-                          backgroundColor: stateInfo?.color,
-                          width: 28 + (fillLevel * 20),
-                          height: 28 + (fillLevel * 20),
-                          opacity: 0.6 + (fillLevel * 0.4),
-                        }
-                      ]}
-                    >
-                      <Text style={styles.gardenOrbEmoji}>
-                        {STATE_EMOJIS[check.polyvagal_state]}
-                      </Text>
-                    </View>
+                    <Text style={styles.gardenOrbEmoji}>
+                      {STATE_EMOJIS[check.polyvagal_state]}
+                    </Text>
                   </View>
-                </View>
+
+                  {/* Popup tooltip on selection */}
+                  {selectedOrb?.id === check.id && (
+                    <View style={styles.orbTooltip}>
+                      <Text style={styles.orbTooltipText}>{formatDate(check.created_at)}</Text>
+                      <Text style={styles.orbTooltipState}>{stateInfo?.label}</Text>
+                    </View>
+                  )}
+                </TouchableOpacity>
               )
             })}
           </View>
@@ -408,9 +469,17 @@ const styles = StyleSheet.create({
     width: '100%',
     height: 240,
     position: 'relative',
-    backgroundColor: 'rgba(15, 12, 41, 0.3)',
     borderRadius: 16,
     padding: 16,
+    overflow: 'hidden',
+  },
+  riverGradient: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    borderRadius: 16,
   },
   gardenOrb: {
     position: 'absolute',
@@ -419,16 +488,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  gardenOrbRing: {
-    width: 52,
-    height: 52,
-    borderRadius: 26,
-    borderWidth: 2,
-    alignItems: 'center',
-    justifyContent: 'center',
+  gardenOrbSvg: {
+    position: 'absolute',
   },
-  gardenOrbFill: {
-    borderRadius: 24,
+  gardenOrbCenter: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
     alignItems: 'center',
     justifyContent: 'center',
     shadowColor: '#000',
@@ -438,7 +504,39 @@ const styles = StyleSheet.create({
     elevation: 3,
   },
   gardenOrbEmoji: {
-    fontSize: 16,
+    fontSize: 18,
+  },
+  orbTooltip: {
+    position: 'absolute',
+    top: -40,
+    left: '50%',
+    transform: [{ translateX: -50 }],
+    backgroundColor: 'rgba(15, 12, 41, 0.95)',
+    borderRadius: 12,
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.2)',
+    minWidth: 80,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 5,
+  },
+  orbTooltipText: {
+    color: '#f7f9fb',
+    fontSize: 11,
+    fontWeight: '600',
+    letterSpacing: 0.3,
+  },
+  orbTooltipState: {
+    color: 'rgba(247, 249, 251, 0.7)',
+    fontSize: 9,
+    fontWeight: '500',
+    letterSpacing: 0.3,
+    marginTop: 2,
   },
   statsCard: {
     borderRadius: 24,
