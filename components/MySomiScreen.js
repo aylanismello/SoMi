@@ -160,7 +160,7 @@ export default function MySomiScreen() {
         style={styles.container}
       >
         <View style={styles.header}>
-          <Text style={styles.headerTitle}>my somi</Text>
+          <Text style={styles.headerTitle}>My SoMi</Text>
         </View>
         {renderEmptyState()}
       </LinearGradient>
@@ -173,7 +173,7 @@ export default function MySomiScreen() {
       style={styles.container}
     >
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>my somi</Text>
+        <Text style={styles.headerTitle}>My SoMi</Text>
         <Text style={styles.headerSubtitle}>{stats.totalCheckIns} check-ins</Text>
       </View>
 
