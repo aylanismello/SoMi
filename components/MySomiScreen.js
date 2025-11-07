@@ -24,6 +24,152 @@ const STATE_EMOJIS = {
   connected: '🌕',
 }
 
+// Floating Orb Component with physics
+function FloatingOrb({ check, index, onPress, isSelected, formatDate }) {
+  const stateInfo = POLYVAGAL_STATES.find(s => s.id === check.polyvagal_state)
+  const fillLevel = check.slider_value / 100
+
+  // Circle measurements for progress ring
+  const circleSize = 52
+  const strokeWidth = 3
+  const radius = (circleSize - strokeWidth) / 2
+  const circumference = 2 * Math.PI * radius
+  const strokeDashoffset = circumference * (1 - fillLevel)
+
+  // Position: newest at top, oldest at bottom
+  const row = Math.floor(index / 3)
+  const col = index % 3
+  const leftOffset = col === 0 ? 5 : col === 1 ? 40 : 75
+  const topOffset = row * 22 + 5
+
+  // Create floating animation for this orb
+  const floatY = React.useRef(new Animated.Value(0)).current
+  const floatX = React.useRef(new Animated.Value(0)).current
+
+  // Start animation on mount with unique timing per orb
+  React.useEffect(() => {
+    const duration = 2000 + (index * 200) // Vary duration per orb
+    const delay = index * 300 // Stagger start times
+
+    // Vertical floating (bobbing up and down)
+    const floatYAnimation = Animated.loop(
+      Animated.sequence([
+        Animated.timing(floatY, {
+          toValue: -8,
+          duration: duration,
+          delay: delay,
+          useNativeDriver: true,
+        }),
+        Animated.timing(floatY, {
+          toValue: 0,
+          duration: duration,
+          useNativeDriver: true,
+        }),
+      ])
+    )
+
+    // Horizontal drifting (gentle side-to-side)
+    const floatXAnimation = Animated.loop(
+      Animated.sequence([
+        Animated.timing(floatX, {
+          toValue: 5,
+          duration: duration * 1.5,
+          delay: delay + 500,
+          useNativeDriver: true,
+        }),
+        Animated.timing(floatX, {
+          toValue: -5,
+          duration: duration * 1.5,
+          useNativeDriver: true,
+        }),
+        Animated.timing(floatX, {
+          toValue: 0,
+          duration: duration * 1.5,
+          useNativeDriver: true,
+        }),
+      ])
+    )
+
+    floatYAnimation.start()
+    floatXAnimation.start()
+
+    return () => {
+      floatYAnimation.stop()
+      floatXAnimation.stop()
+    }
+  }, [index, floatY, floatX])
+
+  return (
+    <Animated.View
+      style={[
+        styles.gardenOrb,
+        {
+          left: `${leftOffset}%`,
+          top: `${topOffset}%`,
+          transform: [
+            { translateY: floatY },
+            { translateX: floatX },
+          ],
+        }
+      ]}
+    >
+      <TouchableOpacity
+        onPress={() => onPress(check)}
+        activeOpacity={0.8}
+        style={styles.orbTouchable}
+      >
+        {/* SVG Progress Ring */}
+        <Svg width={circleSize} height={circleSize} style={styles.gardenOrbSvg}>
+          {/* Background ring */}
+          <Circle
+            cx={circleSize / 2}
+            cy={circleSize / 2}
+            r={radius}
+            stroke={stateInfo?.color + '30'}
+            strokeWidth={strokeWidth}
+            fill="none"
+          />
+          {/* Progress ring */}
+          <Circle
+            cx={circleSize / 2}
+            cy={circleSize / 2}
+            r={radius}
+            stroke={stateInfo?.color}
+            strokeWidth={strokeWidth}
+            fill="none"
+            strokeDasharray={circumference}
+            strokeDashoffset={strokeDashoffset}
+            strokeLinecap="round"
+            transform={`rotate(-90 ${circleSize / 2} ${circleSize / 2})`}
+          />
+        </Svg>
+
+        {/* Center content */}
+        <View
+          style={[
+            styles.gardenOrbCenter,
+            {
+              backgroundColor: stateInfo?.color + '80',
+            }
+          ]}
+        >
+          <Text style={styles.gardenOrbEmoji}>
+            {STATE_EMOJIS[check.polyvagal_state]}
+          </Text>
+        </View>
+
+        {/* Popup tooltip on selection */}
+        {isSelected && (
+          <View style={styles.orbTooltip}>
+            <Text style={styles.orbTooltipText}>{formatDate(check.created_at)}</Text>
+            <Text style={styles.orbTooltipState}>{stateInfo?.label}</Text>
+          </View>
+        )}
+      </TouchableOpacity>
+    </Animated.View>
+  )
+}
+
 export default function MySomiScreen() {
   const [loading, setLoading] = useState(true)
   const [checkIns, setCheckIns] = useState([])
@@ -212,87 +358,16 @@ export default function MySomiScreen() {
               style={styles.riverGradient}
             />
 
-            {checkIns.slice(0, 20).map((check, index) => {
-              const stateInfo = getStateInfo(check.polyvagal_state)
-              const fillLevel = check.slider_value / 100
-
-              // Circle measurements for progress ring
-              const circleSize = 52
-              const strokeWidth = 3
-              const radius = (circleSize - strokeWidth) / 2
-              const circumference = 2 * Math.PI * radius
-              const strokeDashoffset = circumference * (1 - fillLevel)
-
-              // Position: newest at top, oldest at bottom
-              // Use a more organic layout pattern
-              const row = Math.floor(index / 3)
-              const col = index % 3
-              const leftOffset = col === 0 ? 5 : col === 1 ? 40 : 75
-              const topOffset = row * 22 + 5
-
-              return (
-                <TouchableOpacity
-                  key={check.id}
-                  onPress={() => handleOrbPress(check)}
-                  activeOpacity={0.8}
-                  style={[
-                    styles.gardenOrb,
-                    {
-                      left: `${leftOffset}%`,
-                      top: `${topOffset}%`,
-                    }
-                  ]}
-                >
-                  {/* SVG Progress Ring */}
-                  <Svg width={circleSize} height={circleSize} style={styles.gardenOrbSvg}>
-                    {/* Background ring */}
-                    <Circle
-                      cx={circleSize / 2}
-                      cy={circleSize / 2}
-                      r={radius}
-                      stroke={stateInfo?.color + '30'}
-                      strokeWidth={strokeWidth}
-                      fill="none"
-                    />
-                    {/* Progress ring */}
-                    <Circle
-                      cx={circleSize / 2}
-                      cy={circleSize / 2}
-                      r={radius}
-                      stroke={stateInfo?.color}
-                      strokeWidth={strokeWidth}
-                      fill="none"
-                      strokeDasharray={circumference}
-                      strokeDashoffset={strokeDashoffset}
-                      strokeLinecap="round"
-                      transform={`rotate(-90 ${circleSize / 2} ${circleSize / 2})`}
-                    />
-                  </Svg>
-
-                  {/* Center content */}
-                  <View
-                    style={[
-                      styles.gardenOrbCenter,
-                      {
-                        backgroundColor: stateInfo?.color + '80',
-                      }
-                    ]}
-                  >
-                    <Text style={styles.gardenOrbEmoji}>
-                      {STATE_EMOJIS[check.polyvagal_state]}
-                    </Text>
-                  </View>
-
-                  {/* Popup tooltip on selection */}
-                  {selectedOrb?.id === check.id && (
-                    <View style={styles.orbTooltip}>
-                      <Text style={styles.orbTooltipText}>{formatDate(check.created_at)}</Text>
-                      <Text style={styles.orbTooltipState}>{stateInfo?.label}</Text>
-                    </View>
-                  )}
-                </TouchableOpacity>
-              )
-            })}
+            {checkIns.slice(0, 20).map((check, index) => (
+              <FloatingOrb
+                key={check.id}
+                check={check}
+                index={index}
+                onPress={handleOrbPress}
+                isSelected={selectedOrb?.id === check.id}
+                formatDate={formatDate}
+              />
+            ))}
           </View>
         </BlurView>
 
@@ -483,6 +558,10 @@ const styles = StyleSheet.create({
   },
   gardenOrb: {
     position: 'absolute',
+    width: 52,
+    height: 52,
+  },
+  orbTouchable: {
     width: 52,
     height: 52,
     alignItems: 'center',
