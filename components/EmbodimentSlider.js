@@ -74,11 +74,13 @@ export default function EmbodimentSlider({
   const [tooltipVisible, setTooltipVisible] = useState(false)
   const [tooltipState, setTooltipState] = useState(null)
   const scrollViewRef = useRef(null)
+  const savedScrollPosition = useRef(0) // Store scroll position before selection
 
-  // Reset carousel scroll position when resetKey changes
+  // Reset carousel scroll position when resetKey changes (full reset)
   useEffect(() => {
     if (scrollViewRef.current) {
       scrollViewRef.current.scrollTo({ x: 0, animated: false })
+      savedScrollPosition.current = 0
     }
   }, [resetKey])
 
@@ -110,6 +112,26 @@ export default function EmbodimentSlider({
     if (onStateChange) {
       onStateChange(stateId)
     }
+  }
+
+  // Handle chip deselection (X button) - restore scroll position
+  const handleDeselectChip = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
+    if (onStateChange) {
+      onStateChange(null)
+    }
+
+    // Restore the saved scroll position after a brief delay to ensure carousel is rendered
+    setTimeout(() => {
+      if (scrollViewRef.current) {
+        scrollViewRef.current.scrollTo({ x: savedScrollPosition.current, animated: false })
+      }
+    }, 0)
+  }
+
+  // Save scroll position when ScrollView is scrolled
+  const handleScroll = (event) => {
+    savedScrollPosition.current = event.nativeEvent.contentOffset.x
   }
 
   // Handle info button press
@@ -330,56 +352,88 @@ export default function EmbodimentSlider({
         )}
       </View>
 
-      {/* Polyvagal state chips carousel */}
+      {/* Polyvagal state chips - Focused selection or carousel */}
       {showChips && states.length > 0 && (
         <View style={styles.carouselContainer}>
-          <ScrollView
-            ref={scrollViewRef}
-            horizontal
-            pagingEnabled={false}
-            showsHorizontalScrollIndicator={false}
-            decelerationRate="fast"
-            snapToInterval={140}
-            snapToAlignment="center"
-            contentContainerStyle={styles.carouselContent}
-            style={styles.carousel}
-          >
-            {states.map((state) => (
-              <TouchableOpacity
-                key={state.id}
-                onPress={() => handleChipPress(state.id)}
-                activeOpacity={0.7}
+          {selectedStateId ? (
+            // Focused mode: Show only the selected chip centered with X button
+            <View style={styles.focusedChipContainer}>
+              <View
                 style={[
-                  styles.carouselChip,
-                  selectedStateId === state.id && [
-                    styles.carouselChipSelected,
-                    { backgroundColor: state.color + 'E6' } // 90% opacity solid fill
-                  ],
-                  { borderColor: state.color }
+                  styles.focusedChip,
+                  {
+                    backgroundColor: states.find(s => s.id === selectedStateId)?.color + 'E6',
+                    borderColor: states.find(s => s.id === selectedStateId)?.color
+                  }
                 ]}
               >
-                <View style={styles.carouselChipContent}>
-                  <Text style={styles.carouselChipIcon}>{STATE_DESCRIPTIONS[state.id]?.icon}</Text>
-                  <Text style={[
-                    styles.carouselChipLabel,
-                    selectedStateId === state.id && styles.carouselChipLabelSelected
-                  ]}>
-                    {state.label}
-                  </Text>
-                  <TouchableOpacity
-                    onPress={() => handleInfoPress(state.id)}
-                    style={styles.carouselChipInfoButton}
-                    hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-                  >
-                    <Text style={[
-                      styles.carouselChipInfoIcon,
-                      selectedStateId === state.id && styles.carouselChipInfoIconSelected
-                    ]}>ⓘ</Text>
-                  </TouchableOpacity>
-                </View>
+                <Text style={styles.focusedChipIcon}>
+                  {STATE_DESCRIPTIONS[selectedStateId]?.icon}
+                </Text>
+                <Text style={styles.focusedChipLabel}>
+                  {states.find(s => s.id === selectedStateId)?.label}
+                </Text>
+                <TouchableOpacity
+                  onPress={() => handleInfoPress(selectedStateId)}
+                  style={styles.focusedChipInfoButton}
+                  hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                >
+                  <Text style={styles.focusedChipInfoIcon}>ⓘ</Text>
+                </TouchableOpacity>
+              </View>
+
+              {/* X button to deselect */}
+              <TouchableOpacity
+                onPress={handleDeselectChip}
+                style={styles.deselectButton}
+                activeOpacity={0.7}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              >
+                <Text style={styles.deselectButtonText}>✕</Text>
               </TouchableOpacity>
-            ))}
-          </ScrollView>
+            </View>
+          ) : (
+            // Carousel mode: Show all chips
+            <ScrollView
+              ref={scrollViewRef}
+              horizontal
+              pagingEnabled={false}
+              showsHorizontalScrollIndicator={false}
+              decelerationRate="fast"
+              snapToInterval={140}
+              snapToAlignment="center"
+              contentContainerStyle={styles.carouselContent}
+              style={styles.carousel}
+              onScroll={handleScroll}
+              scrollEventThrottle={16}
+            >
+              {states.map((state) => (
+                <TouchableOpacity
+                  key={state.id}
+                  onPress={() => handleChipPress(state.id)}
+                  activeOpacity={0.7}
+                  style={[
+                    styles.carouselChip,
+                    { borderColor: state.color }
+                  ]}
+                >
+                  <View style={styles.carouselChipContent}>
+                    <Text style={styles.carouselChipIcon}>{STATE_DESCRIPTIONS[state.id]?.icon}</Text>
+                    <Text style={styles.carouselChipLabel}>
+                      {state.label}
+                    </Text>
+                    <TouchableOpacity
+                      onPress={() => handleInfoPress(state.id)}
+                      style={styles.carouselChipInfoButton}
+                      hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                    >
+                      <Text style={styles.carouselChipInfoIcon}>ⓘ</Text>
+                    </TouchableOpacity>
+                  </View>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          )}
         </View>
       )}
 
@@ -529,11 +583,58 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     elevation: 3,
   },
-  carouselChipSelected: {
+  focusedChipContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    width: '100%',
+    gap: 12,
+  },
+  focusedChip: {
+    borderRadius: 24,
     borderWidth: 3,
+    paddingVertical: 14,
+    paddingHorizontal: 18,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 7,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.35,
     shadowRadius: 10,
     elevation: 6,
+  },
+  focusedChipIcon: {
+    fontSize: 22,
+  },
+  focusedChipLabel: {
+    color: '#ffffff',
+    fontSize: 15,
+    fontWeight: '700',
+    letterSpacing: 0.4,
+  },
+  focusedChipInfoButton: {
+    marginLeft: 3,
+  },
+  focusedChipInfoIcon: {
+    color: 'rgba(255, 255, 255, 0.85)',
+    fontSize: 15,
+    fontWeight: '600',
+  },
+  deselectButton: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+    borderWidth: 2,
+    borderColor: 'rgba(255, 255, 255, 0.3)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  deselectButtonText: {
+    color: 'rgba(255, 255, 255, 0.9)',
+    fontSize: 18,
+    fontWeight: '600',
   },
   carouselChipContent: {
     flexDirection: 'row',
@@ -550,10 +651,6 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     letterSpacing: 0.4,
   },
-  carouselChipLabelSelected: {
-    color: '#ffffff',
-    fontWeight: '700',
-  },
   carouselChipInfoButton: {
     marginLeft: 3,
   },
@@ -561,9 +658,6 @@ const styles = StyleSheet.create({
     color: 'rgba(247, 249, 251, 0.5)',
     fontSize: 15,
     fontWeight: '600',
-  },
-  carouselChipInfoIconSelected: {
-    color: 'rgba(255, 255, 255, 0.85)',
   },
   modalOverlay: {
     flex: 1,
