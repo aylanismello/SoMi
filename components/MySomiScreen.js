@@ -31,7 +31,7 @@ function FloatingOrb({ check, index, onPress, isSelected, formatDate }) {
 
   // Circle measurements for progress ring
   const circleSize = 52
-  const strokeWidth = 3
+  const strokeWidth = 4 // Thicker stroke for better visibility
   const radius = (circleSize - strokeWidth) / 2
   const circumference = 2 * Math.PI * radius
   const strokeDashoffset = circumference * (1 - fillLevel)
@@ -41,6 +41,10 @@ function FloatingOrb({ check, index, onPress, isSelected, formatDate }) {
   const col = index % 3
   const leftOffset = col === 0 ? 5 : col === 1 ? 40 : 75
   const topOffset = row * 22 + 5
+
+  // Smart tooltip positioning to avoid edges
+  const showTooltipBelow = row < 2 // Show below for top rows
+  const tooltipAlignment = col === 0 ? 'left' : col === 2 ? 'right' : 'center'
 
   // Create floating animation for this orb
   const floatY = React.useRef(new Animated.Value(0)).current
@@ -149,20 +153,28 @@ function FloatingOrb({ check, index, onPress, isSelected, formatDate }) {
           style={[
             styles.gardenOrbCenter,
             {
-              backgroundColor: stateInfo?.color + '80',
+              backgroundColor: stateInfo?.color,
+              opacity: 0.4 + (fillLevel * 0.6), // Vary opacity based on fill level
             }
           ]}
         >
-          <Text style={styles.gardenOrbEmoji}>
+          <Text style={[styles.gardenOrbEmoji, { opacity: 1 }]}>
             {STATE_EMOJIS[check.polyvagal_state]}
           </Text>
         </View>
 
         {/* Popup tooltip on selection */}
         {isSelected && (
-          <View style={styles.orbTooltip}>
-            <Text style={styles.orbTooltipText}>{formatDate(check.created_at)}</Text>
+          <View style={[
+            styles.orbTooltip,
+            showTooltipBelow ? styles.orbTooltipBelow : styles.orbTooltipAbove,
+            tooltipAlignment === 'left' && styles.orbTooltipLeft,
+            tooltipAlignment === 'right' && styles.orbTooltipRight,
+            tooltipAlignment === 'center' && styles.orbTooltipCenter,
+          ]}>
+            <Text style={styles.orbTooltipText}>{Math.round(check.slider_value)}%</Text>
             <Text style={styles.orbTooltipState}>{stateInfo?.label}</Text>
+            <Text style={styles.orbTooltipDate}>{formatDate(check.created_at)}</Text>
           </View>
         )}
       </TouchableOpacity>
@@ -286,6 +298,35 @@ export default function MySomiScreen() {
   const handleOrbPress = (check) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
     setSelectedOrb(selectedOrb?.id === check.id ? null : check)
+  }
+
+  const handleDeleteCheckIn = async (checkId) => {
+    try {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium)
+
+      // Delete from Supabase
+      const { error } = await supabase
+        .from('embodiment_checks')
+        .delete()
+        .eq('id', checkId)
+
+      if (error) {
+        console.error('Error deleting check-in:', error)
+        return
+      }
+
+      // Update local state to remove the deleted check-in
+      const updatedCheckIns = checkIns.filter(check => check.id !== checkId)
+      setCheckIns(updatedCheckIns)
+      calculateStats(updatedCheckIns)
+
+      // Clear selected orb if it was the deleted one
+      if (selectedOrb?.id === checkId) {
+        setSelectedOrb(null)
+      }
+    } catch (err) {
+      console.error('Unexpected error deleting check-in:', err)
+    }
   }
 
   const renderEmptyState = () => (
@@ -434,19 +475,41 @@ export default function MySomiScreen() {
                     </Text>
                   </View>
 
-                  {/* Circle progress indicator instead of percentage */}
-                  <View style={styles.progressCircle}>
-                    <View
-                      style={[
-                        styles.progressCircleFill,
-                        {
-                          width: 12 + (fillLevel * 12),
-                          height: 12 + (fillLevel * 12),
-                          backgroundColor: stateInfo?.color,
-                          opacity: 0.7 + (fillLevel * 0.3),
-                        }
-                      ]}
-                    />
+                  <View style={styles.checkInHeaderRight}>
+                    {/* Circle progress ring */}
+                    <Svg width={28} height={28} style={styles.progressCircleSvg}>
+                      {/* Background ring */}
+                      <Circle
+                        cx={14}
+                        cy={14}
+                        r={11}
+                        stroke={stateInfo?.color + '30'}
+                        strokeWidth={3}
+                        fill="none"
+                      />
+                      {/* Progress ring */}
+                      <Circle
+                        cx={14}
+                        cy={14}
+                        r={11}
+                        stroke={stateInfo?.color}
+                        strokeWidth={3}
+                        fill="none"
+                        strokeDasharray={2 * Math.PI * 11}
+                        strokeDashoffset={2 * Math.PI * 11 * (1 - fillLevel)}
+                        strokeLinecap="round"
+                        transform={`rotate(-90 14 14)`}
+                      />
+                    </Svg>
+
+                    {/* Delete button */}
+                    <TouchableOpacity
+                      onPress={() => handleDeleteCheckIn(check.id)}
+                      style={styles.deleteButton}
+                      activeOpacity={0.7}
+                    >
+                      <Text style={styles.deleteButtonText}>✕</Text>
+                    </TouchableOpacity>
                   </View>
                 </View>
 
@@ -587,9 +650,6 @@ const styles = StyleSheet.create({
   },
   orbTooltip: {
     position: 'absolute',
-    top: -40,
-    left: '50%',
-    transform: [{ translateX: -50 }],
     backgroundColor: 'rgba(15, 12, 41, 0.95)',
     borderRadius: 12,
     paddingVertical: 6,
@@ -604,14 +664,37 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     elevation: 5,
   },
+  orbTooltipAbove: {
+    top: -48,
+  },
+  orbTooltipBelow: {
+    top: 56,
+  },
+  orbTooltipLeft: {
+    left: 0,
+  },
+  orbTooltipCenter: {
+    left: '50%',
+    transform: [{ translateX: -50 }],
+  },
+  orbTooltipRight: {
+    right: 0,
+  },
   orbTooltipText: {
     color: '#f7f9fb',
-    fontSize: 11,
-    fontWeight: '600',
+    fontSize: 13,
+    fontWeight: '700',
     letterSpacing: 0.3,
   },
   orbTooltipState: {
-    color: 'rgba(247, 249, 251, 0.7)',
+    color: 'rgba(247, 249, 251, 0.85)',
+    fontSize: 10,
+    fontWeight: '600',
+    letterSpacing: 0.3,
+    marginTop: 2,
+  },
+  orbTooltipDate: {
+    color: 'rgba(247, 249, 251, 0.6)',
     fontSize: 9,
     fontWeight: '500',
     letterSpacing: 0.3,
@@ -700,6 +783,14 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 8,
   },
+  checkInHeaderRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  progressCircleSvg: {
+    // SVG circle progress indicator
+  },
   stateChip: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -718,22 +809,26 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     letterSpacing: 0.3,
   },
-  progressCircle: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  progressCircleFill: {
-    borderRadius: 12,
-  },
   checkInTime: {
     color: 'rgba(247, 249, 251, 0.5)',
     fontSize: 12,
     fontWeight: '500',
     letterSpacing: 0.3,
+  },
+  deleteButton: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: 'rgba(255, 107, 107, 0.15)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 107, 107, 0.3)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  deleteButtonText: {
+    color: '#ff6b6b',
+    fontSize: 16,
+    fontWeight: '300',
   },
   bottomSpacer: {
     height: 40,
