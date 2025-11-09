@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react'
-import { StyleSheet, Text, View, TouchableOpacity, Animated } from 'react-native'
+import { StyleSheet, Text, View, TouchableOpacity, Animated, AppState } from 'react-native'
 import { LinearGradient } from 'expo-linear-gradient'
 import { BlurView } from 'expo-blur'
 import * as Haptics from 'expo-haptics'
@@ -9,6 +9,9 @@ export default function SoMiTimer({ navigation, route }) {
   const [seconds, setSeconds] = useState(0)
   const [isPaused, setIsPaused] = useState(false)
   const intervalRef = useRef(null)
+  const startTimeRef = useRef(null) // Track when timer started
+  const pausedTimeRef = useRef(0) // Track total paused time
+  const pauseStartRef = useRef(null) // Track when pause started
 
   // Breathing animation
   const breatheScale = useRef(new Animated.Value(1)).current
@@ -26,13 +29,43 @@ export default function SoMiTimer({ navigation, route }) {
     }
   }, [])
 
+  // Handle app state changes (background/foreground)
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', handleAppStateChange)
+
+    return () => {
+      subscription.remove()
+    }
+  }, [isPaused])
+
+  const handleAppStateChange = (nextAppState) => {
+    if (nextAppState === 'active' && !isPaused) {
+      // App came to foreground - recalculate elapsed time
+      updateElapsedTime()
+    }
+  }
+
+  const updateElapsedTime = () => {
+    if (startTimeRef.current && !isPaused) {
+      const now = Date.now()
+      const elapsed = Math.floor((now - startTimeRef.current - pausedTimeRef.current) / 1000)
+      setSeconds(elapsed)
+    }
+  }
+
   const startTimer = () => {
+    // Set start time if not already set
+    if (!startTimeRef.current) {
+      startTimeRef.current = Date.now()
+    }
+
     if (intervalRef.current) {
       clearInterval(intervalRef.current)
     }
 
+    // Update time every second based on elapsed time, not incrementing
     intervalRef.current = setInterval(() => {
-      setSeconds(prev => prev + 1)
+      updateElapsedTime()
     }, 1000)
   }
 
@@ -71,8 +104,15 @@ export default function SoMiTimer({ navigation, route }) {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium)
 
     if (isPaused) {
+      // Resuming - add the paused duration to total paused time
+      if (pauseStartRef.current) {
+        pausedTimeRef.current += Date.now() - pauseStartRef.current
+        pauseStartRef.current = null
+      }
       startTimer()
     } else {
+      // Pausing - record when pause started
+      pauseStartRef.current = Date.now()
       if (intervalRef.current) {
         clearInterval(intervalRef.current)
       }
