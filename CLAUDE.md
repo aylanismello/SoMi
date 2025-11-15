@@ -53,6 +53,17 @@ SoMi is a React Native mobile application built with Expo that helps users asses
 - Running server commands will cause port conflict errors and fail
 - Only write/edit code - let the developer handle testing and running
 
+### Publishing Updates to Expo Cloud
+Deploy the app for remote access on Expo Go:
+
+```bash
+eas update --channel preview --message "Description of changes"
+```
+
+**Channels**:
+- `preview` - Testing/sharing
+- `production` - Live releases
+
 ---
 
 <!-- BACKLOG.MD MCP GUIDELINES START -->
