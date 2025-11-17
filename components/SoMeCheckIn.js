@@ -199,9 +199,6 @@ export default function SoMeCheckIn({ navigation, route }) {
   const handleSoMiRoutinePress = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium)
 
-    // Save to Supabase
-    saveEmbodimentCheck(sliderValue, polyvagalState)
-
     const media = getMediaForSliderValue(sliderValue)
     navigation.navigate('Player', {
       media,
@@ -214,10 +211,6 @@ export default function SoMeCheckIn({ navigation, route }) {
   const handleSelfGuidedPress = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium)
 
-    // Save to Supabase
-    saveEmbodimentCheck(sliderValue, polyvagalState)
-
-    // Navigate to SoMi Timer
     navigation.navigate('SoMiTimer', {
       initialValue: sliderValue,
       savedInitialState: polyvagalState,
@@ -237,6 +230,8 @@ export default function SoMeCheckIn({ navigation, route }) {
     }
 
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success)
+
+    saveEmbodimentCheck(sliderValue, polyvagalState)
 
     // Save initial values for later comparison
     setInitialSliderValue(sliderValue)
