@@ -2,11 +2,13 @@
 const VIDEO_SOURCE = {
   url: 'https://qujifwhwntqxziymqdwu.supabase.co/storage/v1/object/public/test/output_tiktok.mp4',
   type: 'video',
+  somi_block_id: 1, // Default to "Heart Opener" - you can customize this per state
 }
 
 const BODY_SCAN = {
   url: 'https://qujifwhwntqxziymqdwu.supabase.co/storage/v1/object/public/test/5%20Min.%20Body%20Scan%20Meditation_CW2%201.mp3',
   type: 'audio',
+  somi_block_id: null, // Body scans don't create completed blocks
 }
 
 // Background video for audio playback and toggle option
@@ -18,22 +20,40 @@ export const BACKGROUND_VIDEO = {
 
 // Media mappings for polyvagal slider states
 export const MEDIA = {
-  // 0-20: Dorsal Vagal - Shutdown
-  DORSAL: BODY_SCAN,
+  // 0-20: Dorsal Vagal - Shutdown (withdrawn state)
+  DORSAL: {
+    ...BODY_SCAN,
+    somi_block_id: 2, // Self Havening
+  },
 
-  // 20-40: Dorsal → Sympathetic transition
-  DORSAL_TO_SYMPATHETIC: VIDEO_SOURCE,
+  // 20-40: Dorsal → Sympathetic transition (stirring state)
+  DORSAL_TO_SYMPATHETIC: {
+    ...VIDEO_SOURCE,
+    somi_block_id: 7, // Freeze Roll
+  },
 
-  // 40-60: Sympathetic - Fight/Flight
-  SYMPATHETIC: VIDEO_SOURCE,
+  // 40-60: Sympathetic - Fight/Flight (activated state)
+  SYMPATHETIC: {
+    ...VIDEO_SOURCE,
+    somi_block_id: 12, // Shaking
+  },
 
-  // 60-80: Sympathetic → Ventral transition
-  SYMPATHETIC_TO_VENTRAL: VIDEO_SOURCE,
+  // 60-80: Sympathetic → Ventral transition (settling state)
+  SYMPATHETIC_TO_VENTRAL: {
+    ...VIDEO_SOURCE,
+    somi_block_id: 11, // Vagus Reset
+  },
 
-  // 80-100: Ventral Vagal - Social Engagement
-  VENTRAL: VIDEO_SOURCE,
+  // 80-100: Ventral Vagal - Social Engagement (connected state)
+  VENTRAL: {
+    ...VIDEO_SOURCE,
+    somi_block_id: 1, // Heart Opener
+  },
 
-  SOS: VIDEO_SOURCE,
+  SOS: {
+    ...VIDEO_SOURCE,
+    somi_block_id: 11, // Vagus Reset for emergency
+  },
 
   // Body scan meditation audio
 

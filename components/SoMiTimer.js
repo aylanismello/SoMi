@@ -4,6 +4,7 @@ import { LinearGradient } from 'expo-linear-gradient'
 import { BlurView } from 'expo-blur'
 import * as Haptics from 'expo-haptics'
 import Svg, { Circle } from 'react-native-svg'
+import { somiChainService } from '../supabase'
 
 export default function SoMiTimer({ navigation, route }) {
   const [seconds, setSeconds] = useState(0)
@@ -120,12 +121,16 @@ export default function SoMiTimer({ navigation, route }) {
     setIsPaused(!isPaused)
   }
 
-  const handleFinish = () => {
+  const handleFinish = async () => {
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success)
 
     if (intervalRef.current) {
       clearInterval(intervalRef.current)
     }
+
+    // Save timer session as a completed block
+    const TIMER_BLOCK_ID = 15 // Timer block from somi_blocks table
+    await somiChainService.saveCompletedBlock(TIMER_BLOCK_ID, seconds)
 
     // Navigate back to check-in at Step 4
     navigation.navigate('SoMeCheckIn', {

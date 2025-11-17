@@ -3,9 +3,9 @@ import { StyleSheet, Text, View, ScrollView, ActivityIndicator, TouchableOpacity
 import { useFocusEffect } from '@react-navigation/native'
 import { LinearGradient } from 'expo-linear-gradient'
 import { BlurView } from 'expo-blur'
-import Svg, { Circle } from 'react-native-svg'
+import Svg, { Circle, Line } from 'react-native-svg'
 import * as Haptics from 'expo-haptics'
-import { supabase } from '../supabase'
+import { supabase, somiChainService } from '../supabase'
 
 // Match polyvagal states from SoMeCheckIn
 const POLYVAGAL_STATES = [
@@ -184,8 +184,9 @@ function FloatingOrb({ check, index, onPress, isSelected, formatDate }) {
 
 export default function MySomiScreen() {
   const [loading, setLoading] = useState(true)
-  const [checkIns, setCheckIns] = useState([])
+  const [somiChains, setSomiChains] = useState([])
   const [selectedOrb, setSelectedOrb] = useState(null)
+  const [expandedChains, setExpandedChains] = useState({}) // Track which chains are expanded
   const [stats, setStats] = useState({
     averageScore: 0,
     totalCheckIns: 0,
@@ -196,28 +197,22 @@ export default function MySomiScreen() {
   // Fetch fresh data whenever the screen comes into focus
   useFocusEffect(
     useCallback(() => {
-      fetchCheckIns()
+      fetchSomiChains()
     }, [])
   )
 
-  const fetchCheckIns = async () => {
+  const fetchSomiChains = async () => {
     try {
       setLoading(true)
 
-      // Fetch all check-ins, ordered by most recent
-      const { data, error } = await supabase
-        .from('embodiment_checks')
-        .select('*')
-        .order('created_at', { ascending: false })
-        .limit(30) // Last 30 check-ins
+      // Fetch all chains with their data
+      const chainsData = await somiChainService.fetchChainsWithData(30)
 
-      if (error) {
-        console.error('Error fetching check-ins:', error)
-        return
-      }
+      setSomiChains(chainsData)
 
-      setCheckIns(data || [])
-      calculateStats(data || [])
+      // Calculate stats from all embodiment checks across all chains
+      const allChecks = chainsData.flatMap(chain => chain.embodiment_checks)
+      calculateStats(allChecks)
     } catch (err) {
       console.error('Unexpected error:', err)
     } finally {
@@ -300,33 +295,12 @@ export default function MySomiScreen() {
     setSelectedOrb(selectedOrb?.id === check.id ? null : check)
   }
 
-  const handleDeleteCheckIn = async (checkId) => {
-    try {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium)
-
-      // Delete from Supabase
-      const { error } = await supabase
-        .from('embodiment_checks')
-        .delete()
-        .eq('id', checkId)
-
-      if (error) {
-        console.error('Error deleting check-in:', error)
-        return
-      }
-
-      // Update local state to remove the deleted check-in
-      const updatedCheckIns = checkIns.filter(check => check.id !== checkId)
-      setCheckIns(updatedCheckIns)
-      calculateStats(updatedCheckIns)
-
-      // Clear selected orb if it was the deleted one
-      if (selectedOrb?.id === checkId) {
-        setSelectedOrb(null)
-      }
-    } catch (err) {
-      console.error('Unexpected error deleting check-in:', err)
-    }
+  const toggleChainExpanded = (chainId) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
+    setExpandedChains(prev => ({
+      ...prev,
+      [chainId]: !prev[chainId]
+    }))
   }
 
   const renderEmptyState = () => (
@@ -352,7 +326,7 @@ export default function MySomiScreen() {
     )
   }
 
-  if (checkIns.length === 0) {
+  if (somiChains.length === 0) {
     return (
       <LinearGradient
         colors={['#0f0c29', '#302b63', '#24243e']}
@@ -365,6 +339,9 @@ export default function MySomiScreen() {
       </LinearGradient>
     )
   }
+
+  // Get all embodiment checks from all chains for the river visualization
+  const allChecksForRiver = somiChains.flatMap(chain => chain.embodiment_checks)
 
   return (
     <LinearGradient
@@ -399,7 +376,43 @@ export default function MySomiScreen() {
               style={styles.riverGradient}
             />
 
-            {checkIns.slice(0, 20).map((check, index) => (
+            {/* Render tethers between chain groups */}
+            <Svg style={styles.tetherSvg}>
+              {somiChains.slice(0, 10).map((chain, chainIndex) => {
+                const checks = chain.embodiment_checks.slice(0, 3)
+                if (checks.length < 2) return null
+
+                return checks.slice(0, -1).map((check, checkIndex) => {
+                  const currentIndex = chainIndex * 3 + checkIndex
+                  const nextIndex = currentIndex + 1
+
+                  const currentRow = Math.floor(currentIndex / 3)
+                  const currentCol = currentIndex % 3
+                  const nextRow = Math.floor(nextIndex / 3)
+                  const nextCol = nextIndex % 3
+
+                  const currentX = (currentCol === 0 ? 5 : currentCol === 1 ? 40 : 75) + 3
+                  const currentY = (currentRow * 22 + 5) + 3
+                  const nextX = (nextCol === 0 ? 5 : nextCol === 1 ? 40 : 75) + 3
+                  const nextY = (nextRow * 22 + 5) + 3
+
+                  return (
+                    <Line
+                      key={`tether-${chain.id}-${checkIndex}`}
+                      x1={`${currentX}%`}
+                      y1={`${currentY}%`}
+                      x2={`${nextX}%`}
+                      y2={`${nextY}%`}
+                      stroke="rgba(78, 205, 196, 0.3)"
+                      strokeWidth="1"
+                      strokeDasharray="3,3"
+                    />
+                  )
+                })
+              })}
+            </Svg>
+
+            {allChecksForRiver.slice(0, 20).map((check, index) => (
               <FloatingOrb
                 key={check.id}
                 check={check}
@@ -443,77 +456,118 @@ export default function MySomiScreen() {
           </View>
         </BlurView>
 
-        {/* Recent Check-ins Timeline */}
-        <Text style={styles.sectionTitle}>recent check-ins</Text>
+        {/* SoMi Chains Timeline */}
+        <Text style={styles.sectionTitle}>somi chains</Text>
 
-        {checkIns.map((check, index) => {
-          const stateInfo = getStateInfo(check.polyvagal_state)
-          const fillLevel = check.slider_value / 100
+        {somiChains.map((chain, chainIndex) => {
+          const isExpanded = expandedChains[chain.id]
+          const checksCount = chain.embodiment_checks.length
+          const blocksCount = chain.completed_blocks.length
 
           return (
-            <View key={check.id} style={styles.checkInItem}>
+            <View key={chain.id} style={styles.checkInItem}>
               {/* Timeline dot and line */}
               <View style={styles.timelineContainer}>
-                <View style={[styles.timelineDot, { backgroundColor: stateInfo?.color }]} />
-                {index < checkIns.length - 1 && (
+                <View style={[styles.timelineDot, { backgroundColor: '#4ecdc4' }]} />
+                {chainIndex < somiChains.length - 1 && (
                   <View style={styles.timelineLine} />
                 )}
               </View>
 
-              {/* Check-in content */}
+              {/* Chain card */}
               <BlurView intensity={15} tint="dark" style={styles.checkInCard}>
-                <View style={styles.checkInHeader}>
-                  <View style={[styles.stateChip, {
-                    backgroundColor: stateInfo?.color + '33',
-                    borderColor: stateInfo?.color,
-                  }]}>
-                    <Text style={styles.stateEmojiSmall}>
-                      {STATE_EMOJIS[check.polyvagal_state]}
-                    </Text>
-                    <Text style={styles.stateLabel}>
-                      {stateInfo?.label}
-                    </Text>
+                <TouchableOpacity
+                  onPress={() => toggleChainExpanded(chain.id)}
+                  activeOpacity={0.7}
+                >
+                  <View style={styles.checkInHeader}>
+                    <View style={styles.chainHeaderLeft}>
+                      <Text style={styles.chainTitle}>SoMi Chain</Text>
+                      <Text style={styles.chainSubtitle}>
+                        {checksCount} check-in{checksCount !== 1 ? 's' : ''} • {blocksCount} block{blocksCount !== 1 ? 's' : ''}
+                      </Text>
+                    </View>
+
+                    <Text style={styles.expandIcon}>{isExpanded ? '▼' : '▶'}</Text>
                   </View>
 
-                  <View style={styles.checkInHeaderRight}>
-                    {/* Circle progress ring */}
-                    <Svg width={28} height={28} style={styles.progressCircleSvg}>
-                      {/* Background ring */}
-                      <Circle
-                        cx={14}
-                        cy={14}
-                        r={11}
-                        stroke={stateInfo?.color + '30'}
-                        strokeWidth={3}
-                        fill="none"
-                      />
-                      {/* Progress ring */}
-                      <Circle
-                        cx={14}
-                        cy={14}
-                        r={11}
-                        stroke={stateInfo?.color}
-                        strokeWidth={3}
-                        fill="none"
-                        strokeDasharray={2 * Math.PI * 11}
-                        strokeDashoffset={2 * Math.PI * 11 * (1 - fillLevel)}
-                        strokeLinecap="round"
-                        transform={`rotate(-90 14 14)`}
-                      />
-                    </Svg>
+                  <Text style={styles.checkInTime}>{formatDate(chain.created_at)}</Text>
+                </TouchableOpacity>
 
-                    {/* Delete button */}
-                    <TouchableOpacity
-                      onPress={() => handleDeleteCheckIn(check.id)}
-                      style={styles.deleteButton}
-                      activeOpacity={0.7}
-                    >
-                      <Text style={styles.deleteButtonText}>✕</Text>
-                    </TouchableOpacity>
+                {/* Expanded content */}
+                {isExpanded && (
+                  <View style={styles.chainExpandedContent}>
+                    {/* Embodiment Checks */}
+                    {chain.embodiment_checks.length > 0 && (
+                      <View style={styles.chainSection}>
+                        <Text style={styles.chainSectionTitle}>Embodiment Checks</Text>
+                        {chain.embodiment_checks.map((check, index) => {
+                          const stateInfo = getStateInfo(check.polyvagal_state)
+                          const fillLevel = check.slider_value / 100
+
+                          return (
+                            <View key={check.id} style={styles.chainCheckItem}>
+                              <View style={[styles.stateChip, {
+                                backgroundColor: stateInfo?.color + '33',
+                                borderColor: stateInfo?.color,
+                              }]}>
+                                <Text style={styles.stateEmojiSmall}>
+                                  {STATE_EMOJIS[check.polyvagal_state]}
+                                </Text>
+                                <Text style={styles.stateLabel}>
+                                  {stateInfo?.label}
+                                </Text>
+                              </View>
+
+                              <Svg width={28} height={28}>
+                                <Circle
+                                  cx={14}
+                                  cy={14}
+                                  r={11}
+                                  stroke={stateInfo?.color + '30'}
+                                  strokeWidth={3}
+                                  fill="none"
+                                />
+                                <Circle
+                                  cx={14}
+                                  cy={14}
+                                  r={11}
+                                  stroke={stateInfo?.color}
+                                  strokeWidth={3}
+                                  fill="none"
+                                  strokeDasharray={2 * Math.PI * 11}
+                                  strokeDashoffset={2 * Math.PI * 11 * (1 - fillLevel)}
+                                  strokeLinecap="round"
+                                  transform={`rotate(-90 14 14)`}
+                                />
+                              </Svg>
+                            </View>
+                          )
+                        })}
+                      </View>
+                    )}
+
+                    {/* Completed Blocks */}
+                    {chain.completed_blocks.length > 0 && (
+                      <View style={styles.chainSection}>
+                        <Text style={styles.chainSectionTitle}>Completed Blocks</Text>
+                        {chain.completed_blocks.map((block) => {
+                          const blockName = block.somi_blocks?.name || block.somi_blocks?.canonical_name || 'Unknown Block'
+                          const minutes = Math.floor(block.seconds_elapsed / 60)
+                          const seconds = block.seconds_elapsed % 60
+                          const timeStr = `${minutes}:${seconds.toString().padStart(2, '0')}`
+
+                          return (
+                            <View key={block.id} style={styles.chainBlockItem}>
+                              <Text style={styles.blockName}>{blockName}</Text>
+                              <Text style={styles.blockTime}>{timeStr}</Text>
+                            </View>
+                          )
+                        })}
+                      </View>
+                    )}
                   </View>
-                </View>
-
-                <Text style={styles.checkInTime}>{formatDate(check.created_at)}</Text>
+                )}
               </BlurView>
             </View>
           )
@@ -832,5 +886,82 @@ const styles = StyleSheet.create({
   },
   bottomSpacer: {
     height: 40,
+  },
+  chainHeaderLeft: {
+    flex: 1,
+  },
+  chainTitle: {
+    color: '#f7f9fb',
+    fontSize: 16,
+    fontWeight: '600',
+    letterSpacing: 0.3,
+    marginBottom: 4,
+  },
+  chainSubtitle: {
+    color: 'rgba(247, 249, 251, 0.6)',
+    fontSize: 12,
+    fontWeight: '500',
+    letterSpacing: 0.3,
+  },
+  expandIcon: {
+    color: '#4ecdc4',
+    fontSize: 14,
+    marginLeft: 12,
+  },
+  chainExpandedContent: {
+    marginTop: 16,
+    paddingTop: 16,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255, 255, 255, 0.1)',
+  },
+  chainSection: {
+    marginBottom: 16,
+  },
+  chainSectionTitle: {
+    color: 'rgba(247, 249, 251, 0.8)',
+    fontSize: 12,
+    fontWeight: '600',
+    letterSpacing: 0.5,
+    textTransform: 'uppercase',
+    marginBottom: 12,
+  },
+  chainCheckItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    backgroundColor: 'rgba(255, 255, 255, 0.03)',
+    borderRadius: 12,
+    marginBottom: 8,
+  },
+  chainBlockItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    backgroundColor: 'rgba(78, 205, 196, 0.08)',
+    borderRadius: 12,
+    marginBottom: 8,
+  },
+  blockName: {
+    color: '#f7f9fb',
+    fontSize: 14,
+    fontWeight: '600',
+    letterSpacing: 0.3,
+    flex: 1,
+  },
+  blockTime: {
+    color: '#4ecdc4',
+    fontSize: 13,
+    fontWeight: '700',
+    letterSpacing: 0.3,
+    marginLeft: 12,
+  },
+  tetherSvg: {
+    position: 'absolute',
+    width: '100%',
+    height: '100%',
   },
 })

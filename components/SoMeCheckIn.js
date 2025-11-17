@@ -12,7 +12,7 @@ const BODY_SCAN_MEDIA = {
   type: 'audio',
 }
 import EmbodimentSlider from './EmbodimentSlider'
-import { supabase } from '../supabase'
+import { supabase, somiChainService } from '../supabase'
 
 // Polyvagal states for chip selection
 const POLYVAGAL_STATES = [
@@ -170,17 +170,9 @@ export default function SoMeCheckIn({ navigation, route }) {
 
   const saveEmbodimentCheck = async (value, stateId) => {
     try {
-      const { data, error } = await supabase
-        .from('embodiment_checks')
-        .insert({
-          slider_value: Math.round(value),
-          polyvagal_state: stateId,
-        })
-
-      if (error) {
-        console.error('Error saving embodiment check:', error)
-      } else {
-        console.log('Embodiment check saved:', data)
+      const data = await somiChainService.saveEmbodimentCheck(value, stateId)
+      if (data) {
+        console.log('Embodiment check saved to chain:', data)
       }
     } catch (err) {
       console.error('Unexpected error:', err)
@@ -349,7 +341,7 @@ export default function SoMeCheckIn({ navigation, route }) {
     setShowTransitionModal(true)
   }
 
-  const handleGoHome = () => {
+  const handleGoHome = async () => {
     // Require polyvagal state to be selected before going home
     if (!loopPolyvagalState) {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error)
@@ -359,7 +351,10 @@ export default function SoMeCheckIn({ navigation, route }) {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium)
 
     // Save loop check to database before going home
-    saveEmbodimentCheck(loopSliderValue, loopPolyvagalState)
+    await saveEmbodimentCheck(loopSliderValue, loopPolyvagalState)
+
+    // End the active chain when done
+    await somiChainService.endActiveChain()
 
     // Show transition modal before going home
     setPendingAction('done')
@@ -426,8 +421,10 @@ export default function SoMeCheckIn({ navigation, route }) {
     }
   }
 
-  const handleClosePress = () => {
+  const handleClosePress = async () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium)
+    // End the active chain when closing
+    await somiChainService.endActiveChain()
     // Close always resets and goes back to Home
     resetStateAndGoHome()
   }

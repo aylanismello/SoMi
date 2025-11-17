@@ -5,6 +5,7 @@ import { useAudioPlayer } from 'expo-audio'
 import { StyleSheet, View, TouchableOpacity, Text, Pressable, Dimensions, Animated } from 'react-native'
 import * as Haptics from 'expo-haptics'
 import { BACKGROUND_VIDEO } from '../constants/media'
+import { somiChainService } from '../supabase'
 
 // Get screen dimensions for 9:16 aspect ratio calculation
 const screenWidth = Dimensions.get('window').width
@@ -25,6 +26,7 @@ export default function PlayerScreen({ navigation, route }) {
   const hideTimeoutRef = useRef(null)
   const thumbScale = useRef(new Animated.Value(1)).current
   const isSeekingRef = useRef(false)
+  const startTimeRef = useRef(Date.now()) // Track when playback started
 
   // Conditionally create audio or video player based on media type
   // Safe because media.type never changes during component lifecycle
@@ -42,6 +44,24 @@ export default function PlayerScreen({ navigation, route }) {
   })
 
   const { isPlaying } = useEvent(player, 'playingChange', { isPlaying: player.playing })
+
+  // Helper to save completed block
+  const saveCompletedBlock = async () => {
+    // Skip saving for body scans or if no block ID
+    if (isBodyScan || !media.somi_block_id) {
+      return
+    }
+
+    // Calculate elapsed time in seconds
+    const elapsedMs = Date.now() - startTimeRef.current
+    const elapsedSeconds = Math.round(elapsedMs / 1000)
+
+    // Get somi_block_id from media object
+    const somiBlockId = media.somi_block_id
+
+    await somiChainService.saveCompletedBlock(somiBlockId, elapsedSeconds)
+    console.log(`Completed block ${somiBlockId} saved: ${elapsedSeconds}s`)
+  }
 
   // Auto-play when player is ready
   useEffect(() => {
@@ -71,6 +91,8 @@ export default function PlayerScreen({ navigation, route }) {
   useEffect(() => {
     if (duration > 0 && currentTime >= duration - 0.5) {
       player.pause()
+      // Save completed block before navigating
+      saveCompletedBlock()
       // Use replace to ensure params are updated
       navigation.replace('CheckIn', {
         fromPlayer: true,
@@ -171,6 +193,8 @@ export default function PlayerScreen({ navigation, route }) {
   const handleClose = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium)
     player.pause()
+    // Save completed block before closing
+    saveCompletedBlock()
     // Use replace to ensure params are updated
     navigation.replace('CheckIn', {
       fromPlayer: true,
