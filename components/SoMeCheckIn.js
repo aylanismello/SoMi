@@ -559,6 +559,15 @@ export default function SoMeCheckIn({ navigation, route }) {
         >
         <BlurView intensity={20} tint="dark" style={styles.card}>
           <View style={styles.cardContent}>
+            {/* Journal button floating near question */}
+            <TouchableOpacity
+              onPress={() => handleJournalPress(1)}
+              activeOpacity={0.8}
+              style={styles.journalButtonFloating}
+            >
+              <Text style={styles.journalIconFloating}>📝</Text>
+            </TouchableOpacity>
+
             <EmbodimentSlider
               value={sliderValue}
               onValueChange={handleSliderChange}
@@ -576,31 +585,21 @@ export default function SoMeCheckIn({ navigation, route }) {
             {/* Body scan button with checkbox for Step 1 */}
             {!showConfirmMessage && (
               <View style={styles.bodyScanContainer}>
-                <View style={styles.leftButtonsGroup}>
-                  <TouchableOpacity
-                    onPressIn={handleSOSPress}
-                    onPressOut={handleSOSRelease}
-                    activeOpacity={0.85}
-                    style={styles.sosButtonSmall}
+                <TouchableOpacity
+                  onPressIn={handleSOSPress}
+                  onPressOut={handleSOSRelease}
+                  activeOpacity={0.85}
+                  style={styles.sosButtonSmall}
+                >
+                  <LinearGradient
+                    colors={['#ff6b9d', '#ffa8b3']}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                    style={styles.sosButtonSmallGradient}
                   >
-                    <LinearGradient
-                      colors={['#ff6b9d', '#ffa8b3']}
-                      start={{ x: 0, y: 0 }}
-                      end={{ x: 1, y: 1 }}
-                      style={styles.sosButtonSmallGradient}
-                    >
-                      <Text style={styles.sosTextSmall}>SOS</Text>
-                    </LinearGradient>
-                  </TouchableOpacity>
-
-                  <TouchableOpacity
-                    onPress={() => handleJournalPress(1)}
-                    activeOpacity={0.8}
-                    style={styles.journalButtonSmall}
-                  >
-                    <Text style={styles.journalIconSmall}>📝</Text>
-                  </TouchableOpacity>
-                </View>
+                    <Text style={styles.sosTextSmall}>SOS</Text>
+                  </LinearGradient>
+                </TouchableOpacity>
 
                 <TouchableOpacity
                   onPressIn={handleBodyScanPress}
@@ -701,6 +700,15 @@ export default function SoMeCheckIn({ navigation, route }) {
 
         <BlurView intensity={20} tint="dark" style={styles.card}>
           <View style={styles.cardContent}>
+            {/* Journal button floating near question */}
+            <TouchableOpacity
+              onPress={() => handleJournalPress(4)}
+              activeOpacity={0.8}
+              style={styles.journalButtonFloating}
+            >
+              <Text style={styles.journalIconFloating}>📝</Text>
+            </TouchableOpacity>
+
             <EmbodimentSlider
               value={loopSliderValue}
               onValueChange={handleLoopSliderChange}
@@ -718,31 +726,21 @@ export default function SoMeCheckIn({ navigation, route }) {
             {/* Body scan button with checkbox for Step 4 */}
             {!showConfirmMessage && (
               <View style={styles.bodyScanContainer}>
-                <View style={styles.leftButtonsGroup}>
-                  <TouchableOpacity
-                    onPressIn={handleSOSPress}
-                    onPressOut={handleSOSRelease}
-                    activeOpacity={0.85}
-                    style={styles.sosButtonSmall}
+                <TouchableOpacity
+                  onPressIn={handleSOSPress}
+                  onPressOut={handleSOSRelease}
+                  activeOpacity={0.85}
+                  style={styles.sosButtonSmall}
+                >
+                  <LinearGradient
+                    colors={['#ff6b9d', '#ffa8b3']}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                    style={styles.sosButtonSmallGradient}
                   >
-                    <LinearGradient
-                      colors={['#ff6b9d', '#ffa8b3']}
-                      start={{ x: 0, y: 0 }}
-                      end={{ x: 1, y: 1 }}
-                      style={styles.sosButtonSmallGradient}
-                    >
-                      <Text style={styles.sosTextSmall}>SOS</Text>
-                    </LinearGradient>
-                  </TouchableOpacity>
-
-                  <TouchableOpacity
-                    onPress={() => handleJournalPress(4)}
-                    activeOpacity={0.8}
-                    style={styles.journalButtonSmall}
-                  >
-                    <Text style={styles.journalIconSmall}>📝</Text>
-                  </TouchableOpacity>
-                </View>
+                    <Text style={styles.sosTextSmall}>SOS</Text>
+                  </LinearGradient>
+                </TouchableOpacity>
 
                 <TouchableOpacity
                   onPressIn={handleBodyScanPress}
@@ -1218,23 +1216,22 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     letterSpacing: 0.3,
   },
-  leftButtonsGroup: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  journalButtonSmall: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: 'rgba(147, 112, 219, 0.15)',
+  journalButtonFloating: {
+    position: 'absolute',
+    top: 16,
+    right: 16,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(147, 112, 219, 0.12)',
     borderWidth: 1,
-    borderColor: 'rgba(147, 112, 219, 0.3)',
+    borderColor: 'rgba(147, 112, 219, 0.25)',
     alignItems: 'center',
     justifyContent: 'center',
+    zIndex: 10,
   },
-  journalIconSmall: {
-    fontSize: 16,
+  journalIconFloating: {
+    fontSize: 20,
   },
   journalFullscreen: {
     flex: 1,
