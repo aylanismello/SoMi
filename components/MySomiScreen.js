@@ -290,6 +290,61 @@ export default function MySomiScreen({ navigation }) {
     }
   }
 
+  const getChainLabel = (dateString) => {
+    const date = new Date(dateString)
+    const now = new Date()
+    const diffMs = now - date
+    const diffHours = Math.floor(diffMs / 3600000)
+    const diffDays = Math.floor(diffMs / 86400000)
+
+    // Get time of day (morning, afternoon, evening, night)
+    const hours = date.getHours()
+    let timeOfDay
+    if (hours >= 5 && hours < 12) {
+      timeOfDay = 'Morning'
+    } else if (hours >= 12 && hours < 17) {
+      timeOfDay = 'Afternoon'
+    } else if (hours >= 17 && hours < 21) {
+      timeOfDay = 'Evening'
+    } else {
+      timeOfDay = 'Night'
+    }
+
+    // Today
+    if (diffHours < 24 && date.getDate() === now.getDate()) {
+      return `${timeOfDay} Session`
+    }
+
+    // Yesterday
+    const yesterday = new Date(now)
+    yesterday.setDate(yesterday.getDate() - 1)
+    if (date.getDate() === yesterday.getDate() && date.getMonth() === yesterday.getMonth()) {
+      return `Yesterday ${timeOfDay}`
+    }
+
+    // This week (show day name)
+    if (diffDays < 7) {
+      const dayName = date.toLocaleDateString('en-US', { weekday: 'long' })
+      return `${dayName} ${timeOfDay}`
+    }
+
+    // Last week
+    if (diffDays < 14) {
+      const dayName = date.toLocaleDateString('en-US', { weekday: 'long' })
+      return `Last ${dayName}`
+    }
+
+    // This month (show date)
+    if (date.getMonth() === now.getMonth() && date.getFullYear() === now.getFullYear()) {
+      const dayName = date.toLocaleDateString('en-US', { weekday: 'short' })
+      const day = date.getDate()
+      return `${dayName} ${day}`
+    }
+
+    // Older (show month + day)
+    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+  }
+
   const getStateInfo = (stateId) => {
     return POLYVAGAL_STATES.find(s => s.id === stateId)
   }
@@ -556,7 +611,7 @@ export default function MySomiScreen({ navigation }) {
                   >
                     <View style={styles.checkInHeader}>
                       <View style={styles.chainHeaderLeft}>
-                        <Text style={styles.chainTitle}>SoMi Chain</Text>
+                        <Text style={styles.chainTitle}>{getChainLabel(chain.created_at)}</Text>
                         <Text style={styles.chainSubtitle}>
                           {checksCount} check-in{checksCount !== 1 ? 's' : ''} • {blocksCount} block{blocksCount !== 1 ? 's' : ''}
                         </Text>

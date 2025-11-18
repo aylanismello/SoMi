@@ -1,10 +1,10 @@
 import React, { useState, useRef, useEffect } from 'react'
-import { StyleSheet, Text, View, TouchableOpacity, Animated, Modal, TextInput, Keyboard, KeyboardAvoidingView, Platform, TouchableWithoutFeedback } from 'react-native'
+import { StyleSheet, Text, View, TouchableOpacity, Animated, Modal, TextInput, Keyboard, KeyboardAvoidingView, Platform, TouchableWithoutFeedback, ScrollView, ActivityIndicator } from 'react-native'
 import { useFocusEffect } from '@react-navigation/native'
 import { LinearGradient } from 'expo-linear-gradient'
 import { BlurView } from 'expo-blur'
 import * as Haptics from 'expo-haptics'
-import Svg, { Path } from 'react-native-svg'
+import Svg, { Path, Circle } from 'react-native-svg'
 import { getMediaForSliderValue, getSOSMedia, BODY_SCAN_MEDIA } from '../constants/media'
 import EmbodimentSlider from './EmbodimentSlider'
 import { supabase, somiChainService } from '../supabase'
@@ -56,6 +56,11 @@ export default function SoMeCheckIn({ navigation, route }) {
   const [showJournalModal, setShowJournalModal] = useState(false)
   const [journalForStep, setJournalForStep] = useState(1) // Track which step the journal is for
   const journalInputRef = useRef(null)
+
+  // Exercise selection modal state
+  const [showExerciseModal, setShowExerciseModal] = useState(false)
+  const [exerciseList, setExerciseList] = useState([])
+  const [loadingExercises, setLoadingExercises] = useState(false)
 
   // Reset key to force carousel to scroll back to start
   const [resetKey, setResetKey] = useState(0)
@@ -210,6 +215,65 @@ export default function SoMeCheckIn({ navigation, route }) {
       initialValue: sliderValue,
       savedInitialState: polyvagalState,
     })
+  }
+
+  const handleChooseExercisePress = async () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium)
+    setShowExerciseModal(true)
+
+    // Fetch all vagal toning exercises
+    setLoadingExercises(true)
+    try {
+      const { data, error } = await supabase
+        .from('somi_blocks')
+        .select('*')
+        .eq('block_type', 'vagal_toning')
+        .eq('media_type', 'video')
+        .order('name', { ascending: true })
+
+      if (error) {
+        console.error('Error fetching exercises:', error)
+        setExerciseList([])
+      } else {
+        // Sort by state_target like in CategoryDetailScreen
+        const sorted = (data || []).sort((a, b) => {
+          const stateOrder = ['withdrawn', 'stirring', 'activated', 'settling', 'connected']
+          const aIndex = stateOrder.indexOf(a.state_target)
+          const bIndex = stateOrder.indexOf(b.state_target)
+          if (aIndex === -1) return 1
+          if (bIndex === -1) return -1
+          return aIndex - bIndex
+        })
+        setExerciseList(sorted)
+      }
+    } catch (err) {
+      console.error('Unexpected error fetching exercises:', err)
+      setExerciseList([])
+    } finally {
+      setLoadingExercises(false)
+    }
+  }
+
+  const handleExerciseSelect = (exercise) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
+    setShowExerciseModal(false)
+
+    navigation.navigate('Player', {
+      media: {
+        somi_block_id: exercise.id,
+        name: exercise.name,
+        type: exercise.media_type || 'video',
+        url: exercise.media_url,
+      },
+      initialValue: sliderValue,
+      savedInitialValue: initialSliderValue,
+      savedInitialState: initialPolyvagalState,
+    })
+  }
+
+  const closeExerciseModal = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
+    setShowExerciseModal(false)
   }
 
   const handleSliderChange = (value) => {
@@ -665,7 +729,18 @@ export default function SoMeCheckIn({ navigation, route }) {
           >
             <BlurView intensity={15} tint="dark" style={styles.optionBlur}>
               <Text style={styles.optionTitle}>Start SoMi Routine</Text>
-              <Text style={styles.optionSubtitle}>Guided regulation session</Text>
+              <Text style={styles.optionSubtitle}>Our algorithm guides you</Text>
+            </BlurView>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            onPress={handleChooseExercisePress}
+            activeOpacity={0.9}
+            style={styles.optionTile}
+          >
+            <BlurView intensity={15} tint="dark" style={styles.optionBlur}>
+              <Text style={styles.optionTitle}>Choose Exercise</Text>
+              <Text style={styles.optionSubtitle}>Select from our library</Text>
             </BlurView>
           </TouchableOpacity>
 
@@ -926,6 +1001,95 @@ export default function SoMeCheckIn({ navigation, route }) {
             </View>
           </View>
         </KeyboardAvoidingView>
+      </Modal>
+
+      {/* Exercise Selection Modal */}
+      <Modal
+        visible={showExerciseModal}
+        transparent={false}
+        animationType="slide"
+        onRequestClose={closeExerciseModal}
+      >
+        <LinearGradient
+          colors={['#0f0c29', '#302b63', '#24243e']}
+          style={styles.exerciseModalContainer}
+        >
+          {/* Header */}
+          <View style={styles.exerciseModalHeader}>
+            <TouchableOpacity
+              onPress={closeExerciseModal}
+              activeOpacity={0.7}
+              style={styles.exerciseModalCloseButton}
+            >
+              <Text style={styles.exerciseModalCloseText}>✕</Text>
+            </TouchableOpacity>
+            <Text style={styles.exerciseModalTitle}>Choose Exercise</Text>
+            <View style={{ width: 44 }} />
+          </View>
+
+          {/* Exercise List */}
+          <ScrollView
+            style={styles.exerciseModalScroll}
+            contentContainerStyle={styles.exerciseModalScrollContent}
+            showsVerticalScrollIndicator={false}
+          >
+            {loadingExercises ? (
+              <View style={styles.exerciseLoadingContainer}>
+                <ActivityIndicator size="large" color="#4ecdc4" />
+              </View>
+            ) : exerciseList.length === 0 ? (
+              <View style={styles.exerciseEmptyContainer}>
+                <Text style={styles.exerciseEmptyText}>No exercises available</Text>
+              </View>
+            ) : (
+              exerciseList.map((exercise, index) => {
+                const stateInfo = POLYVAGAL_STATES.find(s => s.id === exercise.state_target)
+                const showStateHeader =
+                  index === 0 || exerciseList[index - 1]?.state_target !== exercise.state_target
+
+                return (
+                  <View key={exercise.id}>
+                    {showStateHeader && stateInfo && (
+                      <View style={styles.exerciseStateHeader}>
+                        <Text style={styles.exerciseStateEmoji}>{STATE_EMOJIS[exercise.state_target]}</Text>
+                        <Text style={[styles.exerciseStateLabel, { color: stateInfo.color }]}>
+                          {stateInfo.label}
+                        </Text>
+                      </View>
+                    )}
+
+                    <TouchableOpacity
+                      activeOpacity={0.85}
+                      onPress={() => handleExerciseSelect(exercise)}
+                      style={styles.exerciseCard}
+                    >
+                      <BlurView intensity={15} tint="dark" style={styles.exerciseCardBlur}>
+                        <View style={styles.exerciseCardContent}>
+                          {stateInfo && (
+                            <View style={[styles.exerciseIconContainer, { backgroundColor: stateInfo.color + '20' }]}>
+                              <Text style={styles.exerciseIcon}>{STATE_EMOJIS[exercise.state_target]}</Text>
+                            </View>
+                          )}
+                          <View style={styles.exerciseInfo}>
+                            <Text style={styles.exerciseName}>{exercise.name}</Text>
+                            {exercise.description && (
+                              <Text style={styles.exerciseDescription} numberOfLines={2}>
+                                {exercise.description}
+                              </Text>
+                            )}
+                          </View>
+                          <View style={styles.exercisePlayIcon}>
+                            <Text style={styles.playIconText}>▶</Text>
+                          </View>
+                        </View>
+                      </BlurView>
+                    </TouchableOpacity>
+                  </View>
+                )
+              })
+            )}
+          </ScrollView>
+        </LinearGradient>
       </Modal>
     </LinearGradient>
   )
@@ -1299,5 +1463,125 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '400',
     lineHeight: 28,
+  },
+  exerciseModalContainer: {
+    flex: 1,
+    paddingTop: 60,
+  },
+  exerciseModalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 24,
+    paddingBottom: 20,
+  },
+  exerciseModalCloseButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  exerciseModalCloseText: {
+    color: '#f7f9fb',
+    fontSize: 24,
+    fontWeight: '300',
+  },
+  exerciseModalTitle: {
+    color: '#f7f9fb',
+    fontSize: 20,
+    fontWeight: '600',
+    letterSpacing: 0.5,
+  },
+  exerciseModalScroll: {
+    flex: 1,
+  },
+  exerciseModalScrollContent: {
+    paddingHorizontal: 24,
+    paddingBottom: 40,
+  },
+  exerciseLoadingContainer: {
+    paddingTop: 60,
+    alignItems: 'center',
+  },
+  exerciseEmptyContainer: {
+    paddingTop: 60,
+    alignItems: 'center',
+  },
+  exerciseEmptyText: {
+    color: 'rgba(247, 249, 251, 0.6)',
+    fontSize: 16,
+    fontWeight: '500',
+  },
+  exerciseStateHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginTop: 24,
+    marginBottom: 12,
+    paddingHorizontal: 4,
+  },
+  exerciseStateEmoji: {
+    fontSize: 18,
+  },
+  exerciseStateLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    letterSpacing: 0.5,
+  },
+  exerciseCard: {
+    borderRadius: 16,
+    overflow: 'hidden',
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
+  },
+  exerciseCardBlur: {
+    padding: 16,
+  },
+  exerciseCardContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  exerciseIconContainer: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  exerciseIcon: {
+    fontSize: 24,
+  },
+  exerciseInfo: {
+    flex: 1,
+  },
+  exerciseName: {
+    color: '#f7f9fb',
+    fontSize: 16,
+    fontWeight: '600',
+    letterSpacing: 0.3,
+    marginBottom: 4,
+  },
+  exerciseDescription: {
+    color: 'rgba(247, 249, 251, 0.6)',
+    fontSize: 13,
+    fontWeight: '400',
+    lineHeight: 18,
+  },
+  exercisePlayIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: 'rgba(78, 205, 196, 0.2)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  playIconText: {
+    color: '#4ecdc4',
+    fontSize: 14,
+    marginLeft: 2,
   },
 })

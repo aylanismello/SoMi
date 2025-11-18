@@ -57,7 +57,7 @@ SoMi is a React Native mobile application built with Expo that helps users asses
 Deploy the app for remote access on Expo Go:
 
 ```bash
-eas update --channel preview --message "Description of changes"
+  eas update --channel preview --message "Description of changes" --platform ios
 ```
 
 **Channels**:
