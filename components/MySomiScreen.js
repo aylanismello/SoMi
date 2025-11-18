@@ -703,33 +703,37 @@ export default function MySomiScreen() {
         </View>
       </Modal>
 
-      {/* Journal View Modal (Read-only) */}
+      {/* Journal View Modal (Read-only) - Fullscreen */}
       <Modal
         visible={journalModalVisible}
-        transparent={true}
-        animationType="fade"
+        transparent={false}
+        animationType="slide"
         onRequestClose={closeJournalModal}
       >
-        <View style={styles.modalOverlay}>
-          <BlurView intensity={40} tint="dark" style={styles.journalViewModalContainer}>
-            <View style={styles.journalViewModalContent}>
-              <Text style={styles.journalViewModalTitle}>journal entry</Text>
-
-              <View style={styles.journalViewTextContainer}>
-                <Text style={styles.journalViewText}>
-                  {selectedJournalEntry || ''}
-                </Text>
-              </View>
-
+        <View style={styles.journalViewFullscreen}>
+          <View style={styles.journalViewNotebook}>
+            {/* Header with close button */}
+            <View style={styles.journalViewHeader}>
               <TouchableOpacity
                 onPress={closeJournalModal}
                 activeOpacity={0.7}
                 style={styles.journalViewCloseButton}
               >
-                <Text style={styles.journalViewCloseButtonText}>close</Text>
+                <Text style={styles.journalViewCloseText}>✕</Text>
               </TouchableOpacity>
             </View>
-          </BlurView>
+
+            {/* Notebook Content */}
+            <View style={styles.journalViewNotebookContent}>
+              <Text style={styles.journalViewNotebookTitle}>what was present</Text>
+
+              <View style={styles.journalViewTextWrapper}>
+                <Text style={styles.journalViewText}>
+                  {selectedJournalEntry || ''}
+                </Text>
+              </View>
+            </View>
+          </View>
         </View>
       </Modal>
     </LinearGradient>
@@ -1224,55 +1228,51 @@ const styles = StyleSheet.create({
     fontSize: 18,
     opacity: 0.8,
   },
-  journalViewModalContainer: {
-    borderRadius: 24,
-    overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: 'rgba(147, 112, 219, 0.3)',
-    maxWidth: 500,
-    width: '90%',
+  journalViewFullscreen: {
+    flex: 1,
+    backgroundColor: '#faf8ff',
   },
-  journalViewModalContent: {
-    padding: 32,
+  journalViewNotebook: {
+    flex: 1,
+    paddingTop: 60,
   },
-  journalViewModalTitle: {
-    color: 'rgba(147, 112, 219, 1)',
-    fontSize: 20,
-    fontWeight: '600',
-    letterSpacing: 0.3,
-    marginBottom: 20,
-    textAlign: 'center',
-  },
-  journalViewTextContainer: {
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
-    borderWidth: 1,
-    borderColor: 'rgba(147, 112, 219, 0.2)',
-    borderRadius: 16,
-    padding: 20,
-    minHeight: 120,
-    maxHeight: 300,
-    marginBottom: 20,
-  },
-  journalViewText: {
-    color: '#f7f9fb',
-    fontSize: 15,
-    fontWeight: '400',
-    lineHeight: 22,
-    letterSpacing: 0.2,
+  journalViewHeader: {
+    paddingHorizontal: 24,
+    paddingBottom: 16,
+    alignItems: 'flex-end',
   },
   journalViewCloseButton: {
-    backgroundColor: 'rgba(147, 112, 219, 0.2)',
-    borderWidth: 2,
-    borderColor: 'rgba(147, 112, 219, 0.5)',
-    borderRadius: 18,
-    paddingVertical: 14,
-    paddingHorizontal: 32,
-    alignSelf: 'center',
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: 'rgba(147, 112, 219, 0.08)',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  journalViewCloseButtonText: {
-    color: 'rgba(147, 112, 219, 1)',
-    fontSize: 16,
+  journalViewCloseText: {
+    color: 'rgba(147, 112, 219, 0.6)',
+    fontSize: 24,
+    fontWeight: '300',
+  },
+  journalViewNotebookContent: {
+    flex: 1,
+    paddingHorizontal: 32,
+  },
+  journalViewNotebookTitle: {
+    color: '#2d2438',
+    fontSize: 28,
     fontWeight: '600',
     letterSpacing: 0.3,
+    marginBottom: 24,
+  },
+  journalViewTextWrapper: {
+    flex: 1,
+  },
+  journalViewText: {
+    color: '#2d2438',
+    fontSize: 18,
+    fontWeight: '400',
+    lineHeight: 28,
+    letterSpacing: 0.2,
   },
 })

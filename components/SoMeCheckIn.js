@@ -908,8 +908,8 @@ export default function SoMeCheckIn({ navigation, route }) {
 
             {/* Notebook Content */}
             <View style={styles.journalNotebookContent}>
-              <Text style={styles.journalNotebookTitle}>how are you feeling?</Text>
-              <Text style={styles.journalNotebookSubtitle}>optional space for reflection</Text>
+              <Text style={styles.journalNotebookTitle}>what's present right now?</Text>
+              <Text style={styles.journalNotebookSubtitle}>all feelings welcome, exactly as they are</Text>
 
               <TouchableWithoutFeedback onPress={() => journalInputRef.current?.focus()}>
                 <View style={styles.journalTextInputWrapper}>
