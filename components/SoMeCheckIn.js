@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react'
-import { StyleSheet, Text, View, TouchableOpacity, Animated, Modal } from 'react-native'
+import { StyleSheet, Text, View, TouchableOpacity, Animated, Modal, TextInput, Keyboard, KeyboardAvoidingView, Platform, TouchableWithoutFeedback } from 'react-native'
 import { useFocusEffect } from '@react-navigation/native'
 import { LinearGradient } from 'expo-linear-gradient'
 import { BlurView } from 'expo-blur'
@@ -49,6 +49,13 @@ export default function SoMeCheckIn({ navigation, route }) {
   // Transition modal state
   const [showTransitionModal, setShowTransitionModal] = useState(false)
   const [pendingAction, setPendingAction] = useState(null) // 'continue' or 'done'
+
+  // Journal entry state
+  const [journalEntry, setJournalEntry] = useState('')
+  const [loopJournalEntry, setLoopJournalEntry] = useState('')
+  const [showJournalModal, setShowJournalModal] = useState(false)
+  const [journalForStep, setJournalForStep] = useState(1) // Track which step the journal is for
+  const journalInputRef = useRef(null)
 
   // Reset key to force carousel to scroll back to start
   const [resetKey, setResetKey] = useState(0)
@@ -163,9 +170,9 @@ export default function SoMeCheckIn({ navigation, route }) {
     }, [])
   )
 
-  const saveEmbodimentCheck = async (value, stateId) => {
+  const saveEmbodimentCheck = async (value, stateId, journal = null) => {
     try {
-      const data = await somiChainService.saveEmbodimentCheck(value, stateId)
+      const data = await somiChainService.saveEmbodimentCheck(value, stateId, journal)
       if (data) {
         console.log('Embodiment check saved to chain:', data)
       }
@@ -210,6 +217,18 @@ export default function SoMeCheckIn({ navigation, route }) {
     setSliderChanged(true)
   }
 
+  const handleJournalPress = (step) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
+    setJournalForStep(step)
+    setShowJournalModal(true)
+  }
+
+  const handleJournalSave = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium)
+    setShowJournalModal(false)
+    Keyboard.dismiss()
+  }
+
   const handleCheckboxPress = () => {
     // Require polyvagal state to be selected before proceeding
     if (!polyvagalState) {
@@ -219,7 +238,7 @@ export default function SoMeCheckIn({ navigation, route }) {
 
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success)
 
-    saveEmbodimentCheck(sliderValue, polyvagalState)
+    saveEmbodimentCheck(sliderValue, polyvagalState, journalEntry || null)
 
     // Save initial values for later comparison
     setInitialSliderValue(sliderValue)
@@ -330,7 +349,7 @@ export default function SoMeCheckIn({ navigation, route }) {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium)
 
     // Save loop check to database before continuing
-    saveEmbodimentCheck(loopSliderValue, loopPolyvagalState)
+    saveEmbodimentCheck(loopSliderValue, loopPolyvagalState, loopJournalEntry || null)
 
     // Show transition modal before continuing
     setPendingAction('continue')
@@ -347,7 +366,7 @@ export default function SoMeCheckIn({ navigation, route }) {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium)
 
     // Save loop check to database before going home
-    await saveEmbodimentCheck(loopSliderValue, loopPolyvagalState)
+    await saveEmbodimentCheck(loopSliderValue, loopPolyvagalState, loopJournalEntry || null)
 
     // End the active chain when done
     await somiChainService.endActiveChain()
@@ -557,21 +576,31 @@ export default function SoMeCheckIn({ navigation, route }) {
             {/* Body scan button with checkbox for Step 1 */}
             {!showConfirmMessage && (
               <View style={styles.bodyScanContainer}>
-                <TouchableOpacity
-                  onPressIn={handleSOSPress}
-                  onPressOut={handleSOSRelease}
-                  activeOpacity={0.85}
-                  style={styles.sosButtonSmall}
-                >
-                  <LinearGradient
-                    colors={['#ff6b9d', '#ffa8b3']}
-                    start={{ x: 0, y: 0 }}
-                    end={{ x: 1, y: 1 }}
-                    style={styles.sosButtonSmallGradient}
+                <View style={styles.leftButtonsGroup}>
+                  <TouchableOpacity
+                    onPressIn={handleSOSPress}
+                    onPressOut={handleSOSRelease}
+                    activeOpacity={0.85}
+                    style={styles.sosButtonSmall}
                   >
-                    <Text style={styles.sosTextSmall}>SOS</Text>
-                  </LinearGradient>
-                </TouchableOpacity>
+                    <LinearGradient
+                      colors={['#ff6b9d', '#ffa8b3']}
+                      start={{ x: 0, y: 0 }}
+                      end={{ x: 1, y: 1 }}
+                      style={styles.sosButtonSmallGradient}
+                    >
+                      <Text style={styles.sosTextSmall}>SOS</Text>
+                    </LinearGradient>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    onPress={() => handleJournalPress(1)}
+                    activeOpacity={0.8}
+                    style={styles.journalButtonSmall}
+                  >
+                    <Text style={styles.journalIconSmall}>📝</Text>
+                  </TouchableOpacity>
+                </View>
 
                 <TouchableOpacity
                   onPressIn={handleBodyScanPress}
@@ -689,21 +718,31 @@ export default function SoMeCheckIn({ navigation, route }) {
             {/* Body scan button with checkbox for Step 4 */}
             {!showConfirmMessage && (
               <View style={styles.bodyScanContainer}>
-                <TouchableOpacity
-                  onPressIn={handleSOSPress}
-                  onPressOut={handleSOSRelease}
-                  activeOpacity={0.85}
-                  style={styles.sosButtonSmall}
-                >
-                  <LinearGradient
-                    colors={['#ff6b9d', '#ffa8b3']}
-                    start={{ x: 0, y: 0 }}
-                    end={{ x: 1, y: 1 }}
-                    style={styles.sosButtonSmallGradient}
+                <View style={styles.leftButtonsGroup}>
+                  <TouchableOpacity
+                    onPressIn={handleSOSPress}
+                    onPressOut={handleSOSRelease}
+                    activeOpacity={0.85}
+                    style={styles.sosButtonSmall}
                   >
-                    <Text style={styles.sosTextSmall}>SOS</Text>
-                  </LinearGradient>
-                </TouchableOpacity>
+                    <LinearGradient
+                      colors={['#ff6b9d', '#ffa8b3']}
+                      start={{ x: 0, y: 0 }}
+                      end={{ x: 1, y: 1 }}
+                      style={styles.sosButtonSmallGradient}
+                    >
+                      <Text style={styles.sosTextSmall}>SOS</Text>
+                    </LinearGradient>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    onPress={() => handleJournalPress(4)}
+                    activeOpacity={0.8}
+                    style={styles.journalButtonSmall}
+                  >
+                    <Text style={styles.journalIconSmall}>📝</Text>
+                  </TouchableOpacity>
+                </View>
 
                 <TouchableOpacity
                   onPressIn={handleBodyScanPress}
@@ -820,6 +859,75 @@ export default function SoMeCheckIn({ navigation, route }) {
             </View>
           </BlurView>
         </View>
+      </Modal>
+
+      {/* Journal Entry Modal - Fullscreen Notebook */}
+      <Modal
+        visible={showJournalModal}
+        transparent={false}
+        animationType="slide"
+        onRequestClose={handleJournalSave}
+      >
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={styles.journalFullscreen}
+        >
+          <View style={styles.journalNotebook}>
+            {/* Header with buttons */}
+            <View style={styles.journalHeader}>
+              <TouchableOpacity
+                onPress={() => {
+                  // Cancel - clear entry and close
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
+                  if (journalForStep === 1) {
+                    setJournalEntry('')
+                  } else {
+                    setLoopJournalEntry('')
+                  }
+                  setShowJournalModal(false)
+                }}
+                activeOpacity={0.7}
+                style={styles.journalCancelButton}
+              >
+                <Text style={styles.journalCancelText}>✕</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                onPress={handleJournalSave}
+                activeOpacity={0.7}
+                style={styles.journalDoneButton}
+              >
+                <Svg width={24} height={24} viewBox="0 0 24 24">
+                  <Path
+                    d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"
+                    fill="#936fb7"
+                  />
+                </Svg>
+              </TouchableOpacity>
+            </View>
+
+            {/* Notebook Content */}
+            <View style={styles.journalNotebookContent}>
+              <Text style={styles.journalNotebookTitle}>how are you feeling?</Text>
+              <Text style={styles.journalNotebookSubtitle}>optional space for reflection</Text>
+
+              <TouchableWithoutFeedback onPress={() => journalInputRef.current?.focus()}>
+                <View style={styles.journalTextInputWrapper}>
+                  <TextInput
+                    ref={journalInputRef}
+                    style={styles.journalTextInput}
+                    value={journalForStep === 1 ? journalEntry : loopJournalEntry}
+                    onChangeText={journalForStep === 1 ? setJournalEntry : setLoopJournalEntry}
+                    placeholder="tap here to begin..."
+                    placeholderTextColor="rgba(45, 36, 56, 0.3)"
+                    multiline
+                    textAlignVertical="top"
+                  />
+                </View>
+              </TouchableWithoutFeedback>
+            </View>
+          </View>
+        </KeyboardAvoidingView>
       </Modal>
     </LinearGradient>
   )
@@ -1109,5 +1217,90 @@ const styles = StyleSheet.create({
     fontSize: 17,
     fontWeight: '600',
     letterSpacing: 0.3,
+  },
+  leftButtonsGroup: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  journalButtonSmall: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: 'rgba(147, 112, 219, 0.15)',
+    borderWidth: 1,
+    borderColor: 'rgba(147, 112, 219, 0.3)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  journalIconSmall: {
+    fontSize: 16,
+  },
+  journalFullscreen: {
+    flex: 1,
+    backgroundColor: '#faf8ff',
+  },
+  journalNotebook: {
+    flex: 1,
+    paddingTop: 60,
+  },
+  journalHeader: {
+    paddingHorizontal: 24,
+    paddingBottom: 16,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  journalCancelButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: 'rgba(147, 112, 219, 0.08)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  journalCancelText: {
+    color: 'rgba(147, 112, 219, 0.6)',
+    fontSize: 24,
+    fontWeight: '300',
+  },
+  journalDoneButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: 'rgba(147, 112, 219, 0.15)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  journalNotebookContent: {
+    flex: 1,
+    paddingHorizontal: 32,
+  },
+  journalNotebookTitle: {
+    color: '#2d2438',
+    fontSize: 32,
+    fontWeight: '600',
+    letterSpacing: 0.3,
+    marginBottom: 8,
+  },
+  journalNotebookSubtitle: {
+    color: 'rgba(45, 36, 56, 0.5)',
+    fontSize: 15,
+    fontWeight: '400',
+    letterSpacing: 0.2,
+    marginBottom: 32,
+  },
+  journalTextInputWrapper: {
+    flex: 1,
+  },
+  journalTextInput: {
+    flex: 1,
+    backgroundColor: 'transparent',
+    borderWidth: 0,
+    padding: 0,
+    color: '#2d2438',
+    fontSize: 18,
+    fontWeight: '400',
+    lineHeight: 28,
   },
 })

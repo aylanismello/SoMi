@@ -63,16 +63,17 @@ export const somiChainService = {
   },
 
   // Save embodiment check to chain
-  async saveEmbodimentCheck(sliderValue, polyvagalState) {
+  async saveEmbodimentCheck(sliderValue, polyvagalState, journalEntry = null) {
     try {
       const chainId = await this.getOrCreateActiveChain()
 
-      const { data, error } = await supabase
+      const { data, error} = await supabase
         .from('embodiment_checks')
         .insert({
           slider_value: Math.round(sliderValue),
           polyvagal_state: polyvagalState,
           somi_chain_id: chainId,
+          journal_entry: journalEntry,
         })
         .select()
         .single()
@@ -178,6 +179,52 @@ export const somiChainService = {
     } catch (err) {
       console.error('Unexpected error fetching chains:', err)
       return []
+    }
+  },
+
+  // Delete a SoMi Chain (for MVP debugging)
+  // This will cascade delete embodiment_checks and completed_somi_blocks
+  // but NOT somi_blocks (those are canonical references)
+  async deleteChain(chainId) {
+    try {
+      // Delete embodiment checks first
+      const { error: checksError } = await supabase
+        .from('embodiment_checks')
+        .delete()
+        .eq('somi_chain_id', chainId)
+
+      if (checksError) {
+        console.error('Error deleting embodiment checks:', checksError)
+        return false
+      }
+
+      // Delete completed blocks
+      const { error: blocksError } = await supabase
+        .from('completed_somi_blocks')
+        .delete()
+        .eq('somi_chain_id', chainId)
+
+      if (blocksError) {
+        console.error('Error deleting completed blocks:', blocksError)
+        return false
+      }
+
+      // Finally delete the chain itself
+      const { error: chainError } = await supabase
+        .from('somi_chains')
+        .delete()
+        .eq('id', chainId)
+
+      if (chainError) {
+        console.error('Error deleting chain:', chainError)
+        return false
+      }
+
+      console.log(`Successfully deleted chain ${chainId}`)
+      return true
+    } catch (err) {
+      console.error('Unexpected error deleting chain:', err)
+      return false
     }
   },
 }

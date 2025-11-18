@@ -1,5 +1,5 @@
 import React, { useState, useCallback } from 'react'
-import { StyleSheet, Text, View, ScrollView, ActivityIndicator, TouchableOpacity, Animated } from 'react-native'
+import { StyleSheet, Text, View, ScrollView, ActivityIndicator, TouchableOpacity, Animated, Modal } from 'react-native'
 import { useFocusEffect } from '@react-navigation/native'
 import { LinearGradient } from 'expo-linear-gradient'
 import { BlurView } from 'expo-blur'
@@ -187,6 +187,10 @@ export default function MySomiScreen() {
   const [somiChains, setSomiChains] = useState([])
   const [selectedOrb, setSelectedOrb] = useState(null)
   const [expandedChains, setExpandedChains] = useState({}) // Track which chains are expanded
+  const [deleteModalVisible, setDeleteModalVisible] = useState(false)
+  const [chainToDelete, setChainToDelete] = useState(null)
+  const [journalModalVisible, setJournalModalVisible] = useState(false)
+  const [selectedJournalEntry, setSelectedJournalEntry] = useState(null)
   const [stats, setStats] = useState({
     averageScore: 0,
     totalCheckIns: 0,
@@ -301,6 +305,53 @@ export default function MySomiScreen() {
       ...prev,
       [chainId]: !prev[chainId]
     }))
+  }
+
+  const handleDeleteChainPress = (chainId) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium)
+    setChainToDelete(chainId)
+    setDeleteModalVisible(true)
+  }
+
+  const confirmDeleteChain = async () => {
+    if (!chainToDelete) return
+
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning)
+    setDeleteModalVisible(false)
+
+    // Optimistic UI update - remove the chain immediately
+    setSomiChains(prev => prev.filter(chain => chain.id !== chainToDelete))
+
+    // Then delete from database
+    const success = await somiChainService.deleteChain(chainToDelete)
+
+    if (success) {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success)
+    } else {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error)
+      // Reload data to restore if deletion failed
+      loadData()
+    }
+
+    setChainToDelete(null)
+  }
+
+  const cancelDelete = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
+    setDeleteModalVisible(false)
+    setChainToDelete(null)
+  }
+
+  const handleViewJournal = (journalEntry) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
+    setSelectedJournalEntry(journalEntry)
+    setJournalModalVisible(true)
+  }
+
+  const closeJournalModal = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
+    setJournalModalVisible(false)
+    setSelectedJournalEntry(null)
   }
 
   const renderEmptyState = () => (
@@ -476,23 +527,35 @@ export default function MySomiScreen() {
 
               {/* Chain card */}
               <BlurView intensity={15} tint="dark" style={styles.checkInCard}>
-                <TouchableOpacity
-                  onPress={() => toggleChainExpanded(chain.id)}
-                  activeOpacity={0.7}
-                >
-                  <View style={styles.checkInHeader}>
-                    <View style={styles.chainHeaderLeft}>
-                      <Text style={styles.chainTitle}>SoMi Chain</Text>
-                      <Text style={styles.chainSubtitle}>
-                        {checksCount} check-in{checksCount !== 1 ? 's' : ''} • {blocksCount} block{blocksCount !== 1 ? 's' : ''}
-                      </Text>
+                <View style={styles.chainHeader}>
+                  <TouchableOpacity
+                    onPress={() => toggleChainExpanded(chain.id)}
+                    activeOpacity={0.7}
+                    style={styles.chainHeaderTouchable}
+                  >
+                    <View style={styles.checkInHeader}>
+                      <View style={styles.chainHeaderLeft}>
+                        <Text style={styles.chainTitle}>SoMi Chain</Text>
+                        <Text style={styles.chainSubtitle}>
+                          {checksCount} check-in{checksCount !== 1 ? 's' : ''} • {blocksCount} block{blocksCount !== 1 ? 's' : ''}
+                        </Text>
+                      </View>
+
+                      <Text style={styles.expandIcon}>{isExpanded ? '▼' : '▶'}</Text>
                     </View>
 
-                    <Text style={styles.expandIcon}>{isExpanded ? '▼' : '▶'}</Text>
-                  </View>
+                    <Text style={styles.checkInTime}>{formatDate(chain.created_at)}</Text>
+                  </TouchableOpacity>
 
-                  <Text style={styles.checkInTime}>{formatDate(chain.created_at)}</Text>
-                </TouchableOpacity>
+                  {/* Delete button (MVP debugging) */}
+                  <TouchableOpacity
+                    onPress={() => handleDeleteChainPress(chain.id)}
+                    activeOpacity={0.7}
+                    style={styles.deleteButton}
+                  >
+                    <Text style={styles.deleteButtonText}>✕</Text>
+                  </TouchableOpacity>
+                </View>
 
                 {/* Expanded content */}
                 {isExpanded && (
@@ -536,28 +599,40 @@ export default function MySomiScreen() {
                                   </Text>
                                 </View>
 
-                                <Svg width={28} height={28}>
-                                  <Circle
-                                    cx={14}
-                                    cy={14}
-                                    r={11}
-                                    stroke={stateInfo?.color + '30'}
-                                    strokeWidth={3}
-                                    fill="none"
-                                  />
-                                  <Circle
-                                    cx={14}
-                                    cy={14}
-                                    r={11}
-                                    stroke={stateInfo?.color}
-                                    strokeWidth={3}
-                                    fill="none"
-                                    strokeDasharray={2 * Math.PI * 11}
-                                    strokeDashoffset={2 * Math.PI * 11 * (1 - fillLevel)}
-                                    strokeLinecap="round"
-                                    transform={`rotate(-90 14 14)`}
-                                  />
-                                </Svg>
+                                <View style={styles.checkRightSide}>
+                                  {check.journal_entry && (
+                                    <TouchableOpacity
+                                      onPress={() => handleViewJournal(check.journal_entry)}
+                                      activeOpacity={0.7}
+                                      style={styles.journalIconButton}
+                                    >
+                                      <Text style={styles.journalIcon}>📝</Text>
+                                    </TouchableOpacity>
+                                  )}
+
+                                  <Svg width={28} height={28}>
+                                    <Circle
+                                      cx={14}
+                                      cy={14}
+                                      r={11}
+                                      stroke={stateInfo?.color + '30'}
+                                      strokeWidth={3}
+                                      fill="none"
+                                    />
+                                    <Circle
+                                      cx={14}
+                                      cy={14}
+                                      r={11}
+                                      stroke={stateInfo?.color}
+                                      strokeWidth={3}
+                                      fill="none"
+                                      strokeDasharray={2 * Math.PI * 11}
+                                      strokeDashoffset={2 * Math.PI * 11 * (1 - fillLevel)}
+                                      strokeLinecap="round"
+                                      transform={`rotate(-90 14 14)`}
+                                    />
+                                  </Svg>
+                                </View>
                               </View>
                             </View>
                           )
@@ -590,6 +665,73 @@ export default function MySomiScreen() {
         {/* Bottom spacing */}
         <View style={styles.bottomSpacer} />
       </ScrollView>
+
+      {/* Delete Confirmation Modal */}
+      <Modal
+        visible={deleteModalVisible}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={cancelDelete}
+      >
+        <View style={styles.modalOverlay}>
+          <BlurView intensity={40} tint="dark" style={styles.deleteModalContainer}>
+            <View style={styles.deleteModalContent}>
+              <Text style={styles.deleteModalTitle}>Delete SoMi Chain?</Text>
+              <Text style={styles.deleteModalText}>
+                This will permanently delete this chain and all its check-ins and exercise blocks.
+              </Text>
+
+              <View style={styles.deleteModalButtons}>
+                <TouchableOpacity
+                  onPress={cancelDelete}
+                  activeOpacity={0.7}
+                  style={styles.deleteModalButtonCancel}
+                >
+                  <Text style={styles.deleteModalButtonCancelText}>Cancel</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  onPress={confirmDeleteChain}
+                  activeOpacity={0.7}
+                  style={styles.deleteModalButtonConfirm}
+                >
+                  <Text style={styles.deleteModalButtonConfirmText}>Delete</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </BlurView>
+        </View>
+      </Modal>
+
+      {/* Journal View Modal (Read-only) */}
+      <Modal
+        visible={journalModalVisible}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={closeJournalModal}
+      >
+        <View style={styles.modalOverlay}>
+          <BlurView intensity={40} tint="dark" style={styles.journalViewModalContainer}>
+            <View style={styles.journalViewModalContent}>
+              <Text style={styles.journalViewModalTitle}>journal entry</Text>
+
+              <View style={styles.journalViewTextContainer}>
+                <Text style={styles.journalViewText}>
+                  {selectedJournalEntry || ''}
+                </Text>
+              </View>
+
+              <TouchableOpacity
+                onPress={closeJournalModal}
+                activeOpacity={0.7}
+                style={styles.journalViewCloseButton}
+              >
+                <Text style={styles.journalViewCloseButtonText}>close</Text>
+              </TouchableOpacity>
+            </View>
+          </BlurView>
+        </View>
+      </Modal>
     </LinearGradient>
   )
 }
@@ -883,6 +1025,14 @@ const styles = StyleSheet.create({
     fontWeight: '500',
     letterSpacing: 0.3,
   },
+  chainHeader: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 12,
+  },
+  chainHeaderTouchable: {
+    flex: 1,
+  },
   deleteButton: {
     width: 28,
     height: 28,
@@ -989,5 +1139,140 @@ const styles = StyleSheet.create({
     position: 'absolute',
     width: '100%',
     height: '100%',
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.75)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 24,
+  },
+  deleteModalContainer: {
+    borderRadius: 24,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 107, 107, 0.3)',
+    maxWidth: 340,
+    width: '100%',
+  },
+  deleteModalContent: {
+    padding: 24,
+    alignItems: 'center',
+  },
+  deleteModalTitle: {
+    color: '#ff6b6b',
+    fontSize: 20,
+    fontWeight: '700',
+    letterSpacing: 0.3,
+    marginBottom: 12,
+    textAlign: 'center',
+  },
+  deleteModalText: {
+    color: 'rgba(247, 249, 251, 0.8)',
+    fontSize: 14,
+    fontWeight: '500',
+    lineHeight: 20,
+    textAlign: 'center',
+    marginBottom: 24,
+  },
+  deleteModalButtons: {
+    flexDirection: 'row',
+    gap: 12,
+    width: '100%',
+  },
+  deleteModalButtonCancel: {
+    flex: 1,
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.2)',
+    borderRadius: 16,
+    paddingVertical: 14,
+    paddingHorizontal: 20,
+    alignItems: 'center',
+  },
+  deleteModalButtonCancelText: {
+    color: 'rgba(247, 249, 251, 0.9)',
+    fontSize: 15,
+    fontWeight: '600',
+    letterSpacing: 0.3,
+  },
+  deleteModalButtonConfirm: {
+    flex: 1,
+    backgroundColor: 'rgba(255, 107, 107, 0.2)',
+    borderWidth: 2,
+    borderColor: '#ff6b6b',
+    borderRadius: 16,
+    paddingVertical: 14,
+    paddingHorizontal: 20,
+    alignItems: 'center',
+  },
+  deleteModalButtonConfirmText: {
+    color: '#ff6b6b',
+    fontSize: 15,
+    fontWeight: '700',
+    letterSpacing: 0.3,
+  },
+  checkRightSide: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  journalIconButton: {
+    padding: 4,
+  },
+  journalIcon: {
+    fontSize: 18,
+    opacity: 0.8,
+  },
+  journalViewModalContainer: {
+    borderRadius: 24,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: 'rgba(147, 112, 219, 0.3)',
+    maxWidth: 500,
+    width: '90%',
+  },
+  journalViewModalContent: {
+    padding: 32,
+  },
+  journalViewModalTitle: {
+    color: 'rgba(147, 112, 219, 1)',
+    fontSize: 20,
+    fontWeight: '600',
+    letterSpacing: 0.3,
+    marginBottom: 20,
+    textAlign: 'center',
+  },
+  journalViewTextContainer: {
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    borderWidth: 1,
+    borderColor: 'rgba(147, 112, 219, 0.2)',
+    borderRadius: 16,
+    padding: 20,
+    minHeight: 120,
+    maxHeight: 300,
+    marginBottom: 20,
+  },
+  journalViewText: {
+    color: '#f7f9fb',
+    fontSize: 15,
+    fontWeight: '400',
+    lineHeight: 22,
+    letterSpacing: 0.2,
+  },
+  journalViewCloseButton: {
+    backgroundColor: 'rgba(147, 112, 219, 0.2)',
+    borderWidth: 2,
+    borderColor: 'rgba(147, 112, 219, 0.5)',
+    borderRadius: 18,
+    paddingVertical: 14,
+    paddingHorizontal: 32,
+    alignSelf: 'center',
+  },
+  journalViewCloseButtonText: {
+    color: 'rgba(147, 112, 219, 1)',
+    fontSize: 16,
+    fontWeight: '600',
+    letterSpacing: 0.3,
   },
 })
