@@ -497,75 +497,89 @@ export default function MySomiScreen() {
                 {/* Expanded content */}
                 {isExpanded && (
                   <View style={styles.chainExpandedContent}>
-                    {/* Embodiment Checks */}
-                    {chain.embodiment_checks.length > 0 && (
-                      <View style={styles.chainSection}>
-                        <Text style={styles.chainSectionTitle}>Embodiment Checks</Text>
-                        {chain.embodiment_checks.map((check, index) => {
+                    {/* Merged Timeline: Interleave checks and blocks chronologically */}
+                    {(() => {
+                      // Combine checks and blocks with their timestamps
+                      const checks = chain.embodiment_checks.map(c => ({
+                        type: 'check',
+                        timestamp: new Date(c.created_at),
+                        data: c
+                      }))
+                      const blocks = chain.completed_blocks.map(b => ({
+                        type: 'block',
+                        timestamp: new Date(b.created_at),
+                        data: b
+                      }))
+
+                      // Merge and sort by timestamp
+                      const timeline = [...checks, ...blocks].sort((a, b) => a.timestamp - b.timestamp)
+
+                      return timeline.map((item, index) => {
+                        if (item.type === 'check') {
+                          const check = item.data
                           const stateInfo = getStateInfo(check.polyvagal_state)
                           const fillLevel = check.slider_value / 100
 
                           return (
-                            <View key={check.id} style={styles.chainCheckItem}>
-                              <View style={[styles.stateChip, {
-                                backgroundColor: stateInfo?.color + '33',
-                                borderColor: stateInfo?.color,
-                              }]}>
-                                <Text style={styles.stateEmojiSmall}>
-                                  {STATE_EMOJIS[check.polyvagal_state]}
-                                </Text>
-                                <Text style={styles.stateLabel}>
-                                  {stateInfo?.label}
-                                </Text>
-                              </View>
+                            <View key={`check-${check.id}`} style={styles.timelineItem}>
+                              <Text style={styles.timelineItemLabel}>Check-in</Text>
+                              <View style={styles.chainCheckItem}>
+                                <View style={[styles.stateChip, {
+                                  backgroundColor: stateInfo?.color + '33',
+                                  borderColor: stateInfo?.color,
+                                }]}>
+                                  <Text style={styles.stateEmojiSmall}>
+                                    {STATE_EMOJIS[check.polyvagal_state]}
+                                  </Text>
+                                  <Text style={styles.stateLabel}>
+                                    {stateInfo?.label}
+                                  </Text>
+                                </View>
 
-                              <Svg width={28} height={28}>
-                                <Circle
-                                  cx={14}
-                                  cy={14}
-                                  r={11}
-                                  stroke={stateInfo?.color + '30'}
-                                  strokeWidth={3}
-                                  fill="none"
-                                />
-                                <Circle
-                                  cx={14}
-                                  cy={14}
-                                  r={11}
-                                  stroke={stateInfo?.color}
-                                  strokeWidth={3}
-                                  fill="none"
-                                  strokeDasharray={2 * Math.PI * 11}
-                                  strokeDashoffset={2 * Math.PI * 11 * (1 - fillLevel)}
-                                  strokeLinecap="round"
-                                  transform={`rotate(-90 14 14)`}
-                                />
-                              </Svg>
+                                <Svg width={28} height={28}>
+                                  <Circle
+                                    cx={14}
+                                    cy={14}
+                                    r={11}
+                                    stroke={stateInfo?.color + '30'}
+                                    strokeWidth={3}
+                                    fill="none"
+                                  />
+                                  <Circle
+                                    cx={14}
+                                    cy={14}
+                                    r={11}
+                                    stroke={stateInfo?.color}
+                                    strokeWidth={3}
+                                    fill="none"
+                                    strokeDasharray={2 * Math.PI * 11}
+                                    strokeDashoffset={2 * Math.PI * 11 * (1 - fillLevel)}
+                                    strokeLinecap="round"
+                                    transform={`rotate(-90 14 14)`}
+                                  />
+                                </Svg>
+                              </View>
                             </View>
                           )
-                        })}
-                      </View>
-                    )}
-
-                    {/* Completed Blocks */}
-                    {chain.completed_blocks.length > 0 && (
-                      <View style={styles.chainSection}>
-                        <Text style={styles.chainSectionTitle}>Completed Blocks</Text>
-                        {chain.completed_blocks.map((block) => {
+                        } else {
+                          const block = item.data
                           const blockName = block.somi_blocks?.name || block.somi_blocks?.canonical_name || 'Unknown Block'
                           const minutes = Math.floor(block.seconds_elapsed / 60)
                           const seconds = block.seconds_elapsed % 60
                           const timeStr = `${minutes}:${seconds.toString().padStart(2, '0')}`
 
                           return (
-                            <View key={block.id} style={styles.chainBlockItem}>
-                              <Text style={styles.blockName}>{blockName}</Text>
-                              <Text style={styles.blockTime}>{timeStr}</Text>
+                            <View key={`block-${block.id}`} style={styles.timelineItem}>
+                              <Text style={styles.timelineItemLabel}>Exercise</Text>
+                              <View style={styles.chainBlockItem}>
+                                <Text style={styles.blockName}>{blockName}</Text>
+                                <Text style={styles.blockTime}>{timeStr}</Text>
+                              </View>
                             </View>
                           )
-                        })}
-                      </View>
-                    )}
+                        }
+                      })
+                    })()}
                   </View>
                 )}
               </BlurView>
@@ -924,6 +938,18 @@ const styles = StyleSheet.create({
     letterSpacing: 0.5,
     textTransform: 'uppercase',
     marginBottom: 12,
+  },
+  timelineItem: {
+    marginBottom: 12,
+  },
+  timelineItemLabel: {
+    color: 'rgba(247, 249, 251, 0.5)',
+    fontSize: 11,
+    fontWeight: '600',
+    letterSpacing: 0.5,
+    textTransform: 'uppercase',
+    marginBottom: 6,
+    marginLeft: 4,
   },
   chainCheckItem: {
     flexDirection: 'row',

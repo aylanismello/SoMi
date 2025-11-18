@@ -1,14 +1,16 @@
 import { StatusBar } from 'expo-status-bar'
-import { View, Pressable } from 'react-native'
+import { Pressable } from 'react-native'
 import { NavigationContainer, getFocusedRouteNameFromRoute } from '@react-navigation/native'
 import { createStackNavigator } from '@react-navigation/stack'
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs'
 import { Ionicons } from '@expo/vector-icons'
+import { useEffect } from 'react'
 import HomeScreen from './components/HomeScreen'
 import SoMeCheckIn from './components/SoMeCheckIn'
 import PlayerScreen from './components/PlayerScreen'
 import MySomiScreen from './components/MySomiScreen'
 import SoMiTimer from './components/SoMiTimer'
+import { prefetchVideoBlocks } from './constants/media'
 
 const Stack = createStackNavigator()
 const Tab = createBottomTabNavigator()
@@ -66,6 +68,11 @@ function CheckInStack() {
 }
 
 export default function App() {
+  // Prefetch video blocks on app startup for better UX
+  useEffect(() => {
+    prefetchVideoBlocks()
+  }, [])
+
   return (
     <NavigationContainer>
       <StatusBar style="light" />

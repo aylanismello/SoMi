@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { StyleSheet, Text, View, TouchableOpacity } from 'react-native'
 import * as Haptics from 'expo-haptics'
-import { MEDIA, getMediaForSliderValue } from '../constants/media'
+import { getMediaForSliderValue, getSOSMedia } from '../constants/media'
 import EmbodimentSlider from './EmbodimentSlider'
 
 export default function MainScreen({ navigation }) {
@@ -11,18 +11,19 @@ export default function MainScreen({ navigation }) {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy)
   }
 
-  const handleSOSRelease = () => {
+  const handleSOSRelease = async () => {
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning)
-    navigation.navigate('Player', { media: MEDIA.SOS, initialValue: sliderValue })
+    const sosMedia = await getSOSMedia()
+    navigation.navigate('Player', { media: sosMedia, initialValue: sliderValue })
   }
 
   const handleSoMiTimePress = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium)
   }
 
-  const handleSoMiTimeRelease = () => {
+  const handleSoMiTimeRelease = async () => {
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success)
-    const media = getMediaForSliderValue(sliderValue)
+    const media = await getMediaForSliderValue(sliderValue)
     navigation.navigate('Player', { media, initialValue: sliderValue })
   }
 

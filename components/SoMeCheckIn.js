@@ -5,12 +5,7 @@ import { LinearGradient } from 'expo-linear-gradient'
 import { BlurView } from 'expo-blur'
 import * as Haptics from 'expo-haptics'
 import Svg, { Path } from 'react-native-svg'
-import { MEDIA, getMediaForSliderValue } from '../constants/media'
-
-const BODY_SCAN_MEDIA = {
-  url: 'https://qujifwhwntqxziymqdwu.supabase.co/storage/v1/object/public/test/5%20Min.%20Body%20Scan%20Meditation_CW2%201.mp3',
-  type: 'audio',
-}
+import { getMediaForSliderValue, getSOSMedia, BODY_SCAN_MEDIA } from '../constants/media'
 import EmbodimentSlider from './EmbodimentSlider'
 import { supabase, somiChainService } from '../supabase'
 
@@ -183,15 +178,16 @@ export default function SoMeCheckIn({ navigation, route }) {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy)
   }
 
-  const handleSOSRelease = () => {
+  const handleSOSRelease = async () => {
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning)
-    navigation.navigate('Player', { media: MEDIA.SOS, initialValue: sliderValue })
+    const sosMedia = await getSOSMedia()
+    navigation.navigate('Player', { media: sosMedia, initialValue: sliderValue })
   }
 
-  const handleSoMiRoutinePress = () => {
+  const handleSoMiRoutinePress = async () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium)
 
-    const media = getMediaForSliderValue(sliderValue)
+    const media = await getMediaForSliderValue(sliderValue)
     navigation.navigate('Player', {
       media,
       initialValue: sliderValue,
