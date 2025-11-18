@@ -181,12 +181,13 @@ export default function EmbodimentSlider({
         return false
       },
       onPanResponderGrant: (evt) => {
-        handleTouch(evt.nativeEvent, true)
+        // Don't update value on initial touch - only on drag
+        // This prevents jumping to tapped position
       },
       onPanResponderMove: (evt) => {
         // Only handle if touch started on ring
         if (touchStartedOnRing.current) {
-          handleTouch(evt.nativeEvent, false)
+          handleTouch(evt.nativeEvent)
         }
       },
       onPanResponderRelease: () => {
@@ -196,7 +197,7 @@ export default function EmbodimentSlider({
     }), [value, onValueChange] // Recreate when these change
   )
 
-  const handleTouch = (evt, isInitialTap) => {
+  const handleTouch = (evt) => {
     // Get touch position relative to circle center
     const touchX = evt.locationX - CENTER
     const touchY = evt.locationY - CENTER
@@ -210,21 +211,19 @@ export default function EmbodimentSlider({
     // Normalize to 0-100 range
     if (newValue < 0) newValue += 100
 
-    // Only prevent wrapping during continuous drag, not on initial tap
-    if (!isInitialTap) {
-      const previousValue = previousValueRef.current
-      const valueDiff = Math.abs(newValue - previousValue)
+    // Prevent wrapping - only allow dragging, no jumping
+    const previousValue = previousValueRef.current
+    const valueDiff = Math.abs(newValue - previousValue)
 
-      // If the value change is too large (> 50%), we're likely wrapping around
-      // Clamp to 0 or 100 based on which side we're coming from
-      if (valueDiff > 50) {
-        if (previousValue < 50) {
-          // Coming from the left side (0% side), clamp to 0
-          newValue = 0
-        } else {
-          // Coming from the right side (100% side), clamp to 100
-          newValue = 100
-        }
+    // If the value change is too large (> 50%), we're likely wrapping around
+    // Clamp to 0 or 100 based on which side we're coming from
+    if (valueDiff > 50) {
+      if (previousValue < 50) {
+        // Coming from the left side (0% side), clamp to 0
+        newValue = 0
+      } else {
+        // Coming from the right side (100% side), clamp to 100
+        newValue = 100
       }
     }
 
