@@ -68,8 +68,18 @@ export default function PlayerScreen({ navigation, route }) {
     // Get somi_block_id from media object
     const somiBlockId = media.somi_block_id
 
-    await somiChainService.saveCompletedBlock(somiBlockId, elapsedSeconds)
-    console.log(`Completed block ${somiBlockId} saved: ${elapsedSeconds}s`)
+    // If fromExplore is true, save without chain association (à la carte viewing)
+    // Otherwise, get/create active chain and associate the block with it (check-in flow)
+    if (fromExplore) {
+      // À la carte viewing - no chain association
+      await somiChainService.saveCompletedBlock(somiBlockId, elapsedSeconds, 0, null)
+      console.log(`Completed block ${somiBlockId} saved (à la carte): ${elapsedSeconds}s`)
+    } else {
+      // Check-in flow - associate with active chain
+      const chainId = await somiChainService.getOrCreateActiveChain()
+      await somiChainService.saveCompletedBlock(somiBlockId, elapsedSeconds, 0, chainId)
+      console.log(`Completed block ${somiBlockId} saved (chain ${chainId}): ${elapsedSeconds}s`)
+    }
   }
 
   // Auto-play when player is ready

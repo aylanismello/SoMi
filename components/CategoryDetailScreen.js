@@ -4,6 +4,34 @@ import { LinearGradient } from 'expo-linear-gradient'
 import * as Haptics from 'expo-haptics'
 import { supabase } from '../supabase'
 
+// Polyvagal states in order from most withdrawn to most connected
+const POLYVAGAL_STATES = [
+  { id: 'withdrawn', label: 'Withdrawn', color: '#7b68ee', emoji: '🌑' },
+  { id: 'stirring', label: 'Stirring', color: '#9d7be8', emoji: '🌘' },
+  { id: 'activated', label: 'Activated', color: '#b88ddc', emoji: '⚡' },
+  { id: 'settling', label: 'Settling', color: '#68c9ba', emoji: '🌤' },
+  { id: 'connected', label: 'Connected', color: '#4ecdc4', emoji: '🌕' },
+]
+
+// Function to get state info by state ID
+const getStateInfo = (stateId) => {
+  return POLYVAGAL_STATES.find(s => s.id === stateId) || null
+}
+
+// Function to sort videos by state_target (for vagal toning category)
+const sortByStateTarget = (videos) => {
+  return videos.sort((a, b) => {
+    const aIndex = POLYVAGAL_STATES.findIndex(s => s.id === a.state_target)
+    const bIndex = POLYVAGAL_STATES.findIndex(s => s.id === b.state_target)
+
+    // If state not found, put it at the end
+    if (aIndex === -1) return 1
+    if (bIndex === -1) return -1
+
+    return aIndex - bIndex
+  })
+}
+
 export default function CategoryDetailScreen({ navigation, route }) {
   const { categoryId, categoryName, categoryColors } = route.params
   const [videos, setVideos] = useState([])
@@ -27,7 +55,11 @@ export default function CategoryDetailScreen({ navigation, route }) {
         console.error('Error fetching videos:', error)
         setVideos([])
       } else {
-        setVideos(data || [])
+        // Sort by state_target for vagal toning, otherwise use default order
+        const sortedVideos = categoryId === 'vagal_toning'
+          ? sortByStateTarget(data || [])
+          : data || []
+        setVideos(sortedVideos)
       }
     } catch (err) {
       console.error('Unexpected error fetching videos:', err)
@@ -103,51 +135,101 @@ export default function CategoryDetailScreen({ navigation, route }) {
           </View>
         ) : (
           <View style={styles.videoGrid}>
-            {videos.map((video) => (
-              <TouchableOpacity
-                key={video.id}
-                activeOpacity={0.85}
-                onPress={() => handleVideoPress(video)}
-                style={styles.videoCard}
-              >
-                <LinearGradient
-                  colors={['rgba(78, 205, 196, 0.15)', 'rgba(78, 205, 196, 0.05)']}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 1 }}
-                  style={styles.videoCardGradient}
-                >
-                  <View style={styles.videoCardContent}>
-                    <View style={styles.videoInfo}>
-                      <Text style={styles.videoName}>{video.name}</Text>
-                      {video.description && (
-                        <Text style={styles.videoDescription} numberOfLines={2}>
-                          {video.description}
+            {videos.map((video, index) => {
+              const stateInfo = getStateInfo(video.state_target)
+
+              // Check if we need to show a state header (for vagal toning only)
+              const showStateHeader = categoryId === 'vagal_toning' &&
+                (index === 0 || videos[index - 1]?.state_target !== video.state_target)
+
+              return (
+                <View key={video.id}>
+                  {showStateHeader && stateInfo && (
+                    <View style={styles.stateHeaderContainer}>
+                      <View style={styles.stateHeaderLine} />
+                      <View style={styles.stateHeader}>
+                        <Text style={styles.stateHeaderEmoji}>{stateInfo.emoji}</Text>
+                        <Text style={[styles.stateHeaderText, { color: stateInfo.color }]}>
+                          {stateInfo.label}
                         </Text>
-                      )}
-                      {video.intensity && (
-                        <View style={styles.videoMetadata}>
-                          <View style={styles.metadataBadge}>
-                            <Text style={styles.metadataText}>
-                              {video.intensity.charAt(0).toUpperCase() + video.intensity.slice(1)}
-                            </Text>
+                      </View>
+                      <View style={styles.stateHeaderLine} />
+                    </View>
+                  )}
+
+                  <TouchableOpacity
+                    activeOpacity={0.85}
+                    onPress={() => handleVideoPress(video)}
+                    style={styles.videoCard}
+                  >
+                    <LinearGradient
+                      colors={
+                        categoryId === 'vagal_toning' && stateInfo
+                          ? [`${stateInfo.color}30`, `${stateInfo.color}10`]
+                          : ['rgba(78, 205, 196, 0.15)', 'rgba(78, 205, 196, 0.05)']
+                      }
+                      start={{ x: 0, y: 0 }}
+                      end={{ x: 1, y: 1 }}
+                      style={styles.videoCardGradient}
+                    >
+                      <View style={styles.videoCardContent}>
+                        {categoryId === 'vagal_toning' && stateInfo && (
+                          <View style={styles.stateIconContainer}>
+                            <Text style={styles.stateEmoji}>{stateInfo.emoji}</Text>
                           </View>
-                          {video.state_target && (
-                            <View style={styles.metadataBadge}>
-                              <Text style={styles.metadataText}>
-                                {video.state_target.charAt(0).toUpperCase() + video.state_target.slice(1)}
-                              </Text>
+                        )}
+                        <View style={styles.videoInfo}>
+                          <Text style={styles.videoName}>{video.name}</Text>
+                          {video.description && (
+                            <Text style={styles.videoDescription} numberOfLines={2}>
+                              {video.description}
+                            </Text>
+                          )}
+                          {categoryId === 'vagal_toning' && video.state_target && (
+                            <View style={styles.videoMetadata}>
+                              <View style={[
+                                styles.metadataBadge,
+                                stateInfo && {
+                                  backgroundColor: `${stateInfo.color}30`,
+                                  borderColor: stateInfo.color,
+                                  borderWidth: 1,
+                                }
+                              ]}>
+                                <Text style={[
+                                  styles.metadataText,
+                                  stateInfo && { color: stateInfo.color }
+                                ]}>
+                                  {stateInfo?.label || video.state_target.charAt(0).toUpperCase() + video.state_target.slice(1)}
+                                </Text>
+                              </View>
+                              {video.intensity && (
+                                <View style={styles.metadataBadge}>
+                                  <Text style={styles.metadataText}>
+                                    {video.intensity.charAt(0).toUpperCase() + video.intensity.slice(1)}
+                                  </Text>
+                                </View>
+                              )}
+                            </View>
+                          )}
+                          {categoryId !== 'vagal_toning' && video.intensity && (
+                            <View style={styles.videoMetadata}>
+                              <View style={styles.metadataBadge}>
+                                <Text style={styles.metadataText}>
+                                  {video.intensity.charAt(0).toUpperCase() + video.intensity.slice(1)}
+                                </Text>
+                              </View>
                             </View>
                           )}
                         </View>
-                      )}
-                    </View>
-                    <View style={styles.playIconContainer}>
-                      <Text style={styles.playIcon}>▶</Text>
-                    </View>
-                  </View>
-                </LinearGradient>
-              </TouchableOpacity>
-            ))}
+                        <View style={styles.playIconContainer}>
+                          <Text style={styles.playIcon}>▶</Text>
+                        </View>
+                      </View>
+                    </LinearGradient>
+                  </TouchableOpacity>
+                </View>
+              )
+            })}
           </View>
         )}
       </ScrollView>
@@ -227,6 +309,33 @@ const styles = StyleSheet.create({
   videoGrid: {
     gap: 16,
   },
+  stateHeaderContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 24,
+    marginBottom: 16,
+    gap: 12,
+  },
+  stateHeaderLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+  },
+  stateHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingHorizontal: 12,
+  },
+  stateHeaderEmoji: {
+    fontSize: 18,
+  },
+  stateHeaderText: {
+    fontSize: 14,
+    fontWeight: '600',
+    letterSpacing: 0.5,
+    textTransform: 'lowercase',
+  },
   videoCard: {
     borderRadius: 16,
     overflow: 'hidden',
@@ -240,6 +349,17 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 16,
+  },
+  stateIconContainer: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  stateEmoji: {
+    fontSize: 24,
   },
   videoInfo: {
     flex: 1,

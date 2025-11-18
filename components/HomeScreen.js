@@ -1,111 +1,207 @@
-import { StyleSheet, View, Text, ScrollView, TouchableOpacity, Image } from 'react-native'
+import { useState, useCallback } from 'react'
+import { StyleSheet, View, Text, ScrollView, TouchableOpacity, Image, ActivityIndicator } from 'react-native'
 import { LinearGradient } from 'expo-linear-gradient'
 import { BlurView } from 'expo-blur'
 import * as Haptics from 'expo-haptics'
+import { somiChainService } from '../supabase'
+import { useFocusEffect } from '@react-navigation/native'
+
+// Polyvagal states with colors and emojis
+const POLYVAGAL_STATES = {
+  withdrawn: { label: 'Withdrawn', color: '#7b68ee', emoji: '🌑' },
+  stirring: { label: 'Stirring', color: '#9d7be8', emoji: '🌘' },
+  activated: { label: 'Activated', color: '#b88ddc', emoji: '⚡' },
+  settling: { label: 'Settling', color: '#68c9ba', emoji: '🌤' },
+  connected: { label: 'Connected', color: '#4ecdc4', emoji: '🌕' },
+}
 
 export default function HomeScreen({ navigation }) {
-  // Sample video data - using the provided thumbnail URL
-  const videos = [
-    {
-      id: '1',
-      title: 'Deep Breathing Exercise',
-      thumbnail: 'https://qujifwhwntqxziymqdwu.supabase.co/storage/v1/object/public/test/video_thumbnail.png',
-      url: 'https://qujifwhwntqxziymqdwu.supabase.co/storage/v1/object/public/test/test.mov',
-      type: 'video',
-    },
-    {
-      id: '2',
-      title: 'Vagus Nerve Activation',
-      thumbnail: 'https://qujifwhwntqxziymqdwu.supabase.co/storage/v1/object/public/test/video_thumbnail.png',
-      url: 'https://qujifwhwntqxziymqdwu.supabase.co/storage/v1/object/public/test/test.mov',
-      type: 'video',
-    },
-    {
-      id: '3',
-      title: 'Calming Breath Work',
-      thumbnail: 'https://qujifwhwntqxziymqdwu.supabase.co/storage/v1/object/public/test/video_thumbnail.png',
-      url: 'https://qujifwhwntqxziymqdwu.supabase.co/storage/v1/object/public/test/test.mov',
-      type: 'video',
-    },
-  ]
+  const [mostPlayed, setMostPlayed] = useState([])
+  const [latestChain, setLatestChain] = useState(null)
+  const [loading, setLoading] = useState(true)
 
-  const handleVideoPress = (video) => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
-    navigation.navigate('Player', { media: video })
+  // Fetch data when screen comes into focus
+  useFocusEffect(
+    useCallback(() => {
+      fetchHomeData()
+    }, [])
+  )
+
+  const fetchHomeData = async () => {
+    setLoading(true)
+    const [playedBlocks, chain] = await Promise.all([
+      somiChainService.getMostPlayedBlocks(10),
+      somiChainService.getLatestChain()
+    ])
+    setMostPlayed(playedBlocks)
+    setLatestChain(chain)
+    setLoading(false)
   }
+
+  const handleVideoPress = (block) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
+
+    navigation.navigate('Player', {
+      media: {
+        somi_block_id: block.id,
+        name: block.name,
+        type: block.media_type || 'video',
+        url: block.media_url,
+      },
+      fromExplore: true // Mark as à la carte viewing
+    })
+  }
+
+  // Calculate stats from latest chain
+  const getChainStats = () => {
+    if (!latestChain || !latestChain.embodiment_checks || latestChain.embodiment_checks.length < 2) {
+      return null
+    }
+
+    const checks = latestChain.embodiment_checks
+    const firstCheck = checks[0]
+    const lastCheck = checks[checks.length - 1]
+
+    // Calculate percentage change
+    const change = lastCheck.slider_value - firstCheck.slider_value
+    const changePercent = change > 0 ? `+${change}%` : `${change}%`
+
+    const fromStateId = firstCheck.polyvagal_state || 'withdrawn'
+    const toStateId = lastCheck.polyvagal_state || 'withdrawn'
+
+    return {
+      changePercent,
+      change,
+      fromState: POLYVAGAL_STATES[fromStateId] || POLYVAGAL_STATES.withdrawn,
+      toState: POLYVAGAL_STATES[toStateId] || POLYVAGAL_STATES.withdrawn,
+    }
+  }
+
+  const chainStats = getChainStats()
 
   return (
     <LinearGradient
       colors={['#0f0c29', '#302b63', '#24243e']}
       style={styles.container}
     >
-      {/* SoMi Logo at top */}
-      <View style={styles.logoSection}>
-        <Text style={styles.logoText}>SoMi</Text>
-      </View>
+      <ScrollView
+        style={styles.scrollView}
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+      >
+        {/* SoMi Logo at top */}
+        <View style={styles.logoSection}>
+          <Text style={styles.logoText}>SoMi</Text>
+        </View>
 
-      {/* Welcome section - vertically centered */}
-      <View style={styles.welcomeSection}>
+        {/* Welcome section */}
+        <View style={styles.welcomeSection}>
         <View style={styles.welcomeContent}>
           <Text style={styles.welcomeText}>Hi there.</Text>
           <Text style={styles.welcomeSubtext}>Welcome back</Text>
 
-          <BlurView intensity={20} tint="dark" style={styles.statsCard}>
-            <View style={styles.statsContent}>
-              <Text style={styles.statsLabel}>Last check-in</Text>
-              <View style={styles.statRow}>
-                <LinearGradient
-                  colors={['#4ecdc4', '#44a08d']}
-                  style={styles.progressIndicator}
-                >
-                  <Text style={styles.statsChange}>+35%</Text>
-                </LinearGradient>
+          {chainStats ? (
+            <BlurView intensity={20} tint="dark" style={styles.statsCard}>
+              <View style={styles.statsContent}>
+                <Text style={styles.statsLabel}>Last check-in</Text>
+
+                {/* State transition with emojis */}
+                <View style={styles.stateTransition}>
+                  <View style={[styles.stateCircle, { backgroundColor: chainStats.fromState.color + '33', borderColor: chainStats.fromState.color }]}>
+                    <Text style={styles.stateEmoji}>{chainStats.fromState.emoji}</Text>
+                  </View>
+
+                  <View style={styles.transitionArrow}>
+                    <Text style={styles.arrowText}>→</Text>
+                  </View>
+
+                  <View style={[styles.stateCircle, { backgroundColor: chainStats.toState.color + '33', borderColor: chainStats.toState.color }]}>
+                    <Text style={styles.stateEmoji}>{chainStats.toState.emoji}</Text>
+                  </View>
+                </View>
+
+                {/* Percentage change indicator */}
+                <View style={styles.statRow}>
+                  <LinearGradient
+                    colors={chainStats.change >= 0 ? ['#4ecdc4', '#44a08d'] : ['#7b68ee', '#6a5acd']}
+                    style={styles.progressIndicator}
+                  >
+                    <Text style={styles.statsChange}>{chainStats.changePercent}</Text>
+                  </LinearGradient>
+                </View>
+
+                {/* State labels */}
+                <View style={styles.stateLabels}>
+                  <Text style={[styles.stateLabelText, { color: chainStats.fromState.color }]}>
+                    {chainStats.fromState.label}
+                  </Text>
+                  <Text style={styles.stateLabelArrow}>→</Text>
+                  <Text style={[styles.stateLabelText, { color: chainStats.toState.color }]}>
+                    {chainStats.toState.label}
+                  </Text>
+                </View>
               </View>
-              <Text style={styles.statsDetail}>Mobilized → Ventral</Text>
+            </BlurView>
+          ) : (
+            <BlurView intensity={20} tint="dark" style={styles.statsCard}>
+              <View style={styles.statsContent}>
+                <Text style={styles.statsLabel}>No check-ins yet</Text>
+                <Text style={styles.statsDetail}>Start your first SoMi session</Text>
+              </View>
+            </BlurView>
+          )}
+        </View>
+      </View>
+
+        {/* Video carousel section */}
+        <View style={styles.carouselSection}>
+          <View style={styles.carouselHeader}>
+            <Text style={styles.carouselTitle}>Most Played</Text>
+          </View>
+
+          {loading ? (
+            <View style={styles.loadingContainer}>
+              <ActivityIndicator size="large" color="#4ecdc4" />
             </View>
-          </BlurView>
-        </View>
-      </View>
-
-      {/* Video carousel section */}
-      <View style={styles.carouselSection}>
-        <View style={styles.carouselHeader}>
-          <Text style={styles.carouselTitle}>Regulation Exercises</Text>
-          <TouchableOpacity onPress={() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)}>
-            <Text style={styles.seeAllText}>See All</Text>
-          </TouchableOpacity>
-        </View>
-
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.carouselContent}
-          decelerationRate="fast"
-          snapToInterval={260}
-        >
-          {videos.map((video) => (
-            <TouchableOpacity
-              key={video.id}
-              style={styles.videoCard}
-              onPress={() => handleVideoPress(video)}
-              activeOpacity={0.8}
+          ) : mostPlayed.length > 0 ? (
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.carouselContent}
+              decelerationRate="fast"
+              snapToInterval={260}
             >
-              <Image
-                source={{ uri: video.thumbnail }}
-                style={styles.thumbnail}
-                resizeMode="cover"
-              />
-              <LinearGradient
-                colors={['transparent', 'rgba(0,0,0,0.8)']}
-                style={styles.thumbnailOverlay}
-              />
-              <View style={styles.videoInfo}>
-                <Text style={styles.videoTitle}>{video.title}</Text>
-              </View>
-            </TouchableOpacity>
-          ))}
-        </ScrollView>
-      </View>
+              {mostPlayed.map((block) => (
+                <TouchableOpacity
+                  key={block.id}
+                  style={styles.videoCard}
+                  onPress={() => handleVideoPress(block)}
+                  activeOpacity={0.8}
+                >
+                  <Image
+                    source={{ uri: block.thumbnail_url }}
+                    style={styles.thumbnail}
+                    resizeMode="cover"
+                  />
+                  <LinearGradient
+                    colors={['transparent', 'rgba(0,0,0,0.8)']}
+                    style={styles.thumbnailOverlay}
+                  />
+                  <View style={styles.videoInfo}>
+                    <Text style={styles.videoTitle}>{block.name}</Text>
+                    <Text style={styles.playCount}>{block.play_count} plays</Text>
+                  </View>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          ) : (
+            <View style={styles.emptyContainer}>
+              <Text style={styles.emptyText}>No blocks played yet</Text>
+              <Text style={styles.emptySubtext}>Start exploring to see your favorites</Text>
+            </View>
+          )}
+        </View>
+      </ScrollView>
     </LinearGradient>
   )
 }
@@ -114,9 +210,15 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
+  scrollView: {
+    flex: 1,
+  },
+  scrollContent: {
+    paddingBottom: 100,
+  },
   logoSection: {
     paddingTop: 70,
-    paddingBottom: 30,
+    paddingBottom: 20,
     alignItems: 'center',
   },
   logoText: {
@@ -124,20 +226,10 @@ const styles = StyleSheet.create({
     fontSize: 36,
     fontWeight: '700',
     letterSpacing: 2,
-    marginBottom: 4,
-  },
-  logoSubtext: {
-    color: 'rgba(247, 249, 251, 0.6)',
-    fontSize: 13,
-    fontWeight: '500',
-    letterSpacing: 1.5,
-    textTransform: 'uppercase',
   },
   welcomeSection: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
     paddingHorizontal: 24,
+    paddingVertical: 20,
   },
   welcomeContent: {
     alignItems: 'center',
@@ -145,7 +237,7 @@ const styles = StyleSheet.create({
   },
   welcomeText: {
     color: '#f7f9fb',
-    fontSize: 28,
+    fontSize: 32,
     fontWeight: '600',
     marginBottom: 8,
     textAlign: 'center',
@@ -153,21 +245,21 @@ const styles = StyleSheet.create({
   },
   welcomeSubtext: {
     color: 'rgba(247, 249, 251, 0.7)',
-    fontSize: 20,
+    fontSize: 18,
     fontWeight: '400',
-    marginBottom: 40,
+    marginBottom: 32,
     textAlign: 'center',
     letterSpacing: 0.3,
   },
   statsCard: {
-    borderRadius: 20,
+    borderRadius: 24,
     overflow: 'hidden',
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.1)',
     width: '100%',
   },
   statsContent: {
-    padding: 24,
+    padding: 28,
     alignItems: 'center',
   },
   statsLabel: {
@@ -199,9 +291,49 @@ const styles = StyleSheet.create({
     fontWeight: '500',
     letterSpacing: 0.3,
   },
+  stateTransition: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 16,
+  },
+  stateCircle: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    borderWidth: 2,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  stateEmoji: {
+    fontSize: 28,
+  },
+  transitionArrow: {
+    marginHorizontal: 16,
+  },
+  arrowText: {
+    fontSize: 24,
+    color: 'rgba(247, 249, 251, 0.5)',
+  },
+  stateLabels: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 12,
+    gap: 8,
+  },
+  stateLabelText: {
+    fontSize: 14,
+    fontWeight: '600',
+    letterSpacing: 0.3,
+  },
+  stateLabelArrow: {
+    fontSize: 14,
+    color: 'rgba(247, 249, 251, 0.5)',
+  },
   carouselSection: {
     paddingBottom: 20,
-    paddingTop: 30,
+    paddingTop: 40,
   },
   carouselHeader: {
     flexDirection: 'row',
@@ -255,5 +387,35 @@ const styles = StyleSheet.create({
     fontSize: 17,
     fontWeight: '600',
     letterSpacing: 0.3,
+    marginBottom: 4,
+  },
+  playCount: {
+    color: 'rgba(247, 249, 251, 0.6)',
+    fontSize: 13,
+    fontWeight: '500',
+    letterSpacing: 0.3,
+  },
+  loadingContainer: {
+    paddingVertical: 60,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  emptyContainer: {
+    paddingVertical: 40,
+    paddingHorizontal: 24,
+    alignItems: 'center',
+  },
+  emptyText: {
+    color: 'rgba(247, 249, 251, 0.6)',
+    fontSize: 16,
+    fontWeight: '500',
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  emptySubtext: {
+    color: 'rgba(247, 249, 251, 0.4)',
+    fontSize: 14,
+    fontWeight: '400',
+    textAlign: 'center',
   },
 })

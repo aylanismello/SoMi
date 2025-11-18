@@ -182,7 +182,7 @@ function FloatingOrb({ check, index, onPress, isSelected, formatDate }) {
   )
 }
 
-export default function MySomiScreen() {
+export default function MySomiScreen({ navigation }) {
   const [loading, setLoading] = useState(true)
   const [somiChains, setSomiChains] = useState([])
   const [selectedOrb, setSelectedOrb] = useState(null)
@@ -354,6 +354,25 @@ export default function MySomiScreen() {
     setSelectedJournalEntry(null)
   }
 
+  const handlePlayBlock = (block) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
+
+    if (!block.somi_blocks || !block.somi_blocks.media_url) {
+      console.error('Block missing media data', block)
+      return
+    }
+
+    navigation.navigate('Player', {
+      media: {
+        somi_block_id: block.somi_blocks.id,
+        name: block.somi_blocks.name,
+        type: block.somi_blocks.media_type || 'video',
+        url: block.somi_blocks.media_url,
+      },
+      fromExplore: true // Mark as à la carte viewing
+    })
+  }
+
   const renderEmptyState = () => (
     <View style={styles.emptyContainer}>
       <Text style={styles.emptyEmoji}>🌱</Text>
@@ -477,35 +496,37 @@ export default function MySomiScreen() {
         </BlurView>
 
         {/* Stats Overview */}
-        <BlurView intensity={20} tint="dark" style={styles.statsCard}>
-          <View style={styles.statsGrid}>
-            {/* Most Common State */}
-            <View style={styles.statItem}>
-              <View style={styles.stateChipSmall}>
-                <Text style={styles.stateEmoji}>
-                  {STATE_EMOJIS[stats.mostCommonState]}
-                </Text>
-                <Text style={[styles.statValue, { fontSize: 16, marginTop: 4 }]}>
-                  {getStateInfo(stats.mostCommonState)?.label}
-                </Text>
-              </View>
-              <Text style={styles.statLabel}>most common</Text>
-            </View>
-
-            {/* Recent Trend */}
-            {stats.recentTrend && (
+        {stats.mostCommonState && (
+          <BlurView intensity={20} tint="dark" style={styles.statsCard}>
+            <View style={styles.statsGrid}>
+              {/* Most Common State */}
               <View style={styles.statItem}>
-                <Text style={styles.statValue}>
-                  {stats.recentTrend === 'improving' ? '↗' :
-                   stats.recentTrend === 'stable' ? '→' : '↻'}
-                </Text>
-                <Text style={styles.statLabel}>
-                  {stats.recentTrend}
-                </Text>
+                <View style={styles.stateChipSmall}>
+                  <Text style={styles.stateEmoji}>
+                    {STATE_EMOJIS[stats.mostCommonState]}
+                  </Text>
+                  <Text style={[styles.statValue, { fontSize: 16, marginTop: 4 }]}>
+                    {getStateInfo(stats.mostCommonState)?.label}
+                  </Text>
+                </View>
+                <Text style={styles.statLabel}>most common</Text>
               </View>
-            )}
-          </View>
-        </BlurView>
+
+              {/* Recent Trend */}
+              {stats.recentTrend && (
+                <View style={styles.statItem}>
+                  <Text style={styles.statValue}>
+                    {stats.recentTrend === 'improving' ? '↗' :
+                     stats.recentTrend === 'stable' ? '→' : '↻'}
+                  </Text>
+                  <Text style={styles.statLabel}>
+                    {stats.recentTrend}
+                  </Text>
+                </View>
+              )}
+            </View>
+          </BlurView>
+        )}
 
         {/* SoMi Chains Timeline */}
         <Text style={styles.sectionTitle}>somi chains</Text>
@@ -646,10 +667,23 @@ export default function MySomiScreen() {
                           return (
                             <View key={`block-${block.id}`} style={styles.timelineItem}>
                               <Text style={styles.timelineItemLabel}>Exercise</Text>
-                              <View style={styles.chainBlockItem}>
-                                <Text style={styles.blockName}>{blockName}</Text>
+                              <TouchableOpacity
+                                style={styles.chainBlockItem}
+                                onPress={() => handlePlayBlock(block)}
+                                activeOpacity={0.7}
+                              >
+                                <View style={styles.blockLeftSide}>
+                                  <TouchableOpacity
+                                    onPress={() => handlePlayBlock(block)}
+                                    style={styles.playIconButton}
+                                    activeOpacity={0.7}
+                                  >
+                                    <Text style={styles.playIcon}>▶</Text>
+                                  </TouchableOpacity>
+                                  <Text style={styles.blockName}>{blockName}</Text>
+                                </View>
                                 <Text style={styles.blockTime}>{timeStr}</Text>
-                              </View>
+                              </TouchableOpacity>
                             </View>
                           )
                         }
@@ -1124,6 +1158,27 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(78, 205, 196, 0.08)',
     borderRadius: 12,
     marginBottom: 8,
+  },
+  blockLeftSide: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+    gap: 8,
+  },
+  playIconButton: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: 'rgba(78, 205, 196, 0.2)',
+    borderWidth: 1,
+    borderColor: 'rgba(78, 205, 196, 0.4)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  playIcon: {
+    color: '#4ecdc4',
+    fontSize: 12,
+    marginLeft: 2,
   },
   blockName: {
     color: '#f7f9fb',

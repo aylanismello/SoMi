@@ -42,10 +42,26 @@ export const somiChainService = {
       const storedChainId = await AsyncStorage.getItem(ACTIVE_CHAIN_KEY)
 
       if (storedChainId) {
-        return parseInt(storedChainId, 10)
+        const chainId = parseInt(storedChainId, 10)
+
+        // Verify the chain still exists in the database
+        const { data, error } = await supabase
+          .from('somi_chains')
+          .select('id')
+          .eq('id', chainId)
+          .single()
+
+        if (!error && data) {
+          // Chain exists, use it
+          return chainId
+        }
+
+        // Chain no longer exists - clear the invalid stored ID and create a new one
+        console.log(`Stored chain ${chainId} no longer exists, creating new chain`)
+        await AsyncStorage.removeItem(ACTIVE_CHAIN_KEY)
       }
 
-      // No active chain - create one
+      // No active chain or invalid chain - create one
       return await this.createChain()
     } catch (err) {
       console.error('Error getting active chain:', err)
@@ -90,19 +106,24 @@ export const somiChainService = {
     }
   },
 
-  // Save completed SoMi block to chain
-  async saveCompletedBlock(somiBlockId, secondsElapsed, orderIndex = 0) {
+  // Save completed SoMi block
+  // chainId is optional - if not provided, block is saved without chain association (à la carte viewing)
+  async saveCompletedBlock(somiBlockId, secondsElapsed, orderIndex = 0, chainId = null) {
     try {
-      const chainId = await this.getOrCreateActiveChain()
+      const blockData = {
+        somi_block_id: somiBlockId,
+        seconds_elapsed: secondsElapsed,
+        order_index: orderIndex,
+      }
+
+      // Only include chain_id if explicitly provided
+      if (chainId !== null) {
+        blockData.somi_chain_id = chainId
+      }
 
       const { data, error } = await supabase
         .from('completed_somi_blocks')
-        .insert({
-          somi_block_id: somiBlockId,
-          somi_chain_id: chainId,
-          seconds_elapsed: secondsElapsed,
-          order_index: orderIndex,
-        })
+        .insert(blockData)
         .select()
         .single()
 
@@ -158,7 +179,9 @@ export const somiChainService = {
             media_type,
             description,
             state_target,
-            intensity
+            intensity,
+            media_url,
+            thumbnail_url
           )
         `)
         .in('somi_chain_id', chainIds)
@@ -225,6 +248,102 @@ export const somiChainService = {
     } catch (err) {
       console.error('Unexpected error deleting chain:', err)
       return false
+    }
+  },
+
+  // Get most played/watched blocks across all users
+  async getMostPlayedBlocks(limit = 10) {
+    try {
+      const { data, error } = await supabase
+        .from('completed_somi_blocks')
+        .select(`
+          somi_block_id,
+          somi_blocks (
+            id,
+            name,
+            canonical_name,
+            block_type,
+            media_type,
+            description,
+            state_target,
+            intensity,
+            thumbnail_url,
+            media_url
+          )
+        `)
+
+      if (error) {
+        console.error('Error fetching most played blocks:', error)
+        return []
+      }
+
+      // Count frequency of each block
+      const blockCounts = {}
+      data.forEach(item => {
+        const blockId = item.somi_block_id
+        if (!blockCounts[blockId]) {
+          blockCounts[blockId] = {
+            count: 0,
+            block: item.somi_blocks
+          }
+        }
+        blockCounts[blockId].count++
+      })
+
+      // Sort by count and return top N
+      const sorted = Object.values(blockCounts)
+        .sort((a, b) => b.count - a.count)
+        .slice(0, limit)
+        .map(item => ({
+          ...item.block,
+          play_count: item.count
+        }))
+
+      return sorted
+    } catch (err) {
+      console.error('Unexpected error fetching most played blocks:', err)
+      return []
+    }
+  },
+
+  // Get the latest SoMi chain with embodiment checks
+  async getLatestChain() {
+    try {
+      // Get the most recent chain
+      const { data: chains, error: chainError } = await supabase
+        .from('somi_chains')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(1)
+
+      if (chainError) {
+        console.error('Error fetching latest chain:', chainError)
+        return null
+      }
+
+      // If no chains exist yet, return null
+      if (!chains || chains.length === 0) {
+        return null
+      }
+
+      const chain = chains[0]
+
+      // Get embodiment checks for this chain
+      const { data: checks, error: checksError } = await supabase
+        .from('embodiment_checks')
+        .select('*')
+        .eq('somi_chain_id', chain.id)
+        .order('created_at', { ascending: true })
+
+      if (checksError) {
+        console.error('Error fetching embodiment checks:', checksError)
+        return { ...chain, embodiment_checks: [] }
+      }
+
+      return { ...chain, embodiment_checks: checks || [] }
+    } catch (err) {
+      console.error('Unexpected error fetching latest chain:', err)
+      return null
     }
   },
 }

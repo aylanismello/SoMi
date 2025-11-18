@@ -7,19 +7,19 @@ const CATEGORIES = [
     id: 'vagal_toning',
     name: 'Vagal Toning',
     colors: ['#FF6B6B', '#FF8E53'],
-    emoji: '🫀',
+    emoji: '✨',
   },
   {
     id: 'qigong',
     name: 'Qigong',
     colors: ['#4ECDC4', '#44A08D'],
-    emoji: '🌊',
+    emoji: '🍃',
   },
   {
     id: 'felt_sense',
     name: 'Felt Sense',
     colors: ['#A8DADC', '#457B9D'],
-    emoji: '🧘',
+    emoji: '💫',
   },
   {
     id: 'meditation',
@@ -40,18 +40,21 @@ export default function ExploreScreen({ navigation }) {
   }
 
   return (
-    <View style={styles.container}>
+    <LinearGradient
+      colors={['#0f0c29', '#302b63', '#24243e']}
+      style={styles.container}
+    >
+      {/* Sticky Header */}
+      <View style={styles.header}>
+        <Text style={styles.headerTitle}>Explore</Text>
+        <Text style={styles.headerSubtitle}>Choose your practice</Text>
+      </View>
+
       <ScrollView
         style={styles.scrollView}
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
-        {/* Header */}
-        <View style={styles.header}>
-          <Text style={styles.headerTitle}>Explore</Text>
-          <Text style={styles.headerSubtitle}>Choose your practice</Text>
-        </View>
-
         {/* Category Grid */}
         <View style={styles.categoryGrid}>
           {CATEGORIES.map((category, index) => (
@@ -76,37 +79,39 @@ export default function ExploreScreen({ navigation }) {
           ))}
         </View>
       </ScrollView>
-    </View>
+    </LinearGradient>
   )
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#0f0c29',
+    paddingTop: 60,
+  },
+  header: {
+    paddingHorizontal: 24,
+    paddingBottom: 20,
+    paddingTop: 10,
+  },
+  headerTitle: {
+    color: '#f7f9fb',
+    fontSize: 32,
+    fontWeight: '700',
+    letterSpacing: 0.5,
+    marginBottom: 4,
+  },
+  headerSubtitle: {
+    color: 'rgba(247, 249, 251, 0.6)',
+    fontSize: 15,
+    fontWeight: '500',
+    letterSpacing: 0.3,
   },
   scrollView: {
     flex: 1,
   },
   scrollContent: {
-    paddingHorizontal: 20,
-    paddingTop: 60,
-    paddingBottom: 40,
-  },
-  header: {
-    marginBottom: 32,
-  },
-  headerTitle: {
-    fontSize: 36,
-    fontWeight: '700',
-    color: '#ffffff',
-    marginBottom: 8,
-    letterSpacing: 0.5,
-  },
-  headerSubtitle: {
-    fontSize: 16,
-    color: 'rgba(255, 255, 255, 0.6)',
-    fontWeight: '400',
+    paddingHorizontal: 24,
+    paddingBottom: 100,
   },
   categoryGrid: {
     gap: 16,

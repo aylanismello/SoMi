@@ -128,9 +128,10 @@ export default function SoMiTimer({ navigation, route }) {
       clearInterval(intervalRef.current)
     }
 
-    // Save timer session as a completed block
+    // Save timer session as a completed block associated with active chain (check-in flow)
     const TIMER_BLOCK_ID = 15 // Timer block from somi_blocks table
-    await somiChainService.saveCompletedBlock(TIMER_BLOCK_ID, seconds)
+    const chainId = await somiChainService.getOrCreateActiveChain()
+    await somiChainService.saveCompletedBlock(TIMER_BLOCK_ID, seconds, 0, chainId)
 
     // Navigate back to check-in at Step 4
     navigation.navigate('SoMeCheckIn', {

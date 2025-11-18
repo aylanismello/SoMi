@@ -92,6 +92,28 @@ function ExploreStack() {
   )
 }
 
+// Stack navigator for My SoMi tab (includes Player modal)
+function MySomiStack() {
+  return (
+    <Stack.Navigator
+      screenOptions={{
+        headerShown: false,
+        cardStyle: { backgroundColor: '#0f0c29' },
+      }}
+    >
+      <Stack.Screen name="MySomiMain" component={MySomiScreen} />
+      <Stack.Screen
+        name="Player"
+        component={PlayerScreen}
+        options={{
+          presentation: 'fullScreenModal',
+          gestureEnabled: false,
+        }}
+      />
+    </Stack.Navigator>
+  )
+}
+
 export default function App() {
   // Prefetch video blocks on app startup for better UX
   useEffect(() => {
@@ -229,10 +251,26 @@ export default function App() {
         />
         <Tab.Screen
           name="My SoMi"
-          component={MySomiScreen}
-          options={{
+          component={MySomiStack}
+          options={({ route }) => ({
             tabBarLabel: 'My SoMi',
-          }}
+            tabBarStyle: (() => {
+              const routeName = getFocusedRouteNameFromRoute(route) ?? 'MySomiMain'
+              // Hide tab bar when on Player
+              if (routeName === 'Player') {
+                return { display: 'none' }
+              }
+              return {
+                backgroundColor: '#1a1625',
+                borderTopColor: 'rgba(255, 255, 255, 0.1)',
+                borderTopWidth: 1,
+                paddingTop: 12,
+                paddingBottom: 32,
+                paddingHorizontal: 20,
+                height: 90,
+              }
+            })(),
+          })}
         />
       </Tab.Navigator>
     </NavigationContainer>
