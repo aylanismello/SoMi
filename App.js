@@ -10,6 +10,8 @@ import SoMeCheckIn from './components/SoMeCheckIn'
 import PlayerScreen from './components/PlayerScreen'
 import MySomiScreen from './components/MySomiScreen'
 import SoMiTimer from './components/SoMiTimer'
+import ExploreScreen from './components/ExploreScreen'
+import CategoryDetailScreen from './components/CategoryDetailScreen'
 import { prefetchVideoBlocks } from './constants/media'
 
 const Stack = createStackNavigator()
@@ -67,6 +69,29 @@ function CheckInStack() {
   )
 }
 
+// Stack navigator for Explore tab (includes category detail and player)
+function ExploreStack() {
+  return (
+    <Stack.Navigator
+      screenOptions={{
+        headerShown: false,
+        cardStyle: { backgroundColor: '#0f0c29' },
+      }}
+    >
+      <Stack.Screen name="ExploreMain" component={ExploreScreen} />
+      <Stack.Screen name="CategoryDetail" component={CategoryDetailScreen} />
+      <Stack.Screen
+        name="Player"
+        component={PlayerScreen}
+        options={{
+          presentation: 'fullScreenModal',
+          gestureEnabled: false,
+        }}
+      />
+    </Stack.Navigator>
+  )
+}
+
 export default function App() {
   // Prefetch video blocks on app startup for better UX
   useEffect(() => {
@@ -86,6 +111,8 @@ export default function App() {
               iconName = focused ? 'home' : 'home-outline'
             } else if (route.name === 'Check In') {
               iconName = focused ? 'heart-circle' : 'heart-circle-outline'
+            } else if (route.name === 'Explore') {
+              iconName = focused ? 'compass' : 'compass-outline'
             } else if (route.name === 'My SoMi') {
               iconName = focused ? 'leaf' : 'leaf-outline'
             }
@@ -163,6 +190,29 @@ export default function App() {
               const routeName = getFocusedRouteNameFromRoute(route) ?? 'CheckIn'
               // Hide tab bar when on CheckIn screen, SoMiTimer, or Player
               if (routeName === 'Player' || routeName === 'CheckIn' || routeName === 'SoMiTimer' || routeName === 'SoMeCheckIn') {
+                return { display: 'none' }
+              }
+              return {
+                backgroundColor: '#1a1625',
+                borderTopColor: 'rgba(255, 255, 255, 0.1)',
+                borderTopWidth: 1,
+                paddingTop: 12,
+                paddingBottom: 32,
+                paddingHorizontal: 20,
+                height: 90,
+              }
+            })(),
+          })}
+        />
+        <Tab.Screen
+          name="Explore"
+          component={ExploreStack}
+          options={({ route }) => ({
+            tabBarLabel: 'Explore',
+            tabBarStyle: (() => {
+              const routeName = getFocusedRouteNameFromRoute(route) ?? 'ExploreMain'
+              // Hide tab bar when on Player
+              if (routeName === 'Player') {
                 return { display: 'none' }
               }
               return {

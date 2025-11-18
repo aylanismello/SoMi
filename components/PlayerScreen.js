@@ -12,7 +12,16 @@ const screenWidth = Dimensions.get('window').width
 const screenHeight = Dimensions.get('window').height
 
 export default function PlayerScreen({ navigation, route }) {
-  const { media, savedInitialValue, savedInitialState, isBodyScan, currentStep, savedSliderValue, savedPolyvagalState } = route.params
+  const {
+    media,
+    savedInitialValue,
+    savedInitialState,
+    isBodyScan,
+    currentStep,
+    savedSliderValue,
+    savedPolyvagalState,
+    fromExplore = false, // New param to track if we came from Explore
+  } = route.params
   const isAudio = media.type === 'audio'
   const [showControls, setShowControls] = useState(false)
   const [currentTime, setCurrentTime] = useState(0)
@@ -87,24 +96,31 @@ export default function PlayerScreen({ navigation, route }) {
     return () => clearInterval(interval)
   }, [player])
 
-  // Auto-navigate to Step 4 (post-session check-in) when media ends
+  // Auto-navigate when media ends
   useEffect(() => {
     if (duration > 0 && currentTime >= duration - 0.5) {
       player.pause()
       // Save completed block before navigating
       saveCompletedBlock()
-      // Use replace to ensure params are updated
-      navigation.replace('CheckIn', {
-        fromPlayer: true,
-        savedInitialValue,
-        savedInitialState,
-        wasBodyScan: isBodyScan,
-        returnToStep: currentStep,
-        savedSliderValue,
-        savedPolyvagalState,
-      })
+
+      // Navigate based on where we came from
+      if (fromExplore) {
+        // From Explore: just go back to the category detail page
+        navigation.goBack()
+      } else {
+        // From Check In flow: navigate to Step 4 (post-session check-in)
+        navigation.replace('CheckIn', {
+          fromPlayer: true,
+          savedInitialValue,
+          savedInitialState,
+          wasBodyScan: isBodyScan,
+          returnToStep: currentStep,
+          savedSliderValue,
+          savedPolyvagalState,
+        })
+      }
     }
-  }, [currentTime, duration, navigation, player, savedInitialValue, savedInitialState, isBodyScan, currentStep, savedSliderValue, savedPolyvagalState])
+  }, [currentTime, duration, navigation, player, savedInitialValue, savedInitialState, isBodyScan, currentStep, savedSliderValue, savedPolyvagalState, fromExplore])
 
   // Animate controls visibility
   useEffect(() => {
@@ -195,16 +211,23 @@ export default function PlayerScreen({ navigation, route }) {
     player.pause()
     // Save completed block before closing
     saveCompletedBlock()
-    // Use replace to ensure params are updated
-    navigation.replace('CheckIn', {
-      fromPlayer: true,
-      savedInitialValue,
-      savedInitialState,
-      wasBodyScan: isBodyScan,
-      returnToStep: currentStep,
-      savedSliderValue,
-      savedPolyvagalState,
-    })
+
+    // Navigate based on where we came from
+    if (fromExplore) {
+      // From Explore: just go back to the category detail page
+      navigation.goBack()
+    } else {
+      // From Check In flow: navigate to Step 4 (post-session check-in)
+      navigation.replace('CheckIn', {
+        fromPlayer: true,
+        savedInitialValue,
+        savedInitialState,
+        wasBodyScan: isBodyScan,
+        returnToStep: currentStep,
+        savedSliderValue,
+        savedPolyvagalState,
+      })
+    }
   }
 
   const toggleControls = () => {
