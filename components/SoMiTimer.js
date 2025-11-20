@@ -5,6 +5,7 @@ import { BlurView } from 'expo-blur'
 import * as Haptics from 'expo-haptics'
 import Svg, { Circle } from 'react-native-svg'
 import { somiChainService } from '../supabase'
+import { soundManager } from '../utils/SoundManager'
 
 export default function SoMiTimer({ navigation, route }) {
   const [seconds, setSeconds] = useState(0)
@@ -18,10 +19,12 @@ export default function SoMiTimer({ navigation, route }) {
   const breatheScale = useRef(new Animated.Value(1)).current
   const breatheOpacity = useRef(new Animated.Value(0.6)).current
 
-  // Start timer on mount
+  // Start timer on mount and play start sound
   useEffect(() => {
     startTimer()
     startBreathingAnimation()
+    // Play block start sound when timer begins
+    soundManager.playBlockStart()
 
     return () => {
       if (intervalRef.current) {
@@ -128,6 +131,9 @@ export default function SoMiTimer({ navigation, route }) {
       clearInterval(intervalRef.current)
     }
 
+    // Play block end sound when timer finishes
+    soundManager.playBlockEnd()
+
     // Save timer session as a completed block associated with active chain (check-in flow)
     const TIMER_BLOCK_ID = 15 // Timer block from somi_blocks table
     const chainId = await somiChainService.getOrCreateActiveChain()
@@ -147,6 +153,9 @@ export default function SoMiTimer({ navigation, route }) {
     if (intervalRef.current) {
       clearInterval(intervalRef.current)
     }
+
+    // Play block end sound when user exits timer early
+    soundManager.playBlockEnd()
 
     navigation.goBack()
   }

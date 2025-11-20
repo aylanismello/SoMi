@@ -6,6 +6,7 @@ import { StyleSheet, View, TouchableOpacity, Text, Pressable, Dimensions, Animat
 import * as Haptics from 'expo-haptics'
 import { BACKGROUND_VIDEO } from '../constants/media'
 import { somiChainService } from '../supabase'
+import { soundManager } from '../utils/SoundManager'
 
 // Get screen dimensions for 9:16 aspect ratio calculation
 const screenWidth = Dimensions.get('window').width
@@ -82,10 +83,12 @@ export default function PlayerScreen({ navigation, route }) {
     }
   }
 
-  // Auto-play when player is ready
+  // Auto-play when player is ready and play start sound
   useEffect(() => {
     if (player) {
       player.play()
+      // Play block start sound when video/audio begins
+      soundManager.playBlockStart()
     }
   }, [player])
 
@@ -110,6 +113,8 @@ export default function PlayerScreen({ navigation, route }) {
   useEffect(() => {
     if (duration > 0 && currentTime >= duration - 0.5) {
       player.pause()
+      // Play block end sound when video/audio finishes
+      soundManager.playBlockEnd()
       // Save completed block before navigating
       saveCompletedBlock()
 
@@ -219,6 +224,8 @@ export default function PlayerScreen({ navigation, route }) {
   const handleClose = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium)
     player.pause()
+    // Play block end sound when user exits early
+    soundManager.playBlockEnd()
     // Save completed block before closing
     saveCompletedBlock()
 
