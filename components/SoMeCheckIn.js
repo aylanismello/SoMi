@@ -199,7 +199,8 @@ export default function SoMeCheckIn({ navigation, route }) {
   const handleSoMiRoutinePress = async () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium)
 
-    const media = await getMediaForSliderValue(sliderValue)
+    // Use the algorithm to select next video based on current state
+    const media = await getMediaForSliderValue(polyvagalState, sliderValue)
     navigation.navigate('Player', {
       media,
       initialValue: sliderValue,
@@ -229,6 +230,7 @@ export default function SoMeCheckIn({ navigation, route }) {
         .select('*')
         .eq('block_type', 'vagal_toning')
         .eq('media_type', 'video')
+        .eq('active', true)
         .order('name', { ascending: true })
 
       if (error) {

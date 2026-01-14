@@ -466,7 +466,7 @@ export default function MySomiScreen({ navigation }) {
   }
 
   // Get all embodiment checks from all chains for the river visualization
-  const allChecksForRiver = somiChains.flatMap(chain => chain.embodiment_checks)
+  // const allChecksForRiver = somiChains.flatMap(chain => chain.embodiment_checks)
 
   return (
     <LinearGradient
@@ -484,10 +484,10 @@ export default function MySomiScreen({ navigation }) {
         showsVerticalScrollIndicator={false}
       >
         {/* Garden Visualization */}
+        {/* Temporarily commented out - might bring back later
         <BlurView intensity={20} tint="dark" style={styles.gardenCard}>
           <Text style={styles.gardenTitle}>your embodiment river</Text>
           <View style={styles.gardenContainer}>
-            {/* River gradient background */}
             <LinearGradient
               colors={[
                 'rgba(30, 60, 114, 0.3)',
@@ -501,7 +501,6 @@ export default function MySomiScreen({ navigation }) {
               style={styles.riverGradient}
             />
 
-            {/* Render tethers between chain groups */}
             <Svg style={styles.tetherSvg}>
               {somiChains.slice(0, 10).map((chain, chainIndex) => {
                 const checks = chain.embodiment_checks.slice(0, 3)
@@ -549,6 +548,7 @@ export default function MySomiScreen({ navigation }) {
             ))}
           </View>
         </BlurView>
+        */}
 
         {/* Stats Overview */}
         {stats.mostCommonState && (
@@ -589,7 +589,7 @@ export default function MySomiScreen({ navigation }) {
         {somiChains.map((chain, chainIndex) => {
           const isExpanded = expandedChains[chain.id]
           const checksCount = chain.embodiment_checks.length
-          const blocksCount = chain.completed_blocks.length
+          const blocksCount = chain.somi_chain_entries.length
 
           return (
             <View key={chain.id} style={styles.checkInItem}>
@@ -644,7 +644,7 @@ export default function MySomiScreen({ navigation }) {
                         timestamp: new Date(c.created_at),
                         data: c
                       }))
-                      const blocks = chain.completed_blocks.map(b => ({
+                      const blocks = chain.somi_chain_entries.map(b => ({
                         type: 'block',
                         timestamp: new Date(b.created_at),
                         data: b

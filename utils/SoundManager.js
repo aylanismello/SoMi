@@ -1,4 +1,4 @@
-import { Audio } from 'expo-av'
+import { createAudioPlayer } from 'expo-audio'
 
 // Sound effect URLs
 const SOUND_URLS = {
@@ -8,7 +8,7 @@ const SOUND_URLS = {
 
 class SoundManager {
   constructor() {
-    this.sounds = {}
+    this.players = {}
     this.isLoaded = false
     this.isLoading = false
   }
@@ -22,31 +22,9 @@ class SoundManager {
     this.isLoading = true
 
     try {
-      // Set audio mode for mixing with other audio (background music, etc.)
-      await Audio.setAudioModeAsync({
-        playsInSilentModeIOS: true,
-        staysActiveInBackground: false,
-        shouldDuckAndroid: false, // Don't duck other audio
-      })
-
-      // Preload both sounds
-      const [startResult, endResult] = await Promise.all([
-        Audio.Sound.createAsync(
-          { uri: SOUND_URLS.blockStart },
-          { shouldPlay: false }, // Don't play immediately
-          null, // No status callback needed for sound effects
-          true // Download first for reliability
-        ),
-        Audio.Sound.createAsync(
-          { uri: SOUND_URLS.blockEnd },
-          { shouldPlay: false },
-          null,
-          true
-        ),
-      ])
-
-      this.sounds.blockStart = startResult.sound
-      this.sounds.blockEnd = endResult.sound
+      // Create audio players for both sounds
+      this.players.blockStart = createAudioPlayer(SOUND_URLS.blockStart)
+      this.players.blockEnd = createAudioPlayer(SOUND_URLS.blockEnd)
 
       this.isLoaded = true
       console.log('Sound effects preloaded successfully')
@@ -64,16 +42,16 @@ class SoundManager {
       await this.preloadSounds()
     }
 
-    const sound = this.sounds[soundKey]
-    if (!sound) {
+    const player = this.players[soundKey]
+    if (!player) {
       console.warn(`Sound "${soundKey}" not found`)
       return
     }
 
     try {
       // Rewind to start (in case it was played before) and play
-      await sound.setPositionAsync(0)
-      await sound.playAsync()
+      player.seekTo(0)
+      player.play()
     } catch (error) {
       console.error(`Failed to play sound "${soundKey}":`, error)
     }
@@ -92,10 +70,8 @@ class SoundManager {
   // Unload all sounds (cleanup)
   async unloadSounds() {
     try {
-      await Promise.all(
-        Object.values(this.sounds).map(sound => sound.unloadAsync())
-      )
-      this.sounds = {}
+      Object.values(this.players).forEach(player => player.release())
+      this.players = {}
       this.isLoaded = false
       console.log('Sound effects unloaded')
     } catch (error) {

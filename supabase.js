@@ -122,7 +122,7 @@ export const somiChainService = {
       }
 
       const { data, error } = await supabase
-        .from('completed_somi_blocks')
+        .from('somi_chain_entries')
         .insert(blockData)
         .select()
         .single()
@@ -168,7 +168,7 @@ export const somiChainService = {
 
       // Fetch completed blocks for all chains
       const { data: blocks, error: blocksError } = await supabase
-        .from('completed_somi_blocks')
+        .from('somi_chain_entries')
         .select(`
           *,
           somi_blocks (
@@ -195,7 +195,7 @@ export const somiChainService = {
       const chainsWithData = chains.map(chain => ({
         ...chain,
         embodiment_checks: (checks || []).filter(c => c.somi_chain_id === chain.id),
-        completed_blocks: (blocks || []).filter(b => b.somi_chain_id === chain.id),
+        somi_chain_entries: (blocks || []).filter(b => b.somi_chain_id === chain.id),
       }))
 
       return chainsWithData
@@ -206,7 +206,7 @@ export const somiChainService = {
   },
 
   // Delete a SoMi Chain (for MVP debugging)
-  // This will cascade delete embodiment_checks and completed_somi_blocks
+  // This will cascade delete embodiment_checks and somi_chain_entries
   // but NOT somi_blocks (those are canonical references)
   async deleteChain(chainId) {
     try {
@@ -223,7 +223,7 @@ export const somiChainService = {
 
       // Delete completed blocks
       const { error: blocksError } = await supabase
-        .from('completed_somi_blocks')
+        .from('somi_chain_entries')
         .delete()
         .eq('somi_chain_id', chainId)
 
@@ -255,7 +255,7 @@ export const somiChainService = {
   async getMostPlayedBlocks(limit = 10) {
     try {
       const { data, error } = await supabase
-        .from('completed_somi_blocks')
+        .from('somi_chain_entries')
         .select(`
           somi_block_id,
           somi_blocks (

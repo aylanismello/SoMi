@@ -2,15 +2,11 @@ import { useState, useEffect, useRef } from 'react'
 import { useEvent } from 'expo'
 import { useVideoPlayer, VideoView } from 'expo-video'
 import { useAudioPlayer } from 'expo-audio'
-import { StyleSheet, View, TouchableOpacity, Text, Pressable, Dimensions, Animated } from 'react-native'
+import { StyleSheet, View, TouchableOpacity, Text, Pressable, Animated } from 'react-native'
 import * as Haptics from 'expo-haptics'
 import { BACKGROUND_VIDEO } from '../constants/media'
 import { somiChainService } from '../supabase'
 import { soundManager } from '../utils/SoundManager'
-
-// Get screen dimensions for 9:16 aspect ratio calculation
-const screenWidth = Dimensions.get('window').width
-const screenHeight = Dimensions.get('window').height
 
 export default function PlayerScreen({ navigation, route }) {
   const {
@@ -87,10 +83,12 @@ export default function PlayerScreen({ navigation, route }) {
   useEffect(() => {
     if (player) {
       player.play()
-      // Play block start sound when video/audio begins
-      soundManager.playBlockStart()
+      // Play block start sound only during check-in flow (not from Explore)
+      if (!fromExplore) {
+        soundManager.playBlockStart()
+      }
     }
-  }, [player])
+  }, [player, fromExplore])
 
   // Track media playback progress
   useEffect(() => {
@@ -113,8 +111,10 @@ export default function PlayerScreen({ navigation, route }) {
   useEffect(() => {
     if (duration > 0 && currentTime >= duration - 0.5) {
       player.pause()
-      // Play block end sound when video/audio finishes
-      soundManager.playBlockEnd()
+      // Play block end sound only during check-in flow (not from Explore)
+      if (!fromExplore) {
+        soundManager.playBlockEnd()
+      }
       // Save completed block before navigating
       saveCompletedBlock()
 
@@ -224,8 +224,10 @@ export default function PlayerScreen({ navigation, route }) {
   const handleClose = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium)
     player.pause()
-    // Play block end sound when user exits early
-    soundManager.playBlockEnd()
+    // Play block end sound only during check-in flow (not from Explore)
+    if (!fromExplore) {
+      soundManager.playBlockEnd()
+    }
     // Save completed block before closing
     saveCompletedBlock()
 
@@ -342,7 +344,7 @@ export default function PlayerScreen({ navigation, route }) {
             style={styles.video}
             player={backgroundPlayer}
             nativeControls={false}
-            contentFit="contain"
+            contentFit="cover"
           />
         ) : isAudio ? (
           <View style={styles.audioBackground} />
@@ -351,7 +353,7 @@ export default function PlayerScreen({ navigation, route }) {
             style={styles.video}
             player={player}
             nativeControls={false}
-            contentFit="contain"
+            contentFit="cover"
           />
         )}
       </Pressable>
@@ -456,9 +458,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   video: {
-    width: screenWidth,
-    height: screenWidth * (16 / 9), // 9:16 aspect ratio (vertical)
-    maxHeight: screenHeight,
+    width: '100%',
+    height: '100%',
   },
   audioBackground: {
     width: '100%',

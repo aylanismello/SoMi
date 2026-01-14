@@ -1,7 +1,8 @@
 import { useState, useCallback } from 'react'
-import { StyleSheet, View, Text, ScrollView, TouchableOpacity, Image, ActivityIndicator } from 'react-native'
+import { StyleSheet, View, Text, ScrollView, TouchableOpacity, ActivityIndicator } from 'react-native'
 import { LinearGradient } from 'expo-linear-gradient'
 import { BlurView } from 'expo-blur'
+import { useVideoPlayer, VideoView } from 'expo-video'
 import * as Haptics from 'expo-haptics'
 import { somiChainService } from '../supabase'
 import { useFocusEffect } from '@react-navigation/native'
@@ -13,6 +14,23 @@ const POLYVAGAL_STATES = {
   activated: { label: 'Activated', color: '#b88ddc', emoji: '⚡' },
   settling: { label: 'Settling', color: '#68c9ba', emoji: '🌤' },
   connected: { label: 'Connected', color: '#4ecdc4', emoji: '🌕' },
+}
+
+// Video thumbnail component - shows first frame of video
+function VideoThumbnail({ videoUrl }) {
+  const player = useVideoPlayer(videoUrl, player => {
+    player.pause() // Keep it paused to show first frame
+    player.muted = true
+  })
+
+  return (
+    <VideoView
+      style={styles.thumbnail}
+      player={player}
+      nativeControls={false}
+      contentFit="cover"
+    />
+  )
 }
 
 export default function HomeScreen({ navigation }) {
@@ -178,11 +196,7 @@ export default function HomeScreen({ navigation }) {
                   onPress={() => handleVideoPress(block)}
                   activeOpacity={0.8}
                 >
-                  <Image
-                    source={{ uri: block.thumbnail_url }}
-                    style={styles.thumbnail}
-                    resizeMode="cover"
-                  />
+                  <VideoThumbnail videoUrl={block.media_url} />
                   <LinearGradient
                     colors={['transparent', 'rgba(0,0,0,0.8)']}
                     style={styles.thumbnailOverlay}

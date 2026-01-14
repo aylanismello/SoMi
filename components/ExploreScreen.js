@@ -50,12 +50,12 @@ export default function ExploreScreen({ navigation }) {
         <Text style={styles.headerSubtitle}>Choose your practice</Text>
       </View>
 
+      {/* Temporarily hidden - coming back later
       <ScrollView
         style={styles.scrollView}
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
-        {/* Category Grid */}
         <View style={styles.categoryGrid}>
           {CATEGORIES.map((category, index) => (
             <TouchableOpacity
@@ -79,6 +79,13 @@ export default function ExploreScreen({ navigation }) {
           ))}
         </View>
       </ScrollView>
+      */}
+
+      {/* Coming soon placeholder */}
+      <View style={styles.comingSoonContainer}>
+        <Text style={styles.comingSoonEmoji}>🌱</Text>
+        <Text style={styles.comingSoonText}>Coming Soon</Text>
+      </View>
     </LinearGradient>
   )
 }
@@ -145,5 +152,21 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#ffffff',
     letterSpacing: 0.5,
+  },
+  comingSoonContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 40,
+  },
+  comingSoonEmoji: {
+    fontSize: 64,
+    marginBottom: 16,
+  },
+  comingSoonText: {
+    color: 'rgba(247, 249, 251, 0.6)',
+    fontSize: 22,
+    fontWeight: '600',
+    letterSpacing: 0.3,
   },
 })

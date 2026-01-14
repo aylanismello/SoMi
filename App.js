@@ -226,6 +226,7 @@ export default function App() {
             })(),
           })}
         />
+        {/* Temporarily hidden - coming back later
         <Tab.Screen
           name="Explore"
           component={ExploreStack}
@@ -249,6 +250,7 @@ export default function App() {
             })(),
           })}
         />
+        */}
         <Tab.Screen
           name="My SoMi"
           component={MySomiStack}

@@ -49,6 +49,7 @@ export default function CategoryDetailScreen({ navigation, route }) {
         .select('*')
         .eq('block_type', categoryId)
         .eq('media_type', 'video')
+        .eq('active', true)
         .order('name', { ascending: true })
 
       if (error) {

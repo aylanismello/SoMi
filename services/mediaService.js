@@ -1,4 +1,5 @@
 import { supabase } from '../supabase'
+import { selectNextVideo, selectSOSVideo } from './videoSelectionAlgorithm'
 
 // Cache for video blocks to avoid redundant fetches
 let videoBlocksCache = null
@@ -23,6 +24,7 @@ async function fetchVideoBlocks() {
       .from('somi_blocks')
       .select('*')
       .eq('media_type', 'video')
+      .eq('active', true)
       .not('media_url', 'is', null)
       .neq('block_type', 'timer') // Exclude timer blocks
 
@@ -45,11 +47,10 @@ async function fetchVideoBlocks() {
   }
 }
 
-// Get a random video from the available blocks
-function getRandomVideo(blocks) {
-  if (!blocks || blocks.length === 0) {
-    console.error('No video blocks available!')
-    // Return a fallback with proper structure
+// Convert a block from database format to media player format
+function blockToMedia(block) {
+  if (!block) {
+    console.error('No block provided, using fallback')
     return {
       url: 'https://qujifwhwntqxziymqdwu.supabase.co/storage/v1/object/public/test/output_tiktok.mp4',
       type: 'video',
@@ -58,9 +59,6 @@ function getRandomVideo(blocks) {
       name: 'Fallback Video',
     }
   }
-
-  const randomIndex = Math.floor(Math.random() * blocks.length)
-  const block = blocks[randomIndex]
 
   return {
     url: block.media_url,
@@ -71,64 +69,38 @@ function getRandomVideo(blocks) {
   }
 }
 
-// Get the SOS video (vagus_reset_lying_down)
-async function getSOSVideo() {
+/**
+ * Get media for the SoMi routine based on user's current state
+ *
+ * Uses the video selection algorithm to pick the next video
+ * based on polyvagal state and embodiment score.
+ *
+ * @param {string} polyvagalState - Current polyvagal state
+ * @param {number} sliderValue - Embodiment score (0-100)
+ */
+export async function getMediaForSliderValue(polyvagalState = 'withdrawn', sliderValue = 50) {
   const blocks = await fetchVideoBlocks()
-  const sosBlock = blocks.find(b => b.canonical_name === 'vagus_reset_lying_down')
 
-  if (!sosBlock) {
-    console.error('SOS video (vagus_reset_lying_down) not found!')
-    // Fallback to any random video if SOS not found
-    return getRandomVideo(blocks)
-  }
+  // Use the algorithm to select the next video
+  const selectedBlock = selectNextVideo(blocks, polyvagalState, sliderValue)
 
-  return {
-    url: sosBlock.media_url,
-    type: 'video',
-    somi_block_id: sosBlock.id,
-    canonical_name: sosBlock.canonical_name,
-    name: sosBlock.name,
-  }
+  // Convert to media player format
+  return blockToMedia(selectedBlock)
 }
 
-// Get media for a given slider value (now returns a random video)
-// sliderValue parameter kept for backwards compatibility but not used
-export async function getMediaForSliderValue() {
-  const blocks = await fetchVideoBlocks()
-  const media = getRandomVideo(blocks)
-
-  // Ensure we always return a valid media object with type
-  if (!media || !media.type) {
-    console.error('Invalid media object returned, using fallback')
-    return {
-      url: 'https://qujifwhwntqxziymqdwu.supabase.co/storage/v1/object/public/test/output_tiktok.mp4',
-      type: 'video',
-      somi_block_id: 1,
-      canonical_name: 'fallback',
-      name: 'Fallback Video',
-    }
-  }
-
-  return media
-}
-
-// Get SOS media (always vagus_reset_lying_down)
+/**
+ * Get SOS media (emergency intervention video)
+ *
+ * Always returns the vagus reset video for emergency calming.
+ */
 export async function getSOSMedia() {
-  const media = await getSOSVideo()
+  const blocks = await fetchVideoBlocks()
 
-  // Ensure we always return a valid media object with type
-  if (!media || !media.type) {
-    console.error('Invalid SOS media object returned, using fallback')
-    return {
-      url: 'https://qujifwhwntqxziymqdwu.supabase.co/storage/v1/object/public/test/output_tiktok.mp4',
-      type: 'video',
-      somi_block_id: 16, // vagus_reset_lying_down id from screenshot
-      canonical_name: 'vagus_reset_lying_down',
-      name: 'Vagus Reset (Lying Down)',
-    }
-  }
+  // Use the algorithm to select the SOS video
+  const sosBlock = selectSOSVideo(blocks)
 
-  return media
+  // Convert to media player format
+  return blockToMedia(sosBlock)
 }
 
 // Body scan audio
