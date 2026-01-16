@@ -1,40 +1,21 @@
 import { useState, useCallback } from 'react'
-import { StyleSheet, View, Text, ScrollView, TouchableOpacity, ActivityIndicator } from 'react-native'
+import { StyleSheet, View, Text, ScrollView } from 'react-native'
 import { LinearGradient } from 'expo-linear-gradient'
 import { BlurView } from 'expo-blur'
-import { useVideoPlayer, VideoView } from 'expo-video'
-import * as Haptics from 'expo-haptics'
 import { somiChainService } from '../supabase'
 import { useFocusEffect } from '@react-navigation/native'
+import { POLYVAGAL_STATE_MAP } from './EmbodimentSlider'
 
-// Polyvagal states with colors and emojis
+// Polyvagal states with colors and emojis (new code-based system)
 const POLYVAGAL_STATES = {
-  withdrawn: { label: 'Withdrawn', color: '#7b68ee', emoji: '🌑' },
-  stirring: { label: 'Stirring', color: '#9d7be8', emoji: '🌘' },
-  activated: { label: 'Activated', color: '#b88ddc', emoji: '⚡' },
-  settling: { label: 'Settling', color: '#68c9ba', emoji: '🌤' },
-  connected: { label: 'Connected', color: '#4ecdc4', emoji: '🌕' },
-}
-
-// Video thumbnail component - shows first frame of video
-function VideoThumbnail({ videoUrl }) {
-  const player = useVideoPlayer(videoUrl, player => {
-    player.pause() // Keep it paused to show first frame
-    player.muted = true
-  })
-
-  return (
-    <VideoView
-      style={styles.thumbnail}
-      player={player}
-      nativeControls={false}
-      contentFit="cover"
-    />
-  )
+  1: { label: 'Drained', color: '#7b68ee', emoji: '🌧' },
+  2: { label: 'Foggy', color: '#9d7be8', emoji: '🌫' },
+  3: { label: 'Wired', color: '#b88ddc', emoji: '🌪' },
+  4: { label: 'Steady', color: '#68c9ba', emoji: '🌤' },
+  5: { label: 'Glowing', color: '#4ecdc4', emoji: '☀️' },
 }
 
 export default function HomeScreen({ navigation }) {
-  const [mostPlayed, setMostPlayed] = useState([])
   const [latestChain, setLatestChain] = useState(null)
   const [loading, setLoading] = useState(true)
 
@@ -47,27 +28,9 @@ export default function HomeScreen({ navigation }) {
 
   const fetchHomeData = async () => {
     setLoading(true)
-    const [playedBlocks, chain] = await Promise.all([
-      somiChainService.getMostPlayedBlocks(10),
-      somiChainService.getLatestChain()
-    ])
-    setMostPlayed(playedBlocks)
+    const chain = await somiChainService.getLatestChain()
     setLatestChain(chain)
     setLoading(false)
-  }
-
-  const handleVideoPress = (block) => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
-
-    navigation.navigate('Player', {
-      media: {
-        somi_block_id: block.id,
-        name: block.name,
-        type: block.media_type || 'video',
-        url: block.media_url,
-      },
-      fromExplore: true // Mark as à la carte viewing
-    })
   }
 
   // Calculate stats from latest chain
@@ -81,21 +44,35 @@ export default function HomeScreen({ navigation }) {
     const lastCheck = checks[checks.length - 1]
 
     // Calculate percentage change
-    const change = lastCheck.slider_value - firstCheck.slider_value
+    const change = lastCheck.embodiment_level - firstCheck.embodiment_level
     const changePercent = change > 0 ? `+${change}%` : `${change}%`
 
-    const fromStateId = firstCheck.polyvagal_state || 'withdrawn'
-    const toStateId = lastCheck.polyvagal_state || 'withdrawn'
+    const fromStateCode = firstCheck.polyvagal_state_code || 1
+    const toStateCode = lastCheck.polyvagal_state_code || 1
+
+    // Calculate total minutes from entries
+    const totalSeconds = (latestChain.somi_chain_entries || []).reduce((sum, entry) => sum + (entry.seconds_elapsed || 0), 0)
+    const totalMinutes = Math.round(totalSeconds / 60)
 
     return {
       changePercent,
       change,
-      fromState: POLYVAGAL_STATES[fromStateId] || POLYVAGAL_STATES.withdrawn,
-      toState: POLYVAGAL_STATES[toStateId] || POLYVAGAL_STATES.withdrawn,
+      fromState: POLYVAGAL_STATES[fromStateCode] || POLYVAGAL_STATES[1],
+      toState: POLYVAGAL_STATES[toStateCode] || POLYVAGAL_STATES[1],
+      totalMinutes,
     }
   }
 
   const chainStats = getChainStats()
+
+  // Compassionate messages based on minutes spent
+  const getCompassionateMessage = (minutes) => {
+    if (minutes === 0) return 'way to show up for yourself'
+    if (minutes < 5) return 'every moment counts'
+    if (minutes < 10) return 'beautiful way to reconnect'
+    if (minutes < 20) return 'what a gift you gave yourself'
+    return 'deeply honoring your embodiment'
+  }
 
   return (
     <LinearGradient
@@ -171,50 +148,18 @@ export default function HomeScreen({ navigation }) {
         </View>
       </View>
 
-        {/* Video carousel section */}
-        <View style={styles.carouselSection}>
-          <View style={styles.carouselHeader}>
-            <Text style={styles.carouselTitle}>Most Played</Text>
+        {/* Compassionate minutes message */}
+        {chainStats && chainStats.totalMinutes >= 0 && (
+          <View style={styles.minutesSection}>
+            <BlurView intensity={20} tint="dark" style={styles.minutesCard}>
+              <Text style={styles.minutesLabel}>you spent</Text>
+              <Text style={styles.minutesNumber}>{chainStats.totalMinutes}</Text>
+              <Text style={styles.minutesUnit}>minutes</Text>
+              <Text style={styles.minutesSubtext}>reconnecting to yourself</Text>
+              <Text style={styles.compassionateText}>{getCompassionateMessage(chainStats.totalMinutes)}</Text>
+            </BlurView>
           </View>
-
-          {loading ? (
-            <View style={styles.loadingContainer}>
-              <ActivityIndicator size="large" color="#4ecdc4" />
-            </View>
-          ) : mostPlayed.length > 0 ? (
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.carouselContent}
-              decelerationRate="fast"
-              snapToInterval={260}
-            >
-              {mostPlayed.map((block) => (
-                <TouchableOpacity
-                  key={block.id}
-                  style={styles.videoCard}
-                  onPress={() => handleVideoPress(block)}
-                  activeOpacity={0.8}
-                >
-                  <VideoThumbnail videoUrl={block.media_url} />
-                  <LinearGradient
-                    colors={['transparent', 'rgba(0,0,0,0.8)']}
-                    style={styles.thumbnailOverlay}
-                  />
-                  <View style={styles.videoInfo}>
-                    <Text style={styles.videoTitle}>{block.name}</Text>
-                    <Text style={styles.playCount}>{block.play_count} plays</Text>
-                  </View>
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
-          ) : (
-            <View style={styles.emptyContainer}>
-              <Text style={styles.emptyText}>No blocks played yet</Text>
-              <Text style={styles.emptySubtext}>Start exploring to see your favorites</Text>
-            </View>
-          )}
-        </View>
+        )}
       </ScrollView>
     </LinearGradient>
   )
@@ -345,91 +290,53 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: 'rgba(247, 249, 251, 0.5)',
   },
-  carouselSection: {
-    paddingBottom: 20,
+  minutesSection: {
+    paddingHorizontal: 24,
     paddingTop: 40,
+    paddingBottom: 20,
   },
-  carouselHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 24,
-    marginBottom: 20,
-  },
-  carouselTitle: {
-    color: '#f7f9fb',
-    fontSize: 22,
-    fontWeight: '600',
-    letterSpacing: 0.3,
-  },
-  seeAllText: {
-    color: '#4ecdc4',
-    fontSize: 16,
-    fontWeight: '600',
-    letterSpacing: 0.3,
-  },
-  carouselContent: {
-    paddingHorizontal: 24,
-    gap: 16,
-  },
-  videoCard: {
-    width: 260,
-    marginRight: 16,
-    borderRadius: 16,
+  minutesCard: {
+    borderRadius: 24,
     overflow: 'hidden',
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.1)',
-  },
-  thumbnail: {
-    width: '100%',
-    height: 180,
-    backgroundColor: 'rgba(0, 0, 0, 0.3)',
-  },
-  thumbnailOverlay: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    height: 180,
-  },
-  videoInfo: {
-    padding: 16,
-  },
-  videoTitle: {
-    color: '#f7f9fb',
-    fontSize: 17,
-    fontWeight: '600',
-    letterSpacing: 0.3,
-    marginBottom: 4,
-  },
-  playCount: {
-    color: 'rgba(247, 249, 251, 0.6)',
-    fontSize: 13,
-    fontWeight: '500',
-    letterSpacing: 0.3,
-  },
-  loadingContainer: {
-    paddingVertical: 60,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  emptyContainer: {
-    paddingVertical: 40,
-    paddingHorizontal: 24,
+    padding: 32,
     alignItems: 'center',
   },
-  emptyText: {
-    color: 'rgba(247, 249, 251, 0.6)',
+  minutesLabel: {
+    color: 'rgba(247, 249, 251, 0.7)',
     fontSize: 16,
     fontWeight: '500',
     marginBottom: 8,
-    textAlign: 'center',
+    letterSpacing: 0.5,
   },
-  emptySubtext: {
-    color: 'rgba(247, 249, 251, 0.4)',
-    fontSize: 14,
-    fontWeight: '400',
+  minutesNumber: {
+    color: '#4ecdc4',
+    fontSize: 64,
+    fontWeight: '700',
+    letterSpacing: -2,
+  },
+  minutesUnit: {
+    color: '#4ecdc4',
+    fontSize: 20,
+    fontWeight: '600',
+    marginBottom: 12,
+    letterSpacing: 0.5,
+  },
+  minutesSubtext: {
+    color: 'rgba(247, 249, 251, 0.8)',
+    fontSize: 16,
+    fontWeight: '500',
+    marginBottom: 16,
     textAlign: 'center',
+    letterSpacing: 0.3,
+  },
+  compassionateText: {
+    color: 'rgba(247, 249, 251, 0.6)',
+    fontSize: 14,
+    fontWeight: '500',
+    fontStyle: 'italic',
+    textAlign: 'center',
+    letterSpacing: 0.3,
   },
 })

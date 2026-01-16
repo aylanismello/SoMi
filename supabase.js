@@ -79,15 +79,15 @@ export const somiChainService = {
   },
 
   // Save embodiment check to chain
-  async saveEmbodimentCheck(sliderValue, polyvagalState, journalEntry = null) {
+  async saveEmbodimentCheck(sliderValue, polyvagalStateCode, journalEntry = null) {
     try {
       const chainId = await this.getOrCreateActiveChain()
 
       const { data, error} = await supabase
         .from('embodiment_checks')
         .insert({
-          slider_value: Math.round(sliderValue),
-          polyvagal_state: polyvagalState,
+          embodiment_level: Math.round(sliderValue),
+          polyvagal_state_code: polyvagalStateCode,
           somi_chain_id: chainId,
           journal_entry: journalEntry,
         })
@@ -306,7 +306,7 @@ export const somiChainService = {
     }
   },
 
-  // Get the latest SoMi chain with embodiment checks
+  // Get the latest SoMi chain with embodiment checks and entries
   async getLatestChain() {
     try {
       // Get the most recent chain
@@ -337,10 +337,21 @@ export const somiChainService = {
 
       if (checksError) {
         console.error('Error fetching embodiment checks:', checksError)
-        return { ...chain, embodiment_checks: [] }
+        return { ...chain, embodiment_checks: [], somi_chain_entries: [] }
       }
 
-      return { ...chain, embodiment_checks: checks || [] }
+      // Get chain entries for this chain to calculate total minutes
+      const { data: entries, error: entriesError } = await supabase
+        .from('somi_chain_entries')
+        .select('seconds_elapsed')
+        .eq('somi_chain_id', chain.id)
+
+      if (entriesError) {
+        console.error('Error fetching chain entries:', entriesError)
+        return { ...chain, embodiment_checks: checks || [], somi_chain_entries: [] }
+      }
+
+      return { ...chain, embodiment_checks: checks || [], somi_chain_entries: entries || [] }
     } catch (err) {
       console.error('Unexpected error fetching latest chain:', err)
       return null

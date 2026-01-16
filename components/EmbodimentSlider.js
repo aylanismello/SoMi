@@ -4,43 +4,52 @@ import Svg, { Circle, Defs, LinearGradient, Stop, G, Path } from 'react-native-s
 import * as Haptics from 'expo-haptics'
 import { BlurView } from 'expo-blur'
 
-// Polyvagal state labels (embodiment-focused, neutral/positive)
-const STATE_LABELS = [
-  { range: [0, 20], label: 'Withdrawn', color: '#7b68ee' },      // Dorsal Vagal - Shutdown
-  { range: [20, 40], label: 'Stirring', color: '#9d7be8' },      // Dorsal → Sympathetic transition
-  { range: [40, 60], label: 'Activated', color: '#b88ddc' },     // Sympathetic - Fight/Flight
-  { range: [60, 80], label: 'Settling', color: '#68c9ba' },      // Sympathetic → Ventral transition
-  { range: [80, 100], label: 'Connected', color: '#4ecdc4' },    // Ventral Vagal - Social Engagement
-]
+// New polyvagal state system using codes (1-5)
+const POLYVAGAL_STATE_MAP = {
+  1: { id: 1, label: 'Drained', color: '#7b68ee', icon: '🌧' },
+  2: { id: 2, label: 'Foggy', color: '#9d7be8', icon: '🌫' },
+  3: { id: 3, label: 'Wired', color: '#b88ddc', icon: '🌪' },
+  4: { id: 4, label: 'Steady', color: '#68c9ba', icon: '🌤' },
+  5: { id: 5, label: 'Glowing', color: '#4ecdc4', icon: '☀️' },
+}
 
 // Polyvagal state descriptions for tooltips
 const STATE_DESCRIPTIONS = {
-  withdrawn: {
-    label: 'Withdrawn',
-    description: 'You feel numb, flat, or like you can\'t feel much of anything. Your body might feel heavy, disconnected, or like you\'re watching life from behind glass. Moving or engaging feels exhausting.',
-    icon: '🌑',
+  1: {
+    label: 'Drained',
+    description: 'Low energy, shutdown, nothing feels worth it. Dorsal collapse / dissociation.',
+    icon: '🌧',
   },
-  stirring: {
-    label: 'Stirring',
-    description: 'You\'re going through the motions on autopilot, but inside you feel frozen or stuck. You might look fine to others, but there\'s tension underneath — like pressing the gas and brake at the same time.',
-    icon: '🌘',
+  2: {
+    label: 'Foggy',
+    description: 'Autopilot, frozen, body feels far away. Dorsal + sympathetic (functional freeze).',
+    icon: '🌫',
   },
-  activated: {
-    label: 'Activated',
-    description: 'Your body feels wired, tight, or restless. Heart might be racing, jaw clenched, shoulders tense. There\'s energy but it feels anxious or scattered — like you can\'t sit still but also can\'t focus.',
-    icon: '⚡',
+  3: {
+    label: 'Wired',
+    description: 'High energy, tense, hard to slow down. Sympathetic / fight-flight.',
+    icon: '🌪',
   },
-  settling: {
-    label: 'Settling',
-    description: 'Things are starting to slow down. Your breath is deepening, muscles releasing tension. You might feel yourself beginning to relax, like coming down from high alert into a calmer state.',
+  4: {
+    label: 'Steady',
+    description: 'Calm, balanced, gently alert. Ventral.',
     icon: '🌤',
   },
-  connected: {
-    label: 'Connected',
-    description: 'You feel present, grounded, and at ease in your body. Your breath flows naturally, muscles are relaxed but alert. You can sense yourself and connect with others without feeling overwhelmed or shut down.',
-    icon: '🌕',
+  5: {
+    label: 'Glowing',
+    description: 'Optimal state, fully present and connected.',
+    icon: '☀️',
   },
 }
+
+// Old system (deprecated - kept for backwards compatibility with old data)
+const STATE_LABELS = [
+  { range: [0, 20], label: 'Withdrawn', color: '#7b68ee' },
+  { range: [20, 40], label: 'Stirring', color: '#9d7be8' },
+  { range: [40, 60], label: 'Activated', color: '#b88ddc' },
+  { range: [60, 80], label: 'Settling', color: '#68c9ba' },
+  { range: [80, 100], label: 'Connected', color: '#4ecdc4' },
+]
 
 const CIRCLE_SIZE = 200
 const PADDING = 20 // Extra space for handle glow
@@ -231,15 +240,22 @@ export default function EmbodimentSlider({
     onValueChange(newValue)
   }
 
+  // Dynamic question based on selection state
+  const displayQuestion = showChips
+    ? (selectedStateId
+      ? "how in your body\ndo you feel right now?"
+      : "which best describes\nyour body right now?")
+    : question
+
   return (
     <View style={styles.container}>
-      {question && (
+      {(question || showChips) && (
         <Text style={styles.question}>
-          {question}
+          {displayQuestion}
         </Text>
       )}
 
-      {showStateLabel && (
+      {showStateLabel && !showChips && (
         <View style={styles.stateLabelContainer}>
           <View style={[styles.stateLabelBadge, { backgroundColor: currentState.color + '30' }]}>
             <View style={[styles.stateIndicator, { backgroundColor: currentState.color }]} />
@@ -250,149 +266,104 @@ export default function EmbodimentSlider({
         </View>
       )}
 
-      <View
-        style={styles.circularSliderContainer}
-        {...panResponder.panHandlers}
-      >
-        <Svg width={SVG_SIZE} height={SVG_SIZE}>
-          <Defs>
-            <LinearGradient id="gradient" x1="0%" y1="0%" x2="100%" y2="100%">
-              <Stop offset="0%" stopColor="#7b68ee" stopOpacity="1" />
-              <Stop offset="25%" stopColor="#9d7be8" stopOpacity="1" />
-              <Stop offset="50%" stopColor="#b88ddc" stopOpacity="1" />
-              <Stop offset="75%" stopColor="#68c9ba" stopOpacity="1" />
-              <Stop offset="100%" stopColor="#4ecdc4" stopOpacity="1" />
-            </LinearGradient>
-          </Defs>
+      <View style={styles.circularSliderContainer}>
+        {selectedStateId ? (
+          // State 2: Show circular slider with chip in center
+          <View {...panResponder.panHandlers}>
+            <Svg width={SVG_SIZE} height={SVG_SIZE}>
+              <Defs>
+                <LinearGradient id="gradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                  <Stop offset="0%" stopColor="#7b68ee" stopOpacity="1" />
+                  <Stop offset="25%" stopColor="#9d7be8" stopOpacity="1" />
+                  <Stop offset="50%" stopColor="#b88ddc" stopOpacity="1" />
+                  <Stop offset="75%" stopColor="#68c9ba" stopOpacity="1" />
+                  <Stop offset="100%" stopColor="#4ecdc4" stopOpacity="1" />
+                </LinearGradient>
+              </Defs>
 
-          {/* Background track */}
-          <Circle
-            cx={CENTER}
-            cy={CENTER}
-            r={RADIUS}
-            stroke="rgba(255, 255, 255, 0.1)"
-            strokeWidth={STROKE_WIDTH}
-            fill="none"
-          />
+              {/* Background track */}
+              <Circle
+                cx={CENTER}
+                cy={CENTER}
+                r={RADIUS}
+                stroke="rgba(255, 255, 255, 0.1)"
+                strokeWidth={STROKE_WIDTH}
+                fill="none"
+              />
 
-          {/* Progress arc */}
-          <Circle
-            cx={CENTER}
-            cy={CENTER}
-            r={RADIUS}
-            stroke="url(#gradient)"
-            strokeWidth={STROKE_WIDTH}
-            fill="none"
-            strokeDasharray={CIRCUMFERENCE}
-            strokeDashoffset={strokeDashoffset}
-            strokeLinecap="round"
-            rotation="-90"
-            origin={`${CENTER}, ${CENTER}`}
-          />
+              {/* Progress arc */}
+              <Circle
+                cx={CENTER}
+                cy={CENTER}
+                r={RADIUS}
+                stroke="url(#gradient)"
+                strokeWidth={STROKE_WIDTH}
+                fill="none"
+                strokeDasharray={CIRCUMFERENCE}
+                strokeDashoffset={strokeDashoffset}
+                strokeLinecap="round"
+                rotation="-90"
+                origin={`${CENTER}, ${CENTER}`}
+              />
 
-          {/* Handle with glow effect */}
-          <G>
-            {/* Outer glow */}
-            <Circle
-              cx={handleX}
-              cy={handleY}
-              r={18}
-              fill="#ffffff"
-              opacity={0.15}
-            />
-            <Circle
-              cx={handleX}
-              cy={handleY}
-              r={14}
-              fill="#ffffff"
-              opacity={0.25}
-            />
-            {/* Main handle */}
-            <Circle
-              cx={handleX}
-              cy={handleY}
-              r={11}
-              fill="#ffffff"
-              opacity={1}
-            />
-          </G>
-        </Svg>
+              {/* Handle with glow effect */}
+              <G>
+                {/* Outer glow */}
+                <Circle
+                  cx={handleX}
+                  cy={handleY}
+                  r={18}
+                  fill="#ffffff"
+                  opacity={0.15}
+                />
+                <Circle
+                  cx={handleX}
+                  cy={handleY}
+                  r={14}
+                  fill="#ffffff"
+                  opacity={0.25}
+                />
+                {/* Main handle */}
+                <Circle
+                  cx={handleX}
+                  cy={handleY}
+                  r={11}
+                  fill="#ffffff"
+                  opacity={1}
+                />
+              </G>
+            </Svg>
 
-        {/* Check button in center */}
-        {showCheckButton && (
-          <TouchableOpacity
-            style={styles.checkButton}
-            onPress={canCheck ? onCheckToggle : null}
-            activeOpacity={0.7}
-            disabled={!canCheck}
-          >
-            <View style={[
-              styles.checkButtonInner,
-              isChecked && styles.checkButtonChecked,
-              !canCheck && styles.checkButtonDisabled
-            ]}>
-              {isChecked && (
-                <Svg width={32} height={32} viewBox="0 0 24 24">
-                  <Path
-                    d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"
-                    fill="#ffffff"
-                  />
-                </Svg>
-              )}
-            </View>
-          </TouchableOpacity>
-        )}
-
-        {/* Centered percentage display */}
-        {showChips && (
-          <View style={styles.centeredPercentageContainer}>
-            <Text style={styles.centeredPercentageText}>{Math.round(value)}%</Text>
-          </View>
-        )}
-      </View>
-
-      {/* Polyvagal state chips - Focused selection or carousel */}
-      {showChips && states.length > 0 && (
-        <View style={styles.carouselContainer}>
-          {selectedStateId ? (
-            // Focused mode: Show only the selected chip centered with X button
-            <View style={styles.focusedChipContainer}>
+            {/* Selected chip in center with opacity based on slider */}
+            <View style={styles.centerChipContainer}>
               <View
                 style={[
-                  styles.focusedChip,
+                  styles.centerChip,
                   {
-                    backgroundColor: states.find(s => s.id === selectedStateId)?.color + 'E6',
-                    borderColor: states.find(s => s.id === selectedStateId)?.color
+                    backgroundColor: states.find(s => s.id === selectedStateId)?.color,
+                    opacity: 0.3 + (value / 100) * 0.7, // Opacity ranges from 0.3 to 1.0
                   }
                 ]}
               >
-                <Text style={styles.focusedChipIcon}>
+                <Text style={styles.centerChipIcon}>
                   {STATE_DESCRIPTIONS[selectedStateId]?.icon}
                 </Text>
-                <Text style={styles.focusedChipLabel}>
-                  {states.find(s => s.id === selectedStateId)?.label}
-                </Text>
-                <TouchableOpacity
-                  onPress={() => handleInfoPress(selectedStateId)}
-                  style={styles.focusedChipInfoButton}
-                  hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-                >
-                  <Text style={styles.focusedChipInfoIcon}>ⓘ</Text>
-                </TouchableOpacity>
               </View>
 
               {/* X button to deselect */}
               <TouchableOpacity
                 onPress={handleDeselectChip}
-                style={styles.deselectButton}
+                style={styles.centerDeselectButton}
                 activeOpacity={0.7}
                 hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
               >
-                <Text style={styles.deselectButtonText}>✕</Text>
+                <Text style={styles.centerDeselectButtonText}>✕</Text>
               </TouchableOpacity>
             </View>
-          ) : (
-            // Carousel mode: Show all chips
+          </View>
+        ) : showChips && states.length > 0 ? (
+          // State 1: Show chips carousel centered in the same spot
+          <View style={styles.carouselCenterWrapper}>
             <ScrollView
               ref={scrollViewRef}
               horizontal
@@ -432,9 +403,34 @@ export default function EmbodimentSlider({
                 </TouchableOpacity>
               ))}
             </ScrollView>
-          )}
-        </View>
-      )}
+          </View>
+        ) : null}
+
+        {/* Check button in center */}
+        {showCheckButton && (
+          <TouchableOpacity
+            style={styles.checkButton}
+            onPress={canCheck ? onCheckToggle : null}
+            activeOpacity={0.7}
+            disabled={!canCheck}
+          >
+            <View style={[
+              styles.checkButtonInner,
+              isChecked && styles.checkButtonChecked,
+              !canCheck && styles.checkButtonDisabled
+            ]}>
+              {isChecked && (
+                <Svg width={32} height={32} viewBox="0 0 24 24">
+                  <Path
+                    d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"
+                    fill="#ffffff"
+                  />
+                </Svg>
+              )}
+            </View>
+          </TouchableOpacity>
+        )}
+      </View>
 
       {/* Tooltip Modal */}
       <Modal
@@ -539,20 +535,53 @@ const styles = StyleSheet.create({
   checkButtonDisabled: {
     opacity: 0.3,
   },
-  centeredPercentageContainer: {
+  centerChipContainer: {
     position: 'absolute',
-    top: CENTER - 30,
+    top: 0,
     left: 0,
     width: SVG_SIZE,
+    height: SVG_SIZE,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  centeredPercentageText: {
-    color: '#f7f9fb',
+  centerChip: {
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 6,
+  },
+  centerChipIcon: {
     fontSize: 48,
-    fontWeight: '700',
-    textAlign: 'center',
-    letterSpacing: 1,
+  },
+  centerDeselectButton: {
+    position: 'absolute',
+    top: CENTER - 60,
+    right: CENTER - 60,
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: 'rgba(0, 0, 0, 0.6)',
+    borderWidth: 1.5,
+    borderColor: 'rgba(255, 255, 255, 0.6)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  centerDeselectButtonText: {
+    color: 'rgba(255, 255, 255, 0.9)',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  carouselCenterWrapper: {
+    width: '100%',
+    height: SVG_SIZE,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   carouselContainer: {
     marginTop: 24,
@@ -561,6 +590,7 @@ const styles = StyleSheet.create({
   },
   carousel: {
     flexGrow: 0,
+    width: '100%',
   },
   carouselContent: {
     paddingHorizontal: 24,
@@ -726,3 +756,5 @@ const styles = StyleSheet.create({
     letterSpacing: 0.3,
   },
 })
+
+export { POLYVAGAL_STATE_MAP, STATE_DESCRIPTIONS }

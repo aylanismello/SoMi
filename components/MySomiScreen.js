@@ -6,28 +6,29 @@ import { BlurView } from 'expo-blur'
 import Svg, { Circle, Line } from 'react-native-svg'
 import * as Haptics from 'expo-haptics'
 import { supabase, somiChainService } from '../supabase'
+import { POLYVAGAL_STATE_MAP, STATE_DESCRIPTIONS } from './EmbodimentSlider'
 
-// Match polyvagal states from SoMeCheckIn
+// Match polyvagal states from SoMeCheckIn (new code-based system)
 const POLYVAGAL_STATES = [
-  { id: 'withdrawn', label: 'Withdrawn', color: '#7b68ee' },
-  { id: 'stirring', label: 'Stirring', color: '#9d7be8' },
-  { id: 'activated', label: 'Activated', color: '#b88ddc' },
-  { id: 'settling', label: 'Settling', color: '#68c9ba' },
-  { id: 'connected', label: 'Connected', color: '#4ecdc4' },
+  { id: 1, label: 'Drained', color: '#7b68ee' },
+  { id: 2, label: 'Foggy', color: '#9d7be8' },
+  { id: 3, label: 'Wired', color: '#b88ddc' },
+  { id: 4, label: 'Steady', color: '#68c9ba' },
+  { id: 5, label: 'Glowing', color: '#4ecdc4' },
 ]
 
 const STATE_EMOJIS = {
-  withdrawn: '🌑',
-  stirring: '🌘',
-  activated: '⚡',
-  settling: '🌤',
-  connected: '🌕',
+  1: '🌧',
+  2: '🌫',
+  3: '🌪',
+  4: '🌤',
+  5: '☀️',
 }
 
 // Floating Orb Component with physics
 function FloatingOrb({ check, index, onPress, isSelected, formatDate }) {
-  const stateInfo = POLYVAGAL_STATES.find(s => s.id === check.polyvagal_state)
-  const fillLevel = check.slider_value / 100
+  const stateInfo = POLYVAGAL_STATES.find(s => s.id === check.polyvagal_state_code)
+  const fillLevel = check.embodiment_level / 100
 
   // Circle measurements for progress ring
   const circleSize = 52
@@ -159,7 +160,7 @@ function FloatingOrb({ check, index, onPress, isSelected, formatDate }) {
           ]}
         >
           <Text style={[styles.gardenOrbEmoji, { opacity: 1 }]}>
-            {STATE_EMOJIS[check.polyvagal_state]}
+            {STATE_EMOJIS[check.polyvagal_state_code]}
           </Text>
         </View>
 
@@ -172,7 +173,7 @@ function FloatingOrb({ check, index, onPress, isSelected, formatDate }) {
             tooltipAlignment === 'right' && styles.orbTooltipRight,
             tooltipAlignment === 'center' && styles.orbTooltipCenter,
           ]}>
-            <Text style={styles.orbTooltipText}>{Math.round(check.slider_value)}%</Text>
+            <Text style={styles.orbTooltipText}>{Math.round(check.embodiment_level)}%</Text>
             <Text style={styles.orbTooltipState}>{stateInfo?.label}</Text>
             <Text style={styles.orbTooltipDate}>{formatDate(check.created_at)}</Text>
           </View>
@@ -236,12 +237,12 @@ export default function MySomiScreen({ navigation }) {
     }
 
     // Calculate average score
-    const avgScore = data.reduce((sum, check) => sum + check.slider_value, 0) / data.length
+    const avgScore = data.reduce((sum, check) => sum + check.embodiment_level, 0) / data.length
 
     // Find most common state
     const stateCounts = {}
     data.forEach(check => {
-      stateCounts[check.polyvagal_state] = (stateCounts[check.polyvagal_state] || 0) + 1
+      stateCounts[check.polyvagal_state_code] = (stateCounts[check.polyvagal_state_code] || 0) + 1
     })
     const mostCommonState = Object.keys(stateCounts).reduce((a, b) =>
       stateCounts[a] > stateCounts[b] ? a : b
@@ -250,8 +251,8 @@ export default function MySomiScreen({ navigation }) {
     // Calculate recent trend (last 5 vs previous 5)
     let recentTrend = null
     if (data.length >= 10) {
-      const recentAvg = data.slice(0, 5).reduce((sum, c) => sum + c.slider_value, 0) / 5
-      const previousAvg = data.slice(5, 10).reduce((sum, c) => sum + c.slider_value, 0) / 5
+      const recentAvg = data.slice(0, 5).reduce((sum, c) => sum + c.embodiment_level, 0) / 5
+      const previousAvg = data.slice(5, 10).reduce((sum, c) => sum + c.embodiment_level, 0) / 5
       const diff = recentAvg - previousAvg
 
       if (Math.abs(diff) < 5) {
@@ -591,6 +592,10 @@ export default function MySomiScreen({ navigation }) {
           const checksCount = chain.embodiment_checks.length
           const blocksCount = chain.somi_chain_entries.length
 
+          // Calculate total minutes from seconds_elapsed
+          const totalSeconds = chain.somi_chain_entries.reduce((sum, entry) => sum + (entry.seconds_elapsed || 0), 0)
+          const totalMinutes = Math.round(totalSeconds / 60)
+
           return (
             <View key={chain.id} style={styles.checkInItem}>
               {/* Timeline dot and line */}
@@ -613,7 +618,7 @@ export default function MySomiScreen({ navigation }) {
                       <View style={styles.chainHeaderLeft}>
                         <Text style={styles.chainTitle}>{getChainLabel(chain.created_at)}</Text>
                         <Text style={styles.chainSubtitle}>
-                          {checksCount} check-in{checksCount !== 1 ? 's' : ''} • {blocksCount} block{blocksCount !== 1 ? 's' : ''}
+                          {checksCount} check-in{checksCount !== 1 ? 's' : ''} • {blocksCount} block{blocksCount !== 1 ? 's' : ''} • {totalMinutes} min
                         </Text>
                       </View>
 
@@ -656,8 +661,8 @@ export default function MySomiScreen({ navigation }) {
                       return timeline.map((item, index) => {
                         if (item.type === 'check') {
                           const check = item.data
-                          const stateInfo = getStateInfo(check.polyvagal_state)
-                          const fillLevel = check.slider_value / 100
+                          const stateInfo = getStateInfo(check.polyvagal_state_code)
+                          const fillLevel = check.embodiment_level / 100
 
                           return (
                             <View key={`check-${check.id}`} style={styles.timelineItem}>
@@ -668,7 +673,7 @@ export default function MySomiScreen({ navigation }) {
                                   borderColor: stateInfo?.color,
                                 }]}>
                                   <Text style={styles.stateEmojiSmall}>
-                                    {STATE_EMOJIS[check.polyvagal_state]}
+                                    {STATE_EMOJIS[check.polyvagal_state_code]}
                                   </Text>
                                   <Text style={styles.stateLabel}>
                                     {stateInfo?.label}

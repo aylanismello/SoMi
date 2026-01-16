@@ -6,25 +6,42 @@ import { BlurView } from 'expo-blur'
 import * as Haptics from 'expo-haptics'
 import Svg, { Path, Circle } from 'react-native-svg'
 import { getMediaForSliderValue, getSOSMedia, BODY_SCAN_MEDIA } from '../constants/media'
-import EmbodimentSlider from './EmbodimentSlider'
+import EmbodimentSlider, { POLYVAGAL_STATE_MAP, STATE_DESCRIPTIONS } from './EmbodimentSlider'
 import { supabase, somiChainService } from '../supabase'
 
-// Polyvagal states for chip selection
+// Polyvagal states for chip selection (new code-based system)
 const POLYVAGAL_STATES = [
-  { id: 'withdrawn', label: 'Withdrawn', color: '#7b68ee' },
-  { id: 'stirring', label: 'Stirring', color: '#9d7be8' },
-  { id: 'activated', label: 'Activated', color: '#b88ddc' },
-  { id: 'settling', label: 'Settling', color: '#68c9ba' },
-  { id: 'connected', label: 'Connected', color: '#4ecdc4' },
+  { id: 1, label: 'Drained', color: '#7b68ee' },
+  { id: 2, label: 'Foggy', color: '#9d7be8' },
+  { id: 3, label: 'Wired', color: '#b88ddc' },
+  { id: 4, label: 'Steady', color: '#68c9ba' },
+  { id: 5, label: 'Glowing', color: '#4ecdc4' },
 ]
 
-// Polyvagal state emojis (matching EmbodimentSlider)
 const STATE_EMOJIS = {
-  withdrawn: '🌑',
-  stirring: '🌘',
-  activated: '⚡',
+  1: '🌧',
+  2: '🌫',
+  3: '🌪',
+  4: '🌤',
+  5: '☀️',
+}
+
+// Old state_target values from somi_blocks (backwards compatibility)
+const OLD_STATE_EMOJIS = {
+  withdrawn: '🌧',
+  stirring: '🌫',
+  activated: '🌪',
   settling: '🌤',
-  connected: '🌕',
+  connected: '☀️',
+}
+
+// Old state info for somi_blocks (backwards compatibility)
+const OLD_STATE_INFO = {
+  withdrawn: { id: 'withdrawn', label: 'Withdrawn', color: '#7b68ee' },
+  stirring: { id: 'stirring', label: 'Stirring', color: '#9d7be8' },
+  activated: { id: 'activated', label: 'Activated', color: '#b88ddc' },
+  settling: { id: 'settling', label: 'Settling', color: '#68c9ba' },
+  connected: { id: 'connected', label: 'Connected', color: '#4ecdc4' },
 }
 
 export default function SoMeCheckIn({ navigation, route }) {
@@ -61,6 +78,11 @@ export default function SoMeCheckIn({ navigation, route }) {
   const [showExerciseModal, setShowExerciseModal] = useState(false)
   const [exerciseList, setExerciseList] = useState([])
   const [loadingExercises, setLoadingExercises] = useState(false)
+
+  // Routine selection modal state
+  const [showRoutineModal, setShowRoutineModal] = useState(false)
+  const [routineList, setRoutineList] = useState([])
+  const [loadingRoutines, setLoadingRoutines] = useState(false)
 
   // Reset key to force carousel to scroll back to start
   const [resetKey, setResetKey] = useState(0)
@@ -222,7 +244,7 @@ export default function SoMeCheckIn({ navigation, route }) {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium)
     setShowExerciseModal(true)
 
-    // Fetch all vagal toning exercises
+    // Fetch individual exercises (is_routine = false or null)
     setLoadingExercises(true)
     try {
       const { data, error } = await supabase
@@ -231,6 +253,7 @@ export default function SoMeCheckIn({ navigation, route }) {
         .eq('block_type', 'vagal_toning')
         .eq('media_type', 'video')
         .eq('active', true)
+        .or('is_routine.is.null,is_routine.eq.false')
         .order('name', { ascending: true })
 
       if (error) {
@@ -256,6 +279,34 @@ export default function SoMeCheckIn({ navigation, route }) {
     }
   }
 
+  const handleChooseRoutinePress = async () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium)
+    setShowRoutineModal(true)
+
+    // Fetch routines (is_routine = true)
+    setLoadingRoutines(true)
+    try {
+      const { data, error } = await supabase
+        .from('somi_blocks')
+        .select('*')
+        .eq('active', true)
+        .eq('is_routine', true)
+        .order('name', { ascending: true })
+
+      if (error) {
+        console.error('Error fetching routines:', error)
+        setRoutineList([])
+      } else {
+        setRoutineList(data || [])
+      }
+    } catch (err) {
+      console.error('Unexpected error fetching routines:', err)
+      setRoutineList([])
+    } finally {
+      setLoadingRoutines(false)
+    }
+  }
+
   const handleExerciseSelect = (exercise) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
     setShowExerciseModal(false)
@@ -276,6 +327,28 @@ export default function SoMeCheckIn({ navigation, route }) {
   const closeExerciseModal = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
     setShowExerciseModal(false)
+  }
+
+  const handleRoutineSelect = (routine) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
+    setShowRoutineModal(false)
+
+    navigation.navigate('Player', {
+      media: {
+        somi_block_id: routine.id,
+        name: routine.name,
+        type: routine.media_type || 'video',
+        url: routine.media_url,
+      },
+      initialValue: sliderValue,
+      savedInitialValue: initialSliderValue,
+      savedInitialState: initialPolyvagalState,
+    })
+  }
+
+  const closeRoutineModal = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
+    setShowRoutineModal(false)
   }
 
   const handleSliderChange = (value) => {
@@ -747,6 +820,17 @@ export default function SoMeCheckIn({ navigation, route }) {
           </TouchableOpacity>
 
           <TouchableOpacity
+            onPress={handleChooseRoutinePress}
+            activeOpacity={0.9}
+            style={styles.optionTile}
+          >
+            <BlurView intensity={15} tint="dark" style={styles.optionBlur}>
+              <Text style={styles.optionTitle}>Choose Routine</Text>
+              <Text style={styles.optionSubtitle}>Pre-built exercise sequences</Text>
+            </BlurView>
+          </TouchableOpacity>
+
+          <TouchableOpacity
             onPress={handleSelfGuidedPress}
             activeOpacity={0.9}
             style={styles.optionTile}
@@ -1045,7 +1129,7 @@ export default function SoMeCheckIn({ navigation, route }) {
               </View>
             ) : (
               exerciseList.map((exercise, index) => {
-                const stateInfo = POLYVAGAL_STATES.find(s => s.id === exercise.state_target)
+                const stateInfo = OLD_STATE_INFO[exercise.state_target]
                 const showStateHeader =
                   index === 0 || exerciseList[index - 1]?.state_target !== exercise.state_target
 
@@ -1053,7 +1137,7 @@ export default function SoMeCheckIn({ navigation, route }) {
                   <View key={exercise.id}>
                     {showStateHeader && stateInfo && (
                       <View style={styles.exerciseStateHeader}>
-                        <Text style={styles.exerciseStateEmoji}>{STATE_EMOJIS[exercise.state_target]}</Text>
+                        <Text style={styles.exerciseStateEmoji}>{OLD_STATE_EMOJIS[exercise.state_target]}</Text>
                         <Text style={[styles.exerciseStateLabel, { color: stateInfo.color }]}>
                           {stateInfo.label}
                         </Text>
@@ -1069,7 +1153,7 @@ export default function SoMeCheckIn({ navigation, route }) {
                         <View style={styles.exerciseCardContent}>
                           {stateInfo && (
                             <View style={[styles.exerciseIconContainer, { backgroundColor: stateInfo.color + '20' }]}>
-                              <Text style={styles.exerciseIcon}>{STATE_EMOJIS[exercise.state_target]}</Text>
+                              <Text style={styles.exerciseIcon}>{OLD_STATE_EMOJIS[exercise.state_target]}</Text>
                             </View>
                           )}
                           <View style={styles.exerciseInfo}>
@@ -1089,6 +1173,74 @@ export default function SoMeCheckIn({ navigation, route }) {
                   </View>
                 )
               })
+            )}
+          </ScrollView>
+        </LinearGradient>
+      </Modal>
+
+      {/* Routine Selection Modal */}
+      <Modal
+        visible={showRoutineModal}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={closeRoutineModal}
+      >
+        <LinearGradient
+          colors={['rgba(15, 12, 41, 0.95)', 'rgba(48, 43, 99, 0.95)', 'rgba(36, 36, 62, 0.95)']}
+          style={styles.exerciseModalContainer}
+        >
+          {/* Header */}
+          <View style={styles.exerciseModalHeader}>
+            <TouchableOpacity
+              onPress={closeRoutineModal}
+              activeOpacity={0.7}
+              style={styles.exerciseModalCloseButton}
+            >
+              <Text style={styles.exerciseModalCloseText}>✕</Text>
+            </TouchableOpacity>
+            <Text style={styles.exerciseModalTitle}>Choose Routine</Text>
+            <View style={{ width: 44 }} />
+          </View>
+
+          {/* Routine List */}
+          <ScrollView
+            style={styles.exerciseModalScroll}
+            contentContainerStyle={styles.exerciseModalScrollContent}
+            showsVerticalScrollIndicator={false}
+          >
+            {loadingRoutines ? (
+              <View style={styles.exerciseLoadingContainer}>
+                <ActivityIndicator size="large" color="#4ecdc4" />
+              </View>
+            ) : routineList.length === 0 ? (
+              <View style={styles.exerciseEmptyContainer}>
+                <Text style={styles.exerciseEmptyText}>No routines available</Text>
+              </View>
+            ) : (
+              routineList.map((routine) => (
+                <TouchableOpacity
+                  key={routine.id}
+                  activeOpacity={0.85}
+                  onPress={() => handleRoutineSelect(routine)}
+                  style={styles.exerciseCard}
+                >
+                  <BlurView intensity={15} tint="dark" style={styles.exerciseCardBlur}>
+                    <View style={styles.exerciseCardContent}>
+                      <View style={styles.exerciseInfo}>
+                        <Text style={styles.exerciseName}>{routine.name}</Text>
+                        {routine.description && (
+                          <Text style={styles.exerciseDescription} numberOfLines={2}>
+                            {routine.description}
+                          </Text>
+                        )}
+                      </View>
+                      <View style={styles.exercisePlayIcon}>
+                        <Text style={styles.playIconText}>▶</Text>
+                      </View>
+                    </View>
+                  </BlurView>
+                </TouchableOpacity>
+              ))
             )}
           </ScrollView>
         </LinearGradient>
