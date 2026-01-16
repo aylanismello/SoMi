@@ -10,6 +10,7 @@ import { POLYVAGAL_STATE_MAP, STATE_DESCRIPTIONS } from './EmbodimentSlider'
 
 // Match polyvagal states from SoMeCheckIn (new code-based system)
 const POLYVAGAL_STATES = [
+  { id: 0, label: 'SOS', color: '#ff6b9d' },
   { id: 1, label: 'Drained', color: '#7b68ee' },
   { id: 2, label: 'Foggy', color: '#9d7be8' },
   { id: 3, label: 'Wired', color: '#b88ddc' },
@@ -18,6 +19,7 @@ const POLYVAGAL_STATES = [
 ]
 
 const STATE_EMOJIS = {
+  0: '🆘',
   1: '🌧',
   2: '🌫',
   3: '🌪',

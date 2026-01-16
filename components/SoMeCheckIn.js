@@ -19,6 +19,7 @@ const POLYVAGAL_STATES = [
 ]
 
 const STATE_EMOJIS = {
+  0: '🆘',
   1: '🌧',
   2: '🌫',
   3: '🌪',
@@ -214,6 +215,10 @@ export default function SoMeCheckIn({ navigation, route }) {
 
   const handleSOSRelease = async () => {
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning)
+
+    // Save SOS embodiment check (code 0, level 0)
+    await saveEmbodimentCheck(0, 0, null)
+
     const sosMedia = await getSOSMedia()
     navigation.navigate('Player', { media: sosMedia, initialValue: sliderValue })
   }

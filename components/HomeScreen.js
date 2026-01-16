@@ -8,6 +8,7 @@ import { POLYVAGAL_STATE_MAP } from './EmbodimentSlider'
 
 // Polyvagal states with colors and emojis (new code-based system)
 const POLYVAGAL_STATES = {
+  0: { label: 'SOS', color: '#ff6b9d', emoji: '🆘' },
   1: { label: 'Drained', color: '#7b68ee', emoji: '🌧' },
   2: { label: 'Foggy', color: '#9d7be8', emoji: '🌫' },
   3: { label: 'Wired', color: '#b88ddc', emoji: '🌪' },
@@ -47,8 +48,8 @@ export default function HomeScreen({ navigation }) {
     const change = lastCheck.embodiment_level - firstCheck.embodiment_level
     const changePercent = change > 0 ? `+${change}%` : `${change}%`
 
-    const fromStateCode = firstCheck.polyvagal_state_code || 1
-    const toStateCode = lastCheck.polyvagal_state_code || 1
+    const fromStateCode = firstCheck.polyvagal_state_code !== undefined ? firstCheck.polyvagal_state_code : 1
+    const toStateCode = lastCheck.polyvagal_state_code !== undefined ? lastCheck.polyvagal_state_code : 1
 
     // Calculate total minutes from entries
     const totalSeconds = (latestChain.somi_chain_entries || []).reduce((sum, entry) => sum + (entry.seconds_elapsed || 0), 0)

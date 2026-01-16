@@ -4,8 +4,9 @@ import Svg, { Circle, Defs, LinearGradient, Stop, G, Path } from 'react-native-s
 import * as Haptics from 'expo-haptics'
 import { BlurView } from 'expo-blur'
 
-// New polyvagal state system using codes (1-5)
+// New polyvagal state system using codes (0-5)
 const POLYVAGAL_STATE_MAP = {
+  0: { id: 0, label: 'SOS', color: '#ff6b9d', icon: '🆘' },
   1: { id: 1, label: 'Drained', color: '#7b68ee', icon: '🌧' },
   2: { id: 2, label: 'Foggy', color: '#9d7be8', icon: '🌫' },
   3: { id: 3, label: 'Wired', color: '#b88ddc', icon: '🌪' },
@@ -15,6 +16,11 @@ const POLYVAGAL_STATE_MAP = {
 
 // Polyvagal state descriptions for tooltips
 const STATE_DESCRIPTIONS = {
+  0: {
+    label: 'SOS',
+    description: 'Emergency state - immediate support needed.',
+    icon: '🆘',
+  },
   1: {
     label: 'Drained',
     description: 'Low energy, shutdown, nothing feels worth it. Dorsal collapse / dissociation.',
