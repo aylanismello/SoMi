@@ -64,6 +64,26 @@ Deploy the app for remote access on Expo Go:
 - `preview` - Testing/sharing
 - `production` - Live releases
 
+### Deploying to TestFlight
+Build and submit new versions for TestFlight testing (not live App Store):
+
+```bash
+# 1. Build for production/TestFlight
+eas build --platform ios --profile production
+
+# 2. After build completes, submit to App Store Connect
+eas submit --platform ios
+
+# 3. Wait 5-15 minutes for processing in App Store Connect
+# 4. Build will appear in TestFlight tab automatically
+```
+
+**Important Notes**:
+- TestFlight builds use the `production` profile, not internal distribution
+- After submission, builds appear in App Store Connect → TestFlight
+- Testers receive email invitations (no redeem codes needed)
+- Builds can take 5-15 minutes to process before appearing in TestFlight
+
 ---
 
 <!-- BACKLOG.MD MCP GUIDELINES START -->

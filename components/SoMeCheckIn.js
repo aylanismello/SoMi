@@ -1,21 +1,22 @@
 import React, { useState, useRef, useEffect } from 'react'
-import { StyleSheet, Text, View, TouchableOpacity, Animated, Modal, TextInput, Keyboard, KeyboardAvoidingView, Platform, TouchableWithoutFeedback, ScrollView, ActivityIndicator } from 'react-native'
+import { StyleSheet, Text, View, TouchableOpacity, Animated, Modal, TextInput, Keyboard, KeyboardAvoidingView, Platform, TouchableWithoutFeedback, ScrollView } from 'react-native'
 import { useFocusEffect } from '@react-navigation/native'
 import { LinearGradient } from 'expo-linear-gradient'
 import { BlurView } from 'expo-blur'
 import * as Haptics from 'expo-haptics'
 import Svg, { Path, Circle } from 'react-native-svg'
-import { getMediaForSliderValue, getSOSMedia, BODY_SCAN_MEDIA } from '../constants/media'
+import { getSOSMedia, BODY_SCAN_MEDIA } from '../constants/media'
 import EmbodimentSlider, { POLYVAGAL_STATE_MAP, STATE_DESCRIPTIONS } from './EmbodimentSlider'
 import { supabase, somiChainService } from '../supabase'
+import { colors } from '../constants/theme'
 
 // Polyvagal states for chip selection (new code-based system)
 const POLYVAGAL_STATES = [
-  { id: 1, label: 'Drained', color: '#7b68ee' },
-  { id: 2, label: 'Foggy', color: '#9d7be8' },
-  { id: 3, label: 'Wired', color: '#b88ddc' },
-  { id: 4, label: 'Steady', color: '#68c9ba' },
-  { id: 5, label: 'Glowing', color: '#4ecdc4' },
+  { id: 1, label: 'Drained', color: '#4A5F8C' },   // Deep slate blue
+  { id: 2, label: 'Foggy', color: '#5B7BB4' },     // Medium blue
+  { id: 3, label: 'Wired', color: '#6B9BD1' },     // Brighter blue
+  { id: 4, label: 'Steady', color: '#7DBCE7' },    // Bright sky blue
+  { id: 5, label: 'Glowing', color: '#90DDF0' },   // Bright cyan blue
 ]
 
 const STATE_EMOJIS = {
@@ -38,21 +39,22 @@ const OLD_STATE_EMOJIS = {
 
 // Old state info for somi_blocks (backwards compatibility)
 const OLD_STATE_INFO = {
-  withdrawn: { id: 'withdrawn', label: 'Withdrawn', color: '#7b68ee' },
-  stirring: { id: 'stirring', label: 'Stirring', color: '#9d7be8' },
-  activated: { id: 'activated', label: 'Activated', color: '#b88ddc' },
-  settling: { id: 'settling', label: 'Settling', color: '#68c9ba' },
-  connected: { id: 'connected', label: 'Connected', color: '#4ecdc4' },
+  withdrawn: { id: 'withdrawn', label: 'Withdrawn', color: '#4A5F8C' },
+  stirring: { id: 'stirring', label: 'Stirring', color: '#5B7BB4' },
+  activated: { id: 'activated', label: 'Activated', color: '#6B9BD1' },
+  settling: { id: 'settling', label: 'Settling', color: '#7DBCE7' },
+  connected: { id: 'connected', label: 'Connected', color: '#90DDF0' },
 }
 
 export default function SoMeCheckIn({ navigation, route }) {
-  // Check if we're coming back from player (step 4)
+  // Check if we're coming back from player (step 4) or body scan
   const fromPlayer = route?.params?.fromPlayer || false
+  const fromBodyScan = route?.params?.fromBodyScan || false
 
   const [sliderValue, setSliderValue] = useState(0)
   const [sliderChanged, setSliderChanged] = useState(false)
   const [polyvagalState, setPolyvagalState] = useState(null)
-  const [currentStep, setCurrentStep] = useState(fromPlayer ? 4 : 1) // 1: initial check-in, 2: selection, 3: player, 4: loop check-in
+  const [currentStep, setCurrentStep] = useState(fromPlayer ? 4 : (fromBodyScan ? 1 : 0)) // 0: body scan, 1: initial check-in, 2: selection, 4: loop check-in
   const [showConfirmMessage, setShowConfirmMessage] = useState(false)
   const [messageOpacity] = useState(new Animated.Value(0))
 
@@ -64,9 +66,15 @@ export default function SoMeCheckIn({ navigation, route }) {
   const [initialSliderValue, setInitialSliderValue] = useState(0)
   const [initialPolyvagalState, setInitialPolyvagalState] = useState(null)
 
+  // Time selection state (Step 2)
+  const [selectedBlockCount, setSelectedBlockCount] = useState(null)
+
   // Transition modal state
   const [showTransitionModal, setShowTransitionModal] = useState(false)
   const [pendingAction, setPendingAction] = useState(null) // 'continue' or 'done'
+
+  // Exit confirmation modal state
+  const [showExitModal, setShowExitModal] = useState(false)
 
   // Journal entry state
   const [journalEntry, setJournalEntry] = useState('')
@@ -75,18 +83,13 @@ export default function SoMeCheckIn({ navigation, route }) {
   const [journalForStep, setJournalForStep] = useState(1) // Track which step the journal is for
   const journalInputRef = useRef(null)
 
-  // Exercise selection modal state
-  const [showExerciseModal, setShowExerciseModal] = useState(false)
-  const [exerciseList, setExerciseList] = useState([])
-  const [loadingExercises, setLoadingExercises] = useState(false)
-
-  // Routine selection modal state
-  const [showRoutineModal, setShowRoutineModal] = useState(false)
-  const [routineList, setRoutineList] = useState([])
-  const [loadingRoutines, setLoadingRoutines] = useState(false)
 
   // Reset key to force carousel to scroll back to start
   const [resetKey, setResetKey] = useState(0)
+
+  // Help mode state
+  const [helpMode, setHelpMode] = useState(false)
+  const [helpInfoModal, setHelpInfoModal] = useState({ visible: false, title: '', description: '' })
 
   // Animation values for step transitions
   const step1Opacity = useRef(new Animated.Value(fromPlayer ? 0 : 1)).current
@@ -99,15 +102,41 @@ export default function SoMeCheckIn({ navigation, route }) {
   // Ref to track if we just came from player (prevents race condition with useFocusEffect)
   const justCameFromPlayer = useRef(false)
 
-  // Watch for route param changes to handle coming back from Player
+  // Watch for route param changes to handle coming back from Player or Body Scan
   useEffect(() => {
     const isFromPlayer = route?.params?.fromPlayer
+    const isFromBodyScan = route?.params?.fromBodyScan
+    const skipToStep2 = route?.params?.skipToStep2
     const wasBodyScan = route?.params?.wasBodyScan
     const returnToStep = route?.params?.returnToStep
     const restoredSliderValue = route?.params?.savedSliderValue
     const restoredPolyvagalState = route?.params?.savedPolyvagalState
 
-    if (isFromPlayer) {
+    if (isFromBodyScan) {
+      justCameFromPlayer.current = true
+
+      if (skipToStep2) {
+        // Skip directly to Step 2 (selection)
+        setCurrentStep(2)
+        step1Opacity.setValue(0)
+        step1TranslateX.setValue(-50)
+        step2Opacity.setValue(1)
+        step2TranslateX.setValue(0)
+        step4Opacity.setValue(0)
+        step4TranslateX.setValue(50)
+      } else {
+        // Coming back from initial body scan, show Step 1 (first embodiment slider)
+        setCurrentStep(1)
+        step1Opacity.setValue(1)
+        step1TranslateX.setValue(0)
+        step2Opacity.setValue(0)
+        step2TranslateX.setValue(50)
+        step4Opacity.setValue(0)
+        step4TranslateX.setValue(50)
+      }
+
+      navigation.setParams({ fromBodyScan: false, skipToStep2: false })
+    } else if (isFromPlayer) {
       justCameFromPlayer.current = true
 
       // If it was just a body scan, stay on the same step
@@ -171,19 +200,31 @@ export default function SoMeCheckIn({ navigation, route }) {
       // Clear the params
       navigation.setParams({ fromPlayer: false, wasBodyScan: false, returnToStep: undefined, savedSliderValue: undefined, savedPolyvagalState: undefined })
     }
-  }, [route?.params?.fromPlayer])
+  }, [route?.params?.fromPlayer, route?.params?.fromBodyScan])
 
-  // Reset to Step 1 when screen is focused (only if not coming from Player)
+  // Navigate to body scan on first load (when not coming from player)
+  useEffect(() => {
+    if (currentStep === 0 && !fromPlayer && !fromBodyScan) {
+      // Navigate to body scan immediately
+      setTimeout(() => {
+        navigation.navigate('BodyScanCountdown', {
+          isInitial: true,
+        })
+      }, 100)
+    }
+  }, [currentStep, fromPlayer, fromBodyScan])
+
+  // Reset to Step 0 (body scan) when screen is focused (only if not coming from Player)
   useFocusEffect(
     React.useCallback(() => {
       if (!justCameFromPlayer.current) {
-        // Reset state when coming back to check-in (not from player)
+        // Reset state completely when coming back to check-in (not from player)
         setSliderValue(0)
         setPolyvagalState(null)
         setLoopSliderValue(0)
         setLoopPolyvagalState(null)
         setSliderChanged(false)
-        setCurrentStep(1)
+        setCurrentStep(0) // Start from Step 0 to trigger body scan
         setResetKey(prev => prev + 1) // Increment to force carousel reset
 
         step1Opacity.setValue(1)
@@ -216,6 +257,15 @@ export default function SoMeCheckIn({ navigation, route }) {
   const handleSOSRelease = async () => {
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning)
 
+    if (helpMode) {
+      setHelpInfoModal({
+        visible: true,
+        title: 'SOS',
+        description: 'Feeling overwhelmed? We have expertly crafted SOS exercises designed to help you regulate your nervous system when you need support most.'
+      })
+      return
+    }
+
     // Save SOS embodiment check (code 0, level 0)
     await saveEmbodimentCheck(0, 0, null)
 
@@ -223,14 +273,12 @@ export default function SoMeCheckIn({ navigation, route }) {
     navigation.navigate('Player', { media: sosMedia, initialValue: sliderValue })
   }
 
-  const handleSoMiRoutinePress = async () => {
+  const handleSoMiRoutinePress = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium)
 
-    // Use the algorithm to select next video based on current state
-    const media = await getMediaForSliderValue(polyvagalState, sliderValue)
-    navigation.navigate('Player', {
-      media,
-      initialValue: sliderValue,
+    navigation.navigate('SoMiRoutine', {
+      polyvagalState,
+      sliderValue,
       savedInitialValue: initialSliderValue,
       savedInitialState: initialPolyvagalState,
     })
@@ -245,126 +293,35 @@ export default function SoMeCheckIn({ navigation, route }) {
     })
   }
 
-  const handleChooseExercisePress = async () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium)
-    setShowExerciseModal(true)
-
-    // Fetch individual exercises (is_routine = false or null)
-    setLoadingExercises(true)
-    try {
-      const { data, error } = await supabase
-        .from('somi_blocks')
-        .select('*')
-        .eq('block_type', 'vagal_toning')
-        .eq('media_type', 'video')
-        .eq('active', true)
-        .or('is_routine.is.null,is_routine.eq.false')
-        .order('name', { ascending: true })
-
-      if (error) {
-        console.error('Error fetching exercises:', error)
-        setExerciseList([])
-      } else {
-        // Sort by state_target like in CategoryDetailScreen
-        const sorted = (data || []).sort((a, b) => {
-          const stateOrder = ['withdrawn', 'stirring', 'activated', 'settling', 'connected']
-          const aIndex = stateOrder.indexOf(a.state_target)
-          const bIndex = stateOrder.indexOf(b.state_target)
-          if (aIndex === -1) return 1
-          if (bIndex === -1) return -1
-          return aIndex - bIndex
-        })
-        setExerciseList(sorted)
-      }
-    } catch (err) {
-      console.error('Unexpected error fetching exercises:', err)
-      setExerciseList([])
-    } finally {
-      setLoadingExercises(false)
-    }
-  }
-
-  const handleChooseRoutinePress = async () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium)
-    setShowRoutineModal(true)
-
-    // Fetch routines (is_routine = true)
-    setLoadingRoutines(true)
-    try {
-      const { data, error } = await supabase
-        .from('somi_blocks')
-        .select('*')
-        .eq('active', true)
-        .eq('is_routine', true)
-        .order('name', { ascending: true })
-
-      if (error) {
-        console.error('Error fetching routines:', error)
-        setRoutineList([])
-      } else {
-        setRoutineList(data || [])
-      }
-    } catch (err) {
-      console.error('Unexpected error fetching routines:', err)
-      setRoutineList([])
-    } finally {
-      setLoadingRoutines(false)
-    }
-  }
-
-  const handleExerciseSelect = (exercise) => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
-    setShowExerciseModal(false)
-
-    navigation.navigate('Player', {
-      media: {
-        somi_block_id: exercise.id,
-        name: exercise.name,
-        type: exercise.media_type || 'video',
-        url: exercise.media_url,
-      },
-      initialValue: sliderValue,
-      savedInitialValue: initialSliderValue,
-      savedInitialState: initialPolyvagalState,
-    })
-  }
-
-  const closeExerciseModal = () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
-    setShowExerciseModal(false)
-  }
-
-  const handleRoutineSelect = (routine) => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
-    setShowRoutineModal(false)
-
-    navigation.navigate('Player', {
-      media: {
-        somi_block_id: routine.id,
-        name: routine.name,
-        type: routine.media_type || 'video',
-        url: routine.media_url,
-      },
-      initialValue: sliderValue,
-      savedInitialValue: initialSliderValue,
-      savedInitialState: initialPolyvagalState,
-    })
-  }
-
-  const closeRoutineModal = () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
-    setShowRoutineModal(false)
-  }
 
   const handleSliderChange = (value) => {
     setSliderValue(value)
     setSliderChanged(true)
   }
 
+  const handleHelpModeToggle = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
+    setHelpMode(!helpMode)
+  }
+
   const handleJournalPress = (step) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
+
+    if (helpMode) {
+      setHelpInfoModal({
+        visible: true,
+        title: 'Journal Entry',
+        description: 'Capture your thoughts, feelings, and observations. Journaling helps you process emotions and track patterns over time.'
+      })
+      return
+    }
+
     setJournalForStep(step)
     setShowJournalModal(true)
+    // Auto-focus keyboard when modal opens
+    setTimeout(() => {
+      journalInputRef.current?.focus()
+    }, 100)
   }
 
   const handleJournalSave = () => {
@@ -407,7 +364,7 @@ export default function SoMeCheckIn({ navigation, route }) {
     ]).start(() => {
       setShowConfirmMessage(false)
 
-      // After message fades out, transition to step 2
+      // Transition to Step 2 (time selection)
       transitionToStep2()
     })
   }
@@ -500,8 +457,42 @@ export default function SoMeCheckIn({ navigation, route }) {
     setShowTransitionModal(true)
   }
 
-  const handleGoHome = async () => {
-    // Require polyvagal state to be selected before going home
+  const handleTimeSelection = (blockCount) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium)
+    setSelectedBlockCount(blockCount)
+
+    // Navigate to SoMi Routine with selected block count
+    navigation.navigate('SoMiRoutine', {
+      polyvagalState,
+      sliderValue,
+      savedInitialValue: sliderValue,
+      savedInitialState: polyvagalState,
+      totalBlocks: blockCount,
+    })
+  }
+
+  const handleSkipCheckin = () => {
+    // Skip check-in - go to time selection (Step 2)
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium)
+
+    // Set default values for skipped check-in
+    const defaultState = 4 // Default to "Steady"
+    const defaultValue = 0
+
+    setPolyvagalState(polyvagalState || defaultState)
+    setSliderValue(sliderValue || defaultValue)
+    setInitialSliderValue(sliderValue || defaultValue)
+    setInitialPolyvagalState(polyvagalState || defaultState)
+
+    // Save embodiment check with default values
+    saveEmbodimentCheck(sliderValue || defaultValue, polyvagalState || defaultState, null)
+
+    // Transition to Step 2 (time selection)
+    transitionToStep2()
+  }
+
+  const handleFinish = async () => {
+    // Require polyvagal state to be selected before finishing
     if (!loopPolyvagalState) {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error)
       return
@@ -509,30 +500,38 @@ export default function SoMeCheckIn({ navigation, route }) {
 
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium)
 
-    // Save loop check to database before going home
+    // Save loop check to database
     await saveEmbodimentCheck(loopSliderValue, loopPolyvagalState, loopJournalEntry || null)
 
     // End the active chain when done
     await somiChainService.endActiveChain()
 
     // Show transition modal before going home
-    setPendingAction('done')
-    setShowTransitionModal(true)
+    if (loopPolyvagalState && initialPolyvagalState) {
+      setPendingAction('done')
+      setShowTransitionModal(true)
+    } else {
+      // No transition to show, just go home directly
+      navigation.navigate('Home')
+    }
+  }
+
+  const handleSkipFinalCheckin = async () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium)
+
+    // End the active chain when skipping
+    await somiChainService.endActiveChain()
+
+    // Go home without saving or showing transition
+    navigation.navigate('Home')
   }
 
   const handleTransitionModalClose = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
     setShowTransitionModal(false)
 
-    // Execute the pending action
-    if (pendingAction === 'continue') {
-      // Go from Step 4 back to Step 2 (loop!)
-      transitionFromStep4ToStep2()
-    } else if (pendingAction === 'done') {
-      // Exit the loop and go home
-      resetStateAndGoHome()
-    }
-
+    // After transition modal, always go home - flow is DONE
+    navigation.navigate('Home')
     setPendingAction(null)
   }
 
@@ -568,8 +567,10 @@ export default function SoMeCheckIn({ navigation, route }) {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
 
     if (currentStep === 1) {
-      // On step 1, reset and go back to Home tab
-      resetStateAndGoHome()
+      // On step 1, go back to body scan
+      navigation.navigate('BodyScanCountdown', {
+        isInitial: true,
+      })
     } else if (currentStep === 2) {
       // On step 2, go back to step 1 or step 4 depending on context
       // For now, always go back to step 1
@@ -580,12 +581,23 @@ export default function SoMeCheckIn({ navigation, route }) {
     }
   }
 
-  const handleClosePress = async () => {
+  const handleClosePress = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium)
+    // Show exit confirmation modal
+    setShowExitModal(true)
+  }
+
+  const handleConfirmExit = async () => {
+    setShowExitModal(false)
     // End the active chain when closing
     await somiChainService.endActiveChain()
-    // Close always resets and goes back to Home
-    resetStateAndGoHome()
+    // Go directly to home (no body scan when exiting early from Step 1)
+    navigation.navigate('Home')
+  }
+
+  const handleCancelExit = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
+    setShowExitModal(false)
   }
 
   const resetStateAndGoHome = () => {
@@ -644,6 +656,15 @@ export default function SoMeCheckIn({ navigation, route }) {
   const handleBodyScanRelease = () => {
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success)
 
+    if (helpMode) {
+      setHelpInfoModal({
+        visible: true,
+        title: 'Body Scan',
+        description: 'Not sure how you feel? A guided body scan helps you tune into physical sensations and identify your current state with greater clarity.'
+      })
+      return
+    }
+
     // Save current values before navigating to body scan
     const currentSlider = currentStep === 1 ? sliderValue : loopSliderValue
     const currentState = currentStep === 1 ? polyvagalState : loopPolyvagalState
@@ -658,9 +679,19 @@ export default function SoMeCheckIn({ navigation, route }) {
     })
   }
 
+  // Don't render anything when waiting for body scan navigation (prevents flicker)
+  if (currentStep === 0) {
+    return (
+      <LinearGradient
+        colors={[colors.background.primary, colors.background.secondary, colors.background.primary]}
+        style={styles.container}
+      />
+    )
+  }
+
   return (
     <LinearGradient
-      colors={['#0f0c29', '#302b63', '#24243e']}
+      colors={[colors.background.primary, colors.background.secondary, colors.background.primary]}
       style={styles.container}
     >
       {/* Header Bar */}
@@ -701,90 +732,130 @@ export default function SoMeCheckIn({ navigation, route }) {
           ]}
           pointerEvents={currentStep === 1 ? 'auto' : 'none'}
         >
-        <BlurView intensity={20} tint="dark" style={styles.card}>
           <View style={styles.cardContent}>
-            {/* Journal button floating near question */}
-            <TouchableOpacity
-              onPress={() => handleJournalPress(1)}
-              activeOpacity={0.8}
-              style={styles.journalButtonFloating}
-            >
-              <Text style={styles.journalIconFloating}>📝</Text>
-            </TouchableOpacity>
+            {/* Question at top */}
+            <View style={styles.questionSection}>
+              <TouchableOpacity
+                onPress={() => handleJournalPress(1)}
+                activeOpacity={0.8}
+                style={[
+                  styles.journalButtonFloating,
+                  helpMode && styles.helpModeHighlight
+                ]}
+              >
+                <Text style={styles.journalIconFloating}>📝</Text>
+              </TouchableOpacity>
+              <Text style={styles.questionText}>
+                {polyvagalState ? 'how present are those\nfeelings in the body?' : 'how do you feel\nin your body right now?'}
+              </Text>
+            </View>
 
-            <EmbodimentSlider
-              value={sliderValue}
-              onValueChange={handleSliderChange}
-              question={"how in your body\ndo you feel right now?"}
-              showStateLabel={false}
-              showChips={true}
-              states={POLYVAGAL_STATES}
-              selectedStateId={polyvagalState}
-              onStateChange={handleStateChange}
-              isConfirmed={false}
-              onConfirm={null}
-              resetKey={resetKey}
-            />
+            {/* Centered slider/chips area */}
+            <View style={styles.sliderSection}>
+              <EmbodimentSlider
+                value={sliderValue}
+                onValueChange={handleSliderChange}
+                question={null}
+                showStateLabel={false}
+                showChips={true}
+                states={POLYVAGAL_STATES}
+                selectedStateId={polyvagalState}
+                onStateChange={handleStateChange}
+                isConfirmed={false}
+                onConfirm={null}
+                resetKey={resetKey}
+                helpMode={helpMode}
+              />
+            </View>
 
-            {/* Body scan button with checkbox for Step 1 */}
+            {/* Bottom buttons */}
             {!showConfirmMessage && (
-              <View style={styles.bodyScanContainer}>
-                <TouchableOpacity
-                  onPressIn={handleSOSPress}
-                  onPressOut={handleSOSRelease}
-                  activeOpacity={0.85}
-                  style={styles.sosButtonSmall}
-                >
-                  <LinearGradient
-                    colors={['#ff6b9d', '#ffa8b3']}
-                    start={{ x: 0, y: 0 }}
-                    end={{ x: 1, y: 1 }}
-                    style={styles.sosButtonSmallGradient}
+              <View style={styles.bottomButtonsWrapper}>
+                {/* SOS and body scan on first row */}
+                <View style={styles.sosBodyScanRow}>
+                  <TouchableOpacity
+                    onPressIn={handleSOSPress}
+                    onPressOut={handleSOSRelease}
+                    activeOpacity={0.85}
+                    style={[
+                      styles.sosButtonSmall,
+                      helpMode && styles.helpModeHighlightSOS
+                    ]}
                   >
-                    <Text style={styles.sosTextSmall}>SOS</Text>
-                  </LinearGradient>
-                </TouchableOpacity>
+                    <LinearGradient
+                      colors={['#ff6b9d', '#ffa8b3']}
+                      start={{ x: 0, y: 0 }}
+                      end={{ x: 1, y: 1 }}
+                      style={styles.sosButtonSmallGradient}
+                    >
+                      <Text style={styles.sosTextSmall}>SOS</Text>
+                    </LinearGradient>
+                  </TouchableOpacity>
 
-                <TouchableOpacity
-                  onPressIn={handleBodyScanPress}
-                  onPressOut={handleBodyScanRelease}
-                  activeOpacity={0.8}
-                  style={styles.bodyScanButton}
-                >
-                  <Text style={styles.bodyScanText}>not sure? do a body scan</Text>
-                </TouchableOpacity>
+                  <TouchableOpacity
+                    onPressIn={handleBodyScanPress}
+                    onPressOut={handleBodyScanRelease}
+                    activeOpacity={0.8}
+                    style={[
+                      styles.bodyScanButton,
+                      helpMode && styles.helpModeHighlight
+                    ]}
+                  >
+                    <Text style={styles.bodyScanText}>do a body scan</Text>
+                  </TouchableOpacity>
 
-                <TouchableOpacity
-                  onPress={handleCheckboxPress}
-                  activeOpacity={0.7}
-                  style={styles.checkboxButton}
-                >
-                  <View style={styles.checkboxCircle}>
-                    <Svg width={16} height={16} viewBox="0 0 24 24">
-                      <Path
-                        d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"
-                        fill="#4ecdc4"
-                      />
-                    </Svg>
-                  </View>
-                </TouchableOpacity>
+                  <TouchableOpacity
+                    onPress={handleHelpModeToggle}
+                    activeOpacity={0.8}
+                    style={[styles.helpButtonSmall, helpMode && styles.helpButtonSmallActive]}
+                  >
+                    <Text style={styles.helpButtonSmallIcon}>?</Text>
+                  </TouchableOpacity>
+                </View>
+
+                {/* Skip Check-in and Continue on second row */}
+                <View style={styles.step1NavigationRow}>
+                  <TouchableOpacity
+                    onPress={handleSkipCheckin}
+                    activeOpacity={0.7}
+                    style={styles.step1NevermindButton}
+                  >
+                    <Text style={styles.step1NevermindButtonText}>Skip Check-in</Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    onPress={handleCheckboxPress}
+                    activeOpacity={0.7}
+                    style={styles.step1ContinueButton}
+                  >
+                    <Text style={styles.step1ContinueButtonText}>Continue</Text>
+                    <View style={styles.step1ContinueCheckmark}>
+                      <Svg width={18} height={18} viewBox="0 0 24 24">
+                        <Path
+                          d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"
+                          fill={colors.accent.primary}
+                        />
+                      </Svg>
+                    </View>
+                  </TouchableOpacity>
+                </View>
               </View>
             )}
 
             {/* Confirmation message */}
             {showConfirmMessage && (
               <Animated.View style={[styles.confirmMessage, { opacity: messageOpacity }]}>
-                <Text style={styles.confirmText}>✓ your body check-in has been logged</Text>
+                <Text style={styles.confirmText}>✓ check-in logged</Text>
               </Animated.View>
             )}
           </View>
-        </BlurView>
       </Animated.View>
 
-      {/* Step 2: Selection with Disclaimer */}
+      {/* Step 2: Time Selection */}
       <Animated.View
         style={[
           styles.stepContainer,
+          currentStep === 2 && styles.stepContainerCentered,
           {
             opacity: step2Opacity,
             transform: [{ translateX: step2TranslateX }],
@@ -796,53 +867,45 @@ export default function SoMeCheckIn({ navigation, route }) {
         ]}
         pointerEvents={currentStep === 2 ? 'auto' : 'none'}
       >
-        {/* Disclaimer */}
-        <Text style={styles.disclaimerText}>
-          SoMi has curated blocks that can help you regulate your nervous system. Let's get started right now if you would like.
+        {/* Time selection question */}
+        <Text style={styles.timeSelectionQuestion}>
+          How much time do you have?
         </Text>
 
-        <View style={styles.optionsContainer}>
+        <View style={styles.timeOptionsContainer}>
           <TouchableOpacity
-            onPress={handleSoMiRoutinePress}
+            onPress={() => handleTimeSelection(2)}
             activeOpacity={0.9}
-            style={styles.optionTile}
+            style={styles.timeOptionTile}
           >
-            <BlurView intensity={15} tint="dark" style={styles.optionBlur}>
-              <Text style={styles.optionTitle}>Start SoMi Routine</Text>
-              <Text style={styles.optionSubtitle}>Our algorithm guides you</Text>
+            <BlurView intensity={15} tint="dark" style={styles.timeOptionBlur}>
+              <Text style={styles.timeOptionMinutes}>5</Text>
+              <Text style={styles.timeOptionLabel}>minutes</Text>
+              <Text style={styles.timeOptionBlocks}>2 blocks</Text>
             </BlurView>
           </TouchableOpacity>
 
           <TouchableOpacity
-            onPress={handleChooseExercisePress}
+            onPress={() => handleTimeSelection(6)}
             activeOpacity={0.9}
-            style={styles.optionTile}
+            style={styles.timeOptionTile}
           >
-            <BlurView intensity={15} tint="dark" style={styles.optionBlur}>
-              <Text style={styles.optionTitle}>Choose Exercise</Text>
-              <Text style={styles.optionSubtitle}>Select from our library</Text>
+            <BlurView intensity={15} tint="dark" style={styles.timeOptionBlur}>
+              <Text style={styles.timeOptionMinutes}>10</Text>
+              <Text style={styles.timeOptionLabel}>minutes</Text>
+              <Text style={styles.timeOptionBlocks}>6 blocks</Text>
             </BlurView>
           </TouchableOpacity>
 
           <TouchableOpacity
-            onPress={handleChooseRoutinePress}
+            onPress={() => handleTimeSelection(10)}
             activeOpacity={0.9}
-            style={styles.optionTile}
+            style={styles.timeOptionTile}
           >
-            <BlurView intensity={15} tint="dark" style={styles.optionBlur}>
-              <Text style={styles.optionTitle}>Choose Routine</Text>
-              <Text style={styles.optionSubtitle}>Pre-built exercise sequences</Text>
-            </BlurView>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            onPress={handleSelfGuidedPress}
-            activeOpacity={0.9}
-            style={styles.optionTile}
-          >
-            <BlurView intensity={15} tint="dark" style={styles.optionBlur}>
-              <Text style={styles.optionTitle}>Start SoMi Timer</Text>
-              <Text style={styles.optionSubtitle}>Self-guided practice time</Text>
+            <BlurView intensity={15} tint="dark" style={styles.timeOptionBlur}>
+              <Text style={styles.timeOptionMinutes}>15</Text>
+              <Text style={styles.timeOptionLabel}>minutes</Text>
+              <Text style={styles.timeOptionBlocks}>10 blocks</Text>
             </BlurView>
           </TouchableOpacity>
         </View>
@@ -852,6 +915,7 @@ export default function SoMeCheckIn({ navigation, route }) {
       <Animated.View
         style={[
           styles.stepContainer,
+          currentStep === 4 && styles.stepContainerCentered,
           {
             opacity: step4Opacity,
             transform: [{ translateX: step4TranslateX }],
@@ -863,22 +927,30 @@ export default function SoMeCheckIn({ navigation, route }) {
         ]}
         pointerEvents={currentStep === 4 ? 'auto' : 'none'}
       >
-
-        <BlurView intensity={20} tint="dark" style={styles.card}>
-          <View style={styles.cardContent}>
-            {/* Journal button floating near question */}
+        <View style={styles.cardContent}>
+          {/* Question at top */}
+          <View style={styles.questionSection}>
             <TouchableOpacity
               onPress={() => handleJournalPress(4)}
               activeOpacity={0.8}
-              style={styles.journalButtonFloating}
+              style={[
+                styles.journalButtonFloating,
+                helpMode && styles.helpModeHighlight
+              ]}
             >
               <Text style={styles.journalIconFloating}>📝</Text>
             </TouchableOpacity>
+            <Text style={styles.questionTextStep4}>
+              {loopPolyvagalState ? 'how present are those\nfeelings in the body?' : 'how do you feel\nin your body right now?'}
+            </Text>
+          </View>
 
+          {/* Centered slider/chips area */}
+          <View style={styles.sliderSection}>
             <EmbodimentSlider
               value={loopSliderValue}
               onValueChange={handleLoopSliderChange}
-              question={"after doing those exercises,\nhow in your body do you feel right now?"}
+              question={null}
               showStateLabel={false}
               showChips={true}
               states={POLYVAGAL_STATES}
@@ -887,16 +959,23 @@ export default function SoMeCheckIn({ navigation, route }) {
               isConfirmed={false}
               onConfirm={null}
               resetKey={resetKey}
+              helpMode={helpMode}
             />
+          </View>
 
-            {/* Body scan button with checkbox for Step 4 */}
-            {!showConfirmMessage && (
-              <View style={styles.bodyScanContainer}>
+          {/* Bottom buttons */}
+          {!showConfirmMessage && (
+            <View style={styles.bottomButtonsWrapper}>
+              {/* SOS and body scan on first row */}
+              <View style={styles.sosBodyScanRow}>
                 <TouchableOpacity
                   onPressIn={handleSOSPress}
                   onPressOut={handleSOSRelease}
                   activeOpacity={0.85}
-                  style={styles.sosButtonSmall}
+                  style={[
+                    styles.sosButtonSmall,
+                    helpMode && styles.helpModeHighlightSOS
+                  ]}
                 >
                   <LinearGradient
                     colors={['#ff6b9d', '#ffa8b3']}
@@ -912,58 +991,58 @@ export default function SoMeCheckIn({ navigation, route }) {
                   onPressIn={handleBodyScanPress}
                   onPressOut={handleBodyScanRelease}
                   activeOpacity={0.8}
-                  style={styles.bodyScanButton}
+                  style={[
+                    styles.bodyScanButton,
+                    helpMode && styles.helpModeHighlight
+                  ]}
                 >
-                  <Text style={styles.bodyScanText}>not sure? do a body scan</Text>
+                  <Text style={styles.bodyScanText}>do a body scan</Text>
                 </TouchableOpacity>
 
                 <TouchableOpacity
-                  onPress={handleLoopCheckboxPress}
-                  activeOpacity={0.7}
-                  style={styles.checkboxButton}
+                  onPress={handleHelpModeToggle}
+                  activeOpacity={0.8}
+                  style={[styles.helpButtonSmall, helpMode && styles.helpButtonSmallActive]}
                 >
-                  <View style={styles.checkboxCircle}>
-                    <Svg width={16} height={16} viewBox="0 0 24 24">
+                  <Text style={styles.helpButtonSmallIcon}>?</Text>
+                </TouchableOpacity>
+              </View>
+
+              {/* Skip and Finish buttons */}
+              <View style={styles.step4NavigationRow}>
+                <TouchableOpacity
+                  onPress={handleSkipFinalCheckin}
+                  activeOpacity={0.7}
+                  style={styles.step4SkipButton}
+                >
+                  <Text style={styles.step4SkipButtonText}>Skip</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  onPress={handleFinish}
+                  activeOpacity={0.7}
+                  style={styles.step4FinishButton}
+                >
+                  <Text style={styles.step4FinishButtonText}>Finish</Text>
+                  <View style={styles.step4FinishCheckmark}>
+                    <Svg width={18} height={18} viewBox="0 0 24 24">
                       <Path
                         d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"
-                        fill="#4ecdc4"
+                        fill={colors.accent.primary}
                       />
                     </Svg>
                   </View>
                 </TouchableOpacity>
               </View>
-            )}
+            </View>
+          )}
 
-            {/* Confirmation message */}
-            {showConfirmMessage && (
-              <Animated.View style={[styles.confirmMessage, { opacity: messageOpacity }]}>
-                <Text style={styles.confirmText}>✓ check-in logged</Text>
-              </Animated.View>
-            )}
-          </View>
-        </BlurView>
-
-        {/* Step 4 Navigation Buttons */}
-        <View style={styles.step4ButtonsContainer}>
-          <TouchableOpacity
-            onPress={handleContinueToExercise}
-            activeOpacity={0.9}
-            style={[styles.step4Button, styles.step4ButtonPrimary]}
-          >
-            <BlurView intensity={15} tint="dark" style={styles.step4ButtonBlur}>
-              <Text style={styles.step4ButtonText}>Continue</Text>
-            </BlurView>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            onPress={handleGoHome}
-            activeOpacity={0.9}
-            style={[styles.step4Button, styles.step4ButtonSecondary]}
-          >
-            <BlurView intensity={15} tint="dark" style={styles.step4ButtonBlur}>
-              <Text style={styles.step4ButtonTextSecondary}>I'm Done</Text>
-            </BlurView>
-          </TouchableOpacity>
+          {/* Confirmation message */}
+          {showConfirmMessage && (
+            <Animated.View style={[styles.confirmMessage, { opacity: messageOpacity }]}>
+              <Text style={styles.confirmText}>✓ check-in logged</Text>
+            </Animated.View>
+          )}
         </View>
       </Animated.View>
       </View>
@@ -1037,218 +1116,131 @@ export default function SoMeCheckIn({ navigation, route }) {
           style={styles.journalFullscreen}
         >
           <View style={styles.journalNotebook}>
-            {/* Header with buttons */}
-            <View style={styles.journalHeader}>
-              <TouchableOpacity
-                onPress={() => {
-                  // Cancel - clear entry and close
-                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
-                  if (journalForStep === 1) {
-                    setJournalEntry('')
-                  } else {
-                    setLoopJournalEntry('')
-                  }
-                  setShowJournalModal(false)
-                }}
-                activeOpacity={0.7}
-                style={styles.journalCancelButton}
-              >
-                <Text style={styles.journalCancelText}>✕</Text>
-              </TouchableOpacity>
+            <View style={styles.journalCard}>
+              {/* Header with buttons */}
+              <View style={styles.journalHeader}>
+                <TouchableOpacity
+                  onPress={() => {
+                    // Cancel - clear entry and close
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
+                    if (journalForStep === 1) {
+                      setJournalEntry('')
+                    } else {
+                      setLoopJournalEntry('')
+                    }
+                    setShowJournalModal(false)
+                  }}
+                  activeOpacity={0.7}
+                  style={styles.journalCancelButton}
+                >
+                  <Text style={styles.journalCancelText}>✕</Text>
+                </TouchableOpacity>
 
-              <TouchableOpacity
-                onPress={handleJournalSave}
-                activeOpacity={0.7}
-                style={styles.journalDoneButton}
-              >
-                <Svg width={24} height={24} viewBox="0 0 24 24">
-                  <Path
-                    d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"
-                    fill="#936fb7"
-                  />
-                </Svg>
-              </TouchableOpacity>
-            </View>
+                <TouchableOpacity
+                  onPress={handleJournalSave}
+                  activeOpacity={0.7}
+                  style={styles.journalDoneButton}
+                >
+                  <Svg width={24} height={24} viewBox="0 0 24 24">
+                    <Path
+                      d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"
+                      fill={colors.accent.primary}
+                    />
+                  </Svg>
+                </TouchableOpacity>
+              </View>
 
-            {/* Notebook Content */}
-            <View style={styles.journalNotebookContent}>
-              <Text style={styles.journalNotebookTitle}>what's present right now?</Text>
-              <Text style={styles.journalNotebookSubtitle}>all feelings welcome, exactly as they are</Text>
+              {/* Notebook Content */}
+              <View style={styles.journalNotebookContent}>
+                <Text style={styles.journalNotebookTitle}>what's present right now?</Text>
+                <Text style={styles.journalNotebookSubtitle}>all feelings welcome, exactly as they are</Text>
 
-              <TouchableWithoutFeedback onPress={() => journalInputRef.current?.focus()}>
-                <View style={styles.journalTextInputWrapper}>
-                  <TextInput
-                    ref={journalInputRef}
-                    style={styles.journalTextInput}
-                    value={journalForStep === 1 ? journalEntry : loopJournalEntry}
-                    onChangeText={journalForStep === 1 ? setJournalEntry : setLoopJournalEntry}
-                    placeholder="tap here to begin..."
-                    placeholderTextColor="rgba(45, 36, 56, 0.3)"
-                    multiline
-                    textAlignVertical="top"
-                  />
-                </View>
-              </TouchableWithoutFeedback>
+                <TouchableWithoutFeedback onPress={() => journalInputRef.current?.focus()}>
+                  <View style={styles.journalTextInputWrapper}>
+                    <TextInput
+                      ref={journalInputRef}
+                      style={styles.journalTextInput}
+                      value={journalForStep === 1 ? journalEntry : loopJournalEntry}
+                      onChangeText={journalForStep === 1 ? setJournalEntry : setLoopJournalEntry}
+                      placeholder="tap here to begin..."
+                      placeholderTextColor="#999999"
+                      multiline
+                      textAlignVertical="top"
+                      autoFocus={true}
+                      keyboardType="default"
+                      showSoftInputOnFocus={true}
+                    />
+                  </View>
+                </TouchableWithoutFeedback>
+              </View>
             </View>
           </View>
         </KeyboardAvoidingView>
       </Modal>
 
-      {/* Exercise Selection Modal */}
+
+      {/* Help Info Modal */}
       <Modal
-        visible={showExerciseModal}
-        transparent={false}
-        animationType="slide"
-        onRequestClose={closeExerciseModal}
-      >
-        <LinearGradient
-          colors={['#0f0c29', '#302b63', '#24243e']}
-          style={styles.exerciseModalContainer}
-        >
-          {/* Header */}
-          <View style={styles.exerciseModalHeader}>
-            <TouchableOpacity
-              onPress={closeExerciseModal}
-              activeOpacity={0.7}
-              style={styles.exerciseModalCloseButton}
-            >
-              <Text style={styles.exerciseModalCloseText}>✕</Text>
-            </TouchableOpacity>
-            <Text style={styles.exerciseModalTitle}>Choose Exercise</Text>
-            <View style={{ width: 44 }} />
-          </View>
-
-          {/* Exercise List */}
-          <ScrollView
-            style={styles.exerciseModalScroll}
-            contentContainerStyle={styles.exerciseModalScrollContent}
-            showsVerticalScrollIndicator={false}
-          >
-            {loadingExercises ? (
-              <View style={styles.exerciseLoadingContainer}>
-                <ActivityIndicator size="large" color="#4ecdc4" />
-              </View>
-            ) : exerciseList.length === 0 ? (
-              <View style={styles.exerciseEmptyContainer}>
-                <Text style={styles.exerciseEmptyText}>No exercises available</Text>
-              </View>
-            ) : (
-              exerciseList.map((exercise, index) => {
-                const stateInfo = OLD_STATE_INFO[exercise.state_target]
-                const showStateHeader =
-                  index === 0 || exerciseList[index - 1]?.state_target !== exercise.state_target
-
-                return (
-                  <View key={exercise.id}>
-                    {showStateHeader && stateInfo && (
-                      <View style={styles.exerciseStateHeader}>
-                        <Text style={styles.exerciseStateEmoji}>{OLD_STATE_EMOJIS[exercise.state_target]}</Text>
-                        <Text style={[styles.exerciseStateLabel, { color: stateInfo.color }]}>
-                          {stateInfo.label}
-                        </Text>
-                      </View>
-                    )}
-
-                    <TouchableOpacity
-                      activeOpacity={0.85}
-                      onPress={() => handleExerciseSelect(exercise)}
-                      style={styles.exerciseCard}
-                    >
-                      <BlurView intensity={15} tint="dark" style={styles.exerciseCardBlur}>
-                        <View style={styles.exerciseCardContent}>
-                          {stateInfo && (
-                            <View style={[styles.exerciseIconContainer, { backgroundColor: stateInfo.color + '20' }]}>
-                              <Text style={styles.exerciseIcon}>{OLD_STATE_EMOJIS[exercise.state_target]}</Text>
-                            </View>
-                          )}
-                          <View style={styles.exerciseInfo}>
-                            <Text style={styles.exerciseName}>{exercise.name}</Text>
-                            {exercise.description && (
-                              <Text style={styles.exerciseDescription} numberOfLines={2}>
-                                {exercise.description}
-                              </Text>
-                            )}
-                          </View>
-                          <View style={styles.exercisePlayIcon}>
-                            <Text style={styles.playIconText}>▶</Text>
-                          </View>
-                        </View>
-                      </BlurView>
-                    </TouchableOpacity>
-                  </View>
-                )
-              })
-            )}
-          </ScrollView>
-        </LinearGradient>
-      </Modal>
-
-      {/* Routine Selection Modal */}
-      <Modal
-        visible={showRoutineModal}
+        visible={helpInfoModal.visible}
         transparent={true}
         animationType="fade"
-        onRequestClose={closeRoutineModal}
+        onRequestClose={() => setHelpInfoModal({ ...helpInfoModal, visible: false })}
       >
-        <LinearGradient
-          colors={['rgba(15, 12, 41, 0.95)', 'rgba(48, 43, 99, 0.95)', 'rgba(36, 36, 62, 0.95)']}
-          style={styles.exerciseModalContainer}
-        >
-          {/* Header */}
-          <View style={styles.exerciseModalHeader}>
-            <TouchableOpacity
-              onPress={closeRoutineModal}
-              activeOpacity={0.7}
-              style={styles.exerciseModalCloseButton}
-            >
-              <Text style={styles.exerciseModalCloseText}>✕</Text>
-            </TouchableOpacity>
-            <Text style={styles.exerciseModalTitle}>Choose Routine</Text>
-            <View style={{ width: 44 }} />
-          </View>
+        <View style={styles.helpInfoOverlay}>
+          <BlurView intensity={40} tint="dark" style={styles.helpInfoContainer}>
+            <View style={styles.helpInfoContent}>
+              <Text style={styles.helpInfoTitle}>{helpInfoModal.title}</Text>
+              <Text style={styles.helpInfoDescription}>{helpInfoModal.description}</Text>
+              <TouchableOpacity
+                onPress={() => {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
+                  setHelpInfoModal({ ...helpInfoModal, visible: false })
+                }}
+                style={styles.helpInfoButton}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.helpInfoButtonText}>Got it</Text>
+              </TouchableOpacity>
+            </View>
+          </BlurView>
+        </View>
+      </Modal>
 
-          {/* Routine List */}
-          <ScrollView
-            style={styles.exerciseModalScroll}
-            contentContainerStyle={styles.exerciseModalScrollContent}
-            showsVerticalScrollIndicator={false}
-          >
-            {loadingRoutines ? (
-              <View style={styles.exerciseLoadingContainer}>
-                <ActivityIndicator size="large" color="#4ecdc4" />
-              </View>
-            ) : routineList.length === 0 ? (
-              <View style={styles.exerciseEmptyContainer}>
-                <Text style={styles.exerciseEmptyText}>No routines available</Text>
-              </View>
-            ) : (
-              routineList.map((routine) => (
+      {/* Exit Confirmation Modal */}
+      <Modal
+        visible={showExitModal}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={handleCancelExit}
+      >
+        <View style={styles.modalOverlay}>
+          <BlurView intensity={40} tint="dark" style={styles.exitModalContainer}>
+            <View style={styles.exitModalContent}>
+              <Text style={styles.exitModalTitle}>End Session?</Text>
+              <Text style={styles.exitModalMessage}>
+                Are you sure you want to end this check-in early?
+              </Text>
+
+              <View style={styles.exitModalButtons}>
                 <TouchableOpacity
-                  key={routine.id}
-                  activeOpacity={0.85}
-                  onPress={() => handleRoutineSelect(routine)}
-                  style={styles.exerciseCard}
+                  onPress={handleCancelExit}
+                  style={[styles.exitModalButton, styles.exitModalButtonCancel]}
+                  activeOpacity={0.7}
                 >
-                  <BlurView intensity={15} tint="dark" style={styles.exerciseCardBlur}>
-                    <View style={styles.exerciseCardContent}>
-                      <View style={styles.exerciseInfo}>
-                        <Text style={styles.exerciseName}>{routine.name}</Text>
-                        {routine.description && (
-                          <Text style={styles.exerciseDescription} numberOfLines={2}>
-                            {routine.description}
-                          </Text>
-                        )}
-                      </View>
-                      <View style={styles.exercisePlayIcon}>
-                        <Text style={styles.playIconText}>▶</Text>
-                      </View>
-                    </View>
-                  </BlurView>
+                  <Text style={styles.exitModalButtonTextCancel}>Cancel</Text>
                 </TouchableOpacity>
-              ))
-            )}
-          </ScrollView>
-        </LinearGradient>
+
+                <TouchableOpacity
+                  onPress={handleConfirmExit}
+                  style={[styles.exitModalButton, styles.exitModalButtonConfirm]}
+                  activeOpacity={0.7}
+                >
+                  <Text style={styles.exitModalButtonTextConfirm}>End</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </BlurView>
+        </View>
       </Modal>
     </LinearGradient>
   )
@@ -1271,9 +1263,9 @@ const styles = StyleSheet.create({
     marginTop: -60,
     marginBottom: 20,
     paddingTop: 60,
-    backgroundColor: 'rgba(26, 22, 37, 0.8)',
+    backgroundColor: colors.overlay.dark,
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255, 255, 255, 0.1)',
+    borderBottomColor: colors.border.subtle,
   },
   headerButton: {
     width: 44,
@@ -1282,12 +1274,12 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   headerButtonText: {
-    color: '#f7f9fb',
+    color: colors.text.primary,
     fontSize: 28,
     fontWeight: '300',
   },
   headerTitle: {
-    color: '#f7f9fb',
+    color: colors.text.primary,
     fontSize: 20,
     fontWeight: '600',
     letterSpacing: 0.5,
@@ -1301,78 +1293,189 @@ const styles = StyleSheet.create({
   },
   stepContainerCentered: {
     flex: 1,
-    justifyContent: 'center',
+    justifyContent: 'flex-start',
   },
   card: {
     borderRadius: 24,
     overflow: 'hidden',
     marginBottom: 25,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.1)',
+    borderColor: colors.border.subtle,
   },
   cardContent: {
-    padding: 20,
+    flex: 1,
+    paddingHorizontal: 20,
+    paddingTop: 16,
+    paddingBottom: 20,
+  },
+  questionSection: {
+    position: 'relative',
+    paddingTop: 8,
+  },
+  questionText: {
+    color: colors.text.primary,
+    fontSize: 24,
+    fontWeight: '500',
+    lineHeight: 32,
+    letterSpacing: 0.3,
+  },
+  questionTextStep4: {
+    color: colors.text.primary,
+    fontSize: 24,
+    fontWeight: '500',
+    lineHeight: 32,
+    letterSpacing: 0.3,
+  },
+  sliderSection: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   bodyScanContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    marginTop: 20,
+    gap: 12,
+    paddingBottom: 8,
+  },
+  bottomButtonsWrapper: {
+    gap: 12,
+    paddingBottom: 8,
+    alignItems: 'center',
+  },
+  sosBodyScanRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
     gap: 12,
   },
   bodyScanButton: {
-    paddingVertical: 12,
-    paddingHorizontal: 24,
-    backgroundColor: 'rgba(255, 255, 255, 0.08)',
-    borderRadius: 24,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.15)',
+    paddingVertical: 14,
+    paddingHorizontal: 28,
+    backgroundColor: colors.surface.tertiary,
+    borderRadius: 26,
+    borderWidth: 2,
+    borderColor: colors.border.default,
+    flex: 1,
   },
   bodyScanText: {
-    color: 'rgba(247, 249, 251, 0.7)',
+    color: colors.text.secondary,
     fontSize: 13,
     fontWeight: '600',
     textAlign: 'center',
     letterSpacing: 0.3,
   },
-  checkboxButton: {
-    padding: 4,
-  },
-  checkboxCircle: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: 'rgba(78, 205, 196, 0.15)',
-    borderWidth: 2,
-    borderColor: '#4ecdc4',
+  step1NavigationRow: {
+    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
+    gap: 12,
+  },
+  step1NevermindButton: {
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    backgroundColor: colors.surface.tertiary,
+    borderRadius: 22,
+    borderWidth: 2,
+    borderColor: colors.border.default,
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+  },
+  step1NevermindButtonText: {
+    color: colors.text.muted,
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  step1ContinueButton: {
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    backgroundColor: colors.surface.secondary,
+    borderRadius: 22,
+    borderWidth: 2,
+    borderColor: colors.accent.primary,
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  step1ContinueButtonText: {
+    color: colors.accent.primary,
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  step1ContinueCheckmark: {
+    // Container for the checkmark SVG
   },
   confirmMessage: {
     marginTop: 15,
     paddingVertical: 12,
     paddingHorizontal: 24,
-    backgroundColor: 'rgba(78, 205, 196, 0.2)',
+    backgroundColor: 'rgba(0, 217, 163, 0.2)',
     borderRadius: 24,
     borderWidth: 1,
-    borderColor: '#4ecdc4',
+    borderColor: colors.accent.primary,
     alignSelf: 'center',
   },
   confirmText: {
-    color: '#4ecdc4',
+    color: colors.accent.primary,
     fontSize: 14,
     fontWeight: '600',
     textAlign: 'center',
     letterSpacing: 0.3,
   },
   disclaimerText: {
-    color: 'rgba(247, 249, 251, 0.8)',
+    color: colors.text.secondary,
     fontSize: 15,
     fontWeight: '500',
     textAlign: 'center',
     lineHeight: 22,
     marginBottom: 24,
     paddingHorizontal: 12,
+  },
+  timeSelectionQuestion: {
+    color: colors.text.primary,
+    fontSize: 24,
+    fontWeight: '600',
+    textAlign: 'center',
+    marginBottom: 32,
+    letterSpacing: 0.5,
+  },
+  timeOptionsContainer: {
+    gap: 16,
+    paddingHorizontal: 24,
+  },
+  timeOptionTile: {
+    borderRadius: 20,
+    overflow: 'hidden',
+    borderWidth: 2,
+    borderColor: colors.border.default,
+  },
+  timeOptionBlur: {
+    paddingVertical: 20,
+    paddingHorizontal: 24,
+    alignItems: 'center',
+  },
+  timeOptionMinutes: {
+    color: colors.accent.primary,
+    fontSize: 48,
+    fontWeight: '700',
+    letterSpacing: -1,
+  },
+  timeOptionLabel: {
+    color: colors.text.secondary,
+    fontSize: 16,
+    fontWeight: '500',
+    marginTop: 4,
+  },
+  timeOptionBlocks: {
+    color: colors.text.muted,
+    fontSize: 13,
+    fontWeight: '500',
+    marginTop: 8,
   },
   optionsContainer: {
     gap: 16,
@@ -1390,69 +1493,114 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   step4ButtonPrimary: {
-    borderColor: '#4ecdc4',
+    borderColor: colors.accent.primary,
   },
   step4ButtonSecondary: {
-    borderColor: 'rgba(255, 255, 255, 0.2)',
+    borderColor: colors.border.default,
   },
   step4ButtonBlur: {
     paddingVertical: 18,
     paddingHorizontal: 24,
   },
   step4ButtonText: {
-    color: '#4ecdc4',
+    color: colors.accent.primary,
     fontSize: 14,
     fontWeight: '600',
     textAlign: 'center',
     letterSpacing: 0.3,
   },
   step4ButtonTextSecondary: {
-    color: 'rgba(247, 249, 251, 0.7)',
+    color: colors.text.muted,
     fontSize: 14,
     fontWeight: '600',
     textAlign: 'center',
     letterSpacing: 0.3,
   },
+  step4NavigationRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 12,
+  },
+  step4SkipButton: {
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    backgroundColor: colors.surface.tertiary,
+    borderRadius: 22,
+    borderWidth: 2,
+    borderColor: colors.border.default,
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+  },
+  step4SkipButtonText: {
+    color: colors.text.muted,
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  step4FinishButton: {
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    backgroundColor: colors.surface.secondary,
+    borderRadius: 22,
+    borderWidth: 2,
+    borderColor: colors.accent.primary,
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  step4FinishButtonText: {
+    color: colors.accent.primary,
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  step4FinishCheckmark: {
+    // Container for the checkmark SVG
+  },
   optionTile: {
     borderRadius: 20,
     overflow: 'hidden',
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.1)',
+    borderColor: colors.border.subtle,
   },
   optionBlur: {
     paddingVertical: 24,
     paddingHorizontal: 24,
   },
   optionTitle: {
-    color: '#f7f9fb',
+    color: colors.text.primary,
     fontSize: 18,
     fontWeight: '600',
     marginBottom: 4,
     letterSpacing: 0.3,
   },
   optionSubtitle: {
-    color: 'rgba(247, 249, 251, 0.6)',
+    color: colors.text.muted,
     fontSize: 14,
     fontWeight: '400',
     letterSpacing: 0.2,
   },
   sosButtonSmall: {
     shadowColor: '#ff6b9d',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 4,
-    elevation: 3,
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.35,
+    shadowRadius: 6,
+    elevation: 4,
   },
   sosButtonSmallGradient: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     alignItems: 'center',
     justifyContent: 'center',
   },
   sosTextSmall: {
     color: '#ffffff',
-    fontSize: 9,
+    fontSize: 10,
     fontWeight: '700',
     letterSpacing: 0.8,
     textTransform: 'uppercase',
@@ -1469,7 +1617,7 @@ const styles = StyleSheet.create({
     borderRadius: 28,
     overflow: 'hidden',
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.2)',
+    borderColor: colors.border.default,
     maxWidth: 380,
     width: '100%',
   },
@@ -1513,42 +1661,61 @@ const styles = StyleSheet.create({
     letterSpacing: 0.3,
   },
   transitionPercentage: {
-    color: '#f7f9fb',
+    color: colors.text.primary,
     fontSize: 22,
     fontWeight: '700',
     letterSpacing: 0.3,
   },
   transitionArrow: {
-    color: 'rgba(247, 249, 251, 0.6)',
+    color: colors.text.muted,
     fontSize: 24,
     fontWeight: '300',
     marginHorizontal: 8,
     marginTop: -20,
   },
   transitionModalButton: {
-    backgroundColor: 'rgba(78, 205, 196, 0.2)',
+    backgroundColor: 'rgba(0, 217, 163, 0.2)',
     borderWidth: 2,
-    borderColor: '#4ecdc4',
+    borderColor: colors.accent.primary,
     borderRadius: 22,
     paddingVertical: 14,
     paddingHorizontal: 48,
   },
   transitionModalButtonText: {
-    color: '#4ecdc4',
+    color: colors.accent.primary,
     fontSize: 17,
     fontWeight: '600',
     letterSpacing: 0.3,
   },
-  journalButtonFloating: {
-    position: 'absolute',
-    top: 16,
-    right: 16,
+  helpButtonSmall: {
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: 'rgba(147, 112, 219, 0.12)',
+    backgroundColor: colors.surface.tertiary,
+    borderWidth: 2,
+    borderColor: 'rgba(255, 255, 255, 0.25)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  helpButtonSmallActive: {
+    backgroundColor: 'rgba(0, 217, 163, 0.2)',
+    borderColor: colors.accent.primary,
+  },
+  helpButtonSmallIcon: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#ffffff',
+  },
+  journalButtonFloating: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: colors.surface.tertiary,
     borderWidth: 1,
-    borderColor: 'rgba(147, 112, 219, 0.25)',
+    borderColor: colors.border.default,
     alignItems: 'center',
     justifyContent: 'center',
     zIndex: 10,
@@ -1558,14 +1725,27 @@ const styles = StyleSheet.create({
   },
   journalFullscreen: {
     flex: 1,
-    backgroundColor: '#faf8ff',
+    backgroundColor: colors.background.primary,
   },
   journalNotebook: {
     flex: 1,
     paddingTop: 60,
+    paddingHorizontal: 20,
+  },
+  journalCard: {
+    flex: 1,
+    backgroundColor: '#F8F9FA',
+    borderRadius: 16,
+    marginBottom: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 4,
   },
   journalHeader: {
-    paddingHorizontal: 24,
+    paddingHorizontal: 20,
+    paddingTop: 16,
     paddingBottom: 16,
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -1575,12 +1755,12 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: 'rgba(147, 112, 219, 0.08)',
+    backgroundColor: '#E8E9EA',
     alignItems: 'center',
     justifyContent: 'center',
   },
   journalCancelText: {
-    color: 'rgba(147, 112, 219, 0.6)',
+    color: '#666666',
     fontSize: 24,
     fontWeight: '300',
   },
@@ -1588,27 +1768,28 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: 'rgba(147, 112, 219, 0.15)',
+    backgroundColor: colors.surface.secondary,
     alignItems: 'center',
     justifyContent: 'center',
   },
   journalNotebookContent: {
     flex: 1,
-    paddingHorizontal: 32,
+    paddingHorizontal: 24,
+    paddingBottom: 24,
   },
   journalNotebookTitle: {
-    color: '#2d2438',
-    fontSize: 32,
-    fontWeight: '600',
+    color: '#1A1A1A',
+    fontSize: 28,
+    fontWeight: '700',
     letterSpacing: 0.3,
-    marginBottom: 8,
+    marginBottom: 6,
   },
   journalNotebookSubtitle: {
-    color: 'rgba(45, 36, 56, 0.5)',
-    fontSize: 15,
+    color: '#666666',
+    fontSize: 14,
     fontWeight: '400',
     letterSpacing: 0.2,
-    marginBottom: 32,
+    marginBottom: 24,
   },
   journalTextInputWrapper: {
     flex: 1,
@@ -1618,10 +1799,10 @@ const styles = StyleSheet.create({
     backgroundColor: 'transparent',
     borderWidth: 0,
     padding: 0,
-    color: '#2d2438',
-    fontSize: 18,
+    color: '#1A1A1A',
+    fontSize: 17,
     fontWeight: '400',
-    lineHeight: 28,
+    lineHeight: 26,
   },
   exerciseModalContainer: {
     flex: 1,
@@ -1638,17 +1819,17 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    backgroundColor: colors.surface.tertiary,
     alignItems: 'center',
     justifyContent: 'center',
   },
   exerciseModalCloseText: {
-    color: '#f7f9fb',
+    color: colors.text.primary,
     fontSize: 24,
     fontWeight: '300',
   },
   exerciseModalTitle: {
-    color: '#f7f9fb',
+    color: colors.text.primary,
     fontSize: 20,
     fontWeight: '600',
     letterSpacing: 0.5,
@@ -1669,7 +1850,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   exerciseEmptyText: {
-    color: 'rgba(247, 249, 251, 0.6)',
+    color: colors.text.muted,
     fontSize: 16,
     fontWeight: '500',
   },
@@ -1694,7 +1875,7 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     marginBottom: 12,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.1)',
+    borderColor: colors.border.subtle,
   },
   exerciseCardBlur: {
     padding: 16,
@@ -1718,14 +1899,14 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   exerciseName: {
-    color: '#f7f9fb',
+    color: colors.text.primary,
     fontSize: 16,
     fontWeight: '600',
     letterSpacing: 0.3,
     marginBottom: 4,
   },
   exerciseDescription: {
-    color: 'rgba(247, 249, 251, 0.6)',
+    color: colors.text.muted,
     fontSize: 13,
     fontWeight: '400',
     lineHeight: 18,
@@ -1734,13 +1915,139 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: 'rgba(78, 205, 196, 0.2)',
+    backgroundColor: 'rgba(0, 217, 163, 0.2)',
     alignItems: 'center',
     justifyContent: 'center',
   },
   playIconText: {
-    color: '#4ecdc4',
+    color: colors.accent.primary,
     fontSize: 14,
     marginLeft: 2,
+  },
+  helpModeHighlight: {
+    borderColor: colors.accent.primary,
+    borderWidth: 2,
+    backgroundColor: colors.surface.secondary,
+  },
+  helpModeHighlightSOS: {
+    shadowColor: colors.accent.primary,
+    shadowOpacity: 0.5,
+    shadowRadius: 8,
+    elevation: 6,
+  },
+  helpInfoOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 24,
+  },
+  helpInfoContainer: {
+    borderRadius: 24,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: colors.border.default,
+    maxWidth: 340,
+    width: '100%',
+  },
+  helpInfoContent: {
+    padding: 24,
+    alignItems: 'center',
+  },
+  helpInfoTitle: {
+    color: colors.text.primary,
+    fontSize: 22,
+    fontWeight: '600',
+    marginBottom: 12,
+    textAlign: 'center',
+    letterSpacing: 0.5,
+  },
+  helpInfoDescription: {
+    color: colors.text.secondary,
+    fontSize: 15,
+    fontWeight: '400',
+    lineHeight: 22,
+    textAlign: 'center',
+    marginBottom: 20,
+    letterSpacing: 0.2,
+  },
+  helpInfoButton: {
+    backgroundColor: colors.surface.secondary,
+    borderWidth: 2,
+    borderColor: colors.accent.primary,
+    borderRadius: 20,
+    paddingVertical: 12,
+    paddingHorizontal: 32,
+  },
+  helpInfoButtonText: {
+    color: colors.accent.primary,
+    fontSize: 16,
+    fontWeight: '600',
+    letterSpacing: 0.3,
+  },
+  exitModalContainer: {
+    borderRadius: 28,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: colors.border.default,
+    maxWidth: 380,
+    width: '100%',
+  },
+  exitModalContent: {
+    padding: 32,
+    alignItems: 'center',
+  },
+  exitModalTitle: {
+    color: colors.text.primary,
+    fontSize: 22,
+    fontWeight: '600',
+    marginBottom: 12,
+    textAlign: 'center',
+    letterSpacing: 0.5,
+  },
+  exitModalMessage: {
+    color: colors.text.secondary,
+    fontSize: 16,
+    fontWeight: '400',
+    lineHeight: 24,
+    textAlign: 'center',
+    marginBottom: 28,
+    letterSpacing: 0.2,
+  },
+  exitModalButtons: {
+    flexDirection: 'row',
+    gap: 12,
+    width: '100%',
+  },
+  exitModalButton: {
+    flex: 1,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: 48,
+  },
+  exitModalButtonCancel: {
+    backgroundColor: colors.surface.tertiary,
+    borderWidth: 2,
+    borderColor: colors.border.default,
+  },
+  exitModalButtonConfirm: {
+    backgroundColor: 'rgba(255, 107, 107, 0.2)',
+    borderWidth: 2,
+    borderColor: '#ff6b6b',
+  },
+  exitModalButtonTextCancel: {
+    color: colors.text.secondary,
+    fontSize: 15,
+    fontWeight: '600',
+    letterSpacing: 0.3,
+  },
+  exitModalButtonTextConfirm: {
+    color: '#ff6b6b',
+    fontSize: 15,
+    fontWeight: '600',
+    letterSpacing: 0.3,
   },
 })

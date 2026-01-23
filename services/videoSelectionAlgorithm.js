@@ -87,6 +87,62 @@ export function selectSOSVideo(availableBlocks) {
   return sosBlock
 }
 
+// Select video for routine (with repeat avoidance)
+//
+// Inputs:
+//   - availableBlocks: all active video blocks from database
+//   - polyvagalState: 'withdrawn', 'stirring', 'activated', 'settling', 'connected'
+//   - previousBlockId: ID of the last played video to avoid immediate repeats
+//
+// Returns: selected video block with media_url, id, name, etc.
+//
+export function selectRoutineVideo(availableBlocks, polyvagalState, previousBlockId = null) {
+  // Safety check: if no blocks available, return null
+  if (!availableBlocks || availableBlocks.length === 0) {
+    console.warn('No video blocks available for routine selection')
+    return null
+  }
+
+  // Filter out the previous video to avoid immediate repeats
+  let candidateBlocks = availableBlocks
+  if (previousBlockId) {
+    candidateBlocks = availableBlocks.filter(block => block.id !== previousBlockId)
+    // If we filtered out everything, fall back to all blocks
+    if (candidateBlocks.length === 0) {
+      candidateBlocks = availableBlocks
+    }
+  }
+
+  // Try to find videos that match the current polyvagal state
+  const matchingBlocks = candidateBlocks.filter(
+    block => block.state_target === polyvagalState
+  )
+
+  // If we found matching videos, pick one randomly
+  if (matchingBlocks.length > 0) {
+    const randomIndex = Math.floor(Math.random() * matchingBlocks.length)
+    const selectedBlock = matchingBlocks[randomIndex]
+
+    console.log(
+      `Routine video selected: "${selectedBlock.name}" ` +
+      `(state match: ${polyvagalState}, ` +
+      `${matchingBlocks.length} options available, ` +
+      `avoided: ${previousBlockId || 'none'})`
+    )
+
+    return selectedBlock
+  }
+
+  // Fallback: No state matches found, pick any random video from candidates
+  console.log(
+    `No videos found for state "${polyvagalState}", ` +
+    `selecting random from ${candidateBlocks.length} videos`
+  )
+
+  const randomIndex = Math.floor(Math.random() * candidateBlocks.length)
+  return candidateBlocks[randomIndex]
+}
+
 // ============================================================================
 // FUTURE ALGORITHM IDEAS (not yet implemented)
 // ============================================================================

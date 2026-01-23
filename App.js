@@ -1,5 +1,5 @@
 import { StatusBar } from 'expo-status-bar'
-import { Pressable } from 'react-native'
+import { Pressable, View } from 'react-native'
 import { NavigationContainer, getFocusedRouteNameFromRoute } from '@react-navigation/native'
 import { createStackNavigator } from '@react-navigation/stack'
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs'
@@ -10,9 +10,12 @@ import SoMeCheckIn from './components/SoMeCheckIn'
 import PlayerScreen from './components/PlayerScreen'
 import MySomiScreen from './components/MySomiScreen'
 import SoMiTimer from './components/SoMiTimer'
+import SoMiRoutineScreen from './components/SoMiRoutineScreen'
+import BodyScanCountdown from './components/BodyScanCountdown'
 import ExploreScreen from './components/ExploreScreen'
 import CategoryDetailScreen from './components/CategoryDetailScreen'
 import { prefetchVideoBlocks } from './constants/media'
+import { colors } from './constants/theme'
 
 const Stack = createStackNavigator()
 const Tab = createBottomTabNavigator()
@@ -23,7 +26,7 @@ function HomeStack() {
     <Stack.Navigator
       screenOptions={{
         headerShown: false,
-        cardStyle: { backgroundColor: '#0f0c29' },
+        cardStyle: { backgroundColor: colors.background.primary },
       }}
     >
       <Stack.Screen name="HomeMain" component={HomeScreen} />
@@ -45,7 +48,7 @@ function CheckInStack() {
     <Stack.Navigator
       screenOptions={{
         headerShown: false,
-        cardStyle: { backgroundColor: '#0f0c29' },
+        cardStyle: { backgroundColor: colors.background.primary },
       }}
     >
       <Stack.Screen name="CheckIn" component={SoMeCheckIn} />
@@ -55,6 +58,22 @@ function CheckInStack() {
         component={SoMiTimer}
         options={{
           presentation: 'card',
+        }}
+      />
+      <Stack.Screen
+        name="SoMiRoutine"
+        component={SoMiRoutineScreen}
+        options={{
+          presentation: 'fullScreenModal',
+          gestureEnabled: false,
+        }}
+      />
+      <Stack.Screen
+        name="BodyScanCountdown"
+        component={BodyScanCountdown}
+        options={{
+          presentation: 'fullScreenModal',
+          gestureEnabled: false,
         }}
       />
       <Stack.Screen
@@ -75,7 +94,7 @@ function ExploreStack() {
     <Stack.Navigator
       screenOptions={{
         headerShown: false,
-        cardStyle: { backgroundColor: '#0f0c29' },
+        cardStyle: { backgroundColor: colors.background.primary },
       }}
     >
       <Stack.Screen name="ExploreMain" component={ExploreScreen} />
@@ -98,7 +117,7 @@ function MySomiStack() {
     <Stack.Navigator
       screenOptions={{
         headerShown: false,
-        cardStyle: { backgroundColor: '#0f0c29' },
+        cardStyle: { backgroundColor: colors.background.primary },
       }}
     >
       <Stack.Screen name="MySomiMain" component={MySomiScreen} />
@@ -139,7 +158,13 @@ export default function App() {
               iconName = focused ? 'leaf' : 'leaf-outline'
             }
 
-            return <Ionicons name={iconName} size={24} color={focused ? '#ffffff' : 'rgba(247, 249, 251, 0.6)'} />
+            return (
+              <Ionicons
+                name={iconName}
+                size={24}
+                color={focused ? '#FFFFFF' : colors.text.muted}
+              />
+            )
           },
           tabBarButton: (props) => {
             const isFocused = props.accessibilityState?.selected
@@ -149,35 +174,37 @@ export default function App() {
                 style={({ pressed }) => [
                   {
                     flex: 1,
-                    backgroundColor: isFocused ? '#4ecdc4' : 'transparent',
-                    borderRadius: 20,
-                    marginHorizontal: 12,
-                    paddingVertical: 10,
                     alignItems: 'center',
                     justifyContent: 'center',
+                    paddingVertical: 8,
+                    backgroundColor: isFocused ? colors.accent.primary : 'transparent',
+                    borderRadius: 16,
+                    marginHorizontal: 4,
                     opacity: pressed ? 0.7 : 1,
                   },
                 ]}
-              />
+              >
+                {props.children}
+              </Pressable>
             )
           },
           tabBarStyle: {
-            backgroundColor: '#1a1625',
-            borderTopColor: 'rgba(255, 255, 255, 0.1)',
+            backgroundColor: colors.background.secondary,
+            borderTopColor: colors.border.subtle,
             borderTopWidth: 1,
             paddingTop: 12,
             paddingBottom: 32,
-            paddingHorizontal: 20,
+            paddingHorizontal: 8,
             height: 90,
           },
           tabBarShowLabel: true,
-          tabBarActiveTintColor: '#4ecdc4',
-          tabBarInactiveTintColor: 'rgba(247, 249, 251, 0.6)',
+          tabBarActiveTintColor: colors.text.primary,
+          tabBarInactiveTintColor: colors.text.muted,
           tabBarLabelStyle: {
-            fontSize: 13,
+            fontSize: 12,
             fontWeight: '600',
-            letterSpacing: 0.5,
-            marginTop: 8,
+            letterSpacing: 0.3,
+            marginTop: 4,
           },
         })}
       >
@@ -192,7 +219,7 @@ export default function App() {
                 return { display: 'none' }
               }
               return {
-                backgroundColor: '#1a1625',
+                backgroundColor: colors.background.secondary,
                 borderTopColor: 'rgba(255, 255, 255, 0.1)',
                 borderTopWidth: 1,
                 paddingTop: 12,
@@ -210,12 +237,12 @@ export default function App() {
             tabBarLabel: 'Check In',
             tabBarStyle: (() => {
               const routeName = getFocusedRouteNameFromRoute(route) ?? 'CheckIn'
-              // Hide tab bar when on CheckIn screen, SoMiTimer, or Player
-              if (routeName === 'Player' || routeName === 'CheckIn' || routeName === 'SoMiTimer' || routeName === 'SoMeCheckIn') {
+              // Hide tab bar when on CheckIn screen, SoMiTimer, SoMiRoutine, BodyScanCountdown, or Player
+              if (routeName === 'Player' || routeName === 'CheckIn' || routeName === 'SoMiTimer' || routeName === 'SoMiRoutine' || routeName === 'BodyScanCountdown' || routeName === 'SoMeCheckIn') {
                 return { display: 'none' }
               }
               return {
-                backgroundColor: '#1a1625',
+                backgroundColor: colors.background.secondary,
                 borderTopColor: 'rgba(255, 255, 255, 0.1)',
                 borderTopWidth: 1,
                 paddingTop: 12,
@@ -239,7 +266,7 @@ export default function App() {
                 return { display: 'none' }
               }
               return {
-                backgroundColor: '#1a1625',
+                backgroundColor: colors.background.secondary,
                 borderTopColor: 'rgba(255, 255, 255, 0.1)',
                 borderTopWidth: 1,
                 paddingTop: 12,
@@ -263,7 +290,7 @@ export default function App() {
                 return { display: 'none' }
               }
               return {
-                backgroundColor: '#1a1625',
+                backgroundColor: colors.background.secondary,
                 borderTopColor: 'rgba(255, 255, 255, 0.1)',
                 borderTopWidth: 1,
                 paddingTop: 12,

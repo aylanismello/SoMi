@@ -3,15 +3,16 @@ import { useRef, useState, useEffect, useMemo } from 'react'
 import Svg, { Circle, Defs, LinearGradient, Stop, G, Path } from 'react-native-svg'
 import * as Haptics from 'expo-haptics'
 import { BlurView } from 'expo-blur'
+import { colors } from '../constants/theme'
 
 // New polyvagal state system using codes (0-5)
 const POLYVAGAL_STATE_MAP = {
   0: { id: 0, label: 'SOS', color: '#ff6b9d', icon: '🆘' },
-  1: { id: 1, label: 'Drained', color: '#7b68ee', icon: '🌧' },
-  2: { id: 2, label: 'Foggy', color: '#9d7be8', icon: '🌫' },
-  3: { id: 3, label: 'Wired', color: '#b88ddc', icon: '🌪' },
-  4: { id: 4, label: 'Steady', color: '#68c9ba', icon: '🌤' },
-  5: { id: 5, label: 'Glowing', color: '#4ecdc4', icon: '☀️' },
+  1: { id: 1, label: 'Drained', color: '#4A5F8C', icon: '🌧' },
+  2: { id: 2, label: 'Foggy', color: '#5B7BB4', icon: '🌫' },
+  3: { id: 3, label: 'Wired', color: '#6B9BD1', icon: '🌪' },
+  4: { id: 4, label: 'Steady', color: '#7DBCE7', icon: '🌤' },
+  5: { id: 5, label: 'Glowing', color: '#90DDF0', icon: '☀️' },
 }
 
 // Polyvagal state descriptions for tooltips
@@ -23,38 +24,38 @@ const STATE_DESCRIPTIONS = {
   },
   1: {
     label: 'Drained',
-    description: 'Low energy, shutdown, nothing feels worth it. Dorsal collapse / dissociation.',
+    description: 'Heavy. Low energy. Hard to move or care.',
     icon: '🌧',
   },
   2: {
     label: 'Foggy',
-    description: 'Autopilot, frozen, body feels far away. Dorsal + sympathetic (functional freeze).',
+    description: 'Unclear. Hard to focus. Numb or frozen.',
     icon: '🌫',
   },
   3: {
     label: 'Wired',
-    description: 'High energy, tense, hard to slow down. Sympathetic / fight-flight.',
+    description: 'Tense. On edge. Restless energy in the body.',
     icon: '🌪',
   },
   4: {
     label: 'Steady',
-    description: 'Calm, balanced, gently alert. Ventral.',
+    description: 'Grounded. Clear. Breathing feels even and easy.',
     icon: '🌤',
   },
   5: {
     label: 'Glowing',
-    description: 'Optimal state, fully present and connected.',
+    description: 'Open. Warm. Connected to self and surroundings.',
     icon: '☀️',
   },
 }
 
 // Old system (deprecated - kept for backwards compatibility with old data)
 const STATE_LABELS = [
-  { range: [0, 20], label: 'Withdrawn', color: '#7b68ee' },
-  { range: [20, 40], label: 'Stirring', color: '#9d7be8' },
-  { range: [40, 60], label: 'Activated', color: '#b88ddc' },
-  { range: [60, 80], label: 'Settling', color: '#68c9ba' },
-  { range: [80, 100], label: 'Connected', color: '#4ecdc4' },
+  { range: [0, 20], label: 'Withdrawn', color: '#4A5F8C' },
+  { range: [20, 40], label: 'Stirring', color: '#5B7BB4' },
+  { range: [40, 60], label: 'Activated', color: '#6B9BD1' },
+  { range: [60, 80], label: 'Settling', color: '#7DBCE7' },
+  { range: [80, 100], label: 'Connected', color: '#90DDF0' },
 ]
 
 const CIRCLE_SIZE = 200
@@ -64,6 +65,7 @@ const STROKE_WIDTH = 16
 const RADIUS = (CIRCLE_SIZE - STROKE_WIDTH) / 2
 const CENTER = SVG_SIZE / 2
 const CIRCUMFERENCE = 2 * Math.PI * RADIUS
+const CHIP_RING_SIZE = 320 // Larger container for chip ring to prevent overlap
 
 export default function EmbodimentSlider({
   value,
@@ -83,20 +85,36 @@ export default function EmbodimentSlider({
   isConfirmed = false,
   onConfirm = null,
   resetKey = 0, // New prop to force carousel reset
+  helpMode = false, // New prop for help mode
 }) {
   const previousValueRef = useRef(value)
   const touchStartedOnRing = useRef(false)
   const [tooltipVisible, setTooltipVisible] = useState(false)
   const [tooltipState, setTooltipState] = useState(null)
-  const scrollViewRef = useRef(null)
-  const savedScrollPosition = useRef(0) // Store scroll position before selection
 
-  // Reset carousel scroll position when resetKey changes (full reset)
+  // Animation values for circular ring layout
+  const chipAnimations = useRef({})
+
+  // Initialize animations for each state
   useEffect(() => {
-    if (scrollViewRef.current) {
-      scrollViewRef.current.scrollTo({ x: 0, animated: false })
-      savedScrollPosition.current = 0
-    }
+    states.forEach(state => {
+      if (!chipAnimations.current[state.id]) {
+        chipAnimations.current[state.id] = {
+          opacity: new Animated.Value(1),
+          scale: new Animated.Value(1),
+        }
+      }
+    })
+  }, [states])
+
+  // Reset animations when resetKey changes
+  useEffect(() => {
+    states.forEach(state => {
+      if (chipAnimations.current[state.id]) {
+        chipAnimations.current[state.id].opacity.setValue(1)
+        chipAnimations.current[state.id].scale.setValue(1)
+      }
+    })
   }, [resetKey])
 
   // Get current state label and color based on slider value
@@ -121,32 +139,81 @@ export default function EmbodimentSlider({
   const progress = value / 100
   const strokeDashoffset = CIRCUMFERENCE * (1 - progress)
 
-  // Handle chip selection
+  // Handle chip selection with fade animation
   const handleChipPress = (stateId) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium)
-    if (onStateChange) {
-      onStateChange(stateId)
+
+    // If in help mode, show info instead of selecting
+    if (helpMode) {
+      handleInfoPress(stateId)
+      return
     }
+
+    // Fade out all chips except the selected one
+    const animations = states.map(state => {
+      if (state.id === stateId) {
+        // Selected chip stays visible
+        return Animated.parallel([
+          Animated.timing(chipAnimations.current[state.id].opacity, {
+            toValue: 1,
+            duration: 300,
+            useNativeDriver: true,
+          }),
+          Animated.timing(chipAnimations.current[state.id].scale, {
+            toValue: 1,
+            duration: 300,
+            useNativeDriver: true,
+          }),
+        ])
+      } else {
+        // Other chips fade out
+        return Animated.parallel([
+          Animated.timing(chipAnimations.current[state.id].opacity, {
+            toValue: 0,
+            duration: 300,
+            useNativeDriver: true,
+          }),
+          Animated.timing(chipAnimations.current[state.id].scale, {
+            toValue: 0.8,
+            duration: 300,
+            useNativeDriver: true,
+          }),
+        ])
+      }
+    })
+
+    Animated.parallel(animations).start(() => {
+      if (onStateChange) {
+        onStateChange(stateId)
+      }
+    })
   }
 
-  // Handle chip deselection (X button) - restore scroll position
+  // Handle chip deselection (X button) - fade chips back in
   const handleDeselectChip = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
+
     if (onStateChange) {
       onStateChange(null)
     }
 
-    // Restore the saved scroll position after a brief delay to ensure carousel is rendered
-    setTimeout(() => {
-      if (scrollViewRef.current) {
-        scrollViewRef.current.scrollTo({ x: savedScrollPosition.current, animated: false })
-      }
-    }, 0)
-  }
+    // Fade all chips back in
+    const animations = states.map(state => {
+      return Animated.parallel([
+        Animated.timing(chipAnimations.current[state.id].opacity, {
+          toValue: 1,
+          duration: 300,
+          useNativeDriver: true,
+        }),
+        Animated.timing(chipAnimations.current[state.id].scale, {
+          toValue: 1,
+          duration: 300,
+          useNativeDriver: true,
+        }),
+      ])
+    })
 
-  // Save scroll position when ScrollView is scrolled
-  const handleScroll = (event) => {
-    savedScrollPosition.current = event.nativeEvent.contentOffset.x
+    Animated.parallel(animations).start()
   }
 
   // Handle info button press
@@ -246,18 +313,11 @@ export default function EmbodimentSlider({
     onValueChange(newValue)
   }
 
-  // Dynamic question based on selection state
-  const displayQuestion = showChips
-    ? (selectedStateId
-      ? "how in your body\ndo you feel right now?"
-      : "which best describes\nyour body right now?")
-    : question
-
   return (
     <View style={styles.container}>
-      {(question || showChips) && (
+      {question && (
         <Text style={styles.question}>
-          {displayQuestion}
+          {question}
         </Text>
       )}
 
@@ -279,11 +339,11 @@ export default function EmbodimentSlider({
             <Svg width={SVG_SIZE} height={SVG_SIZE}>
               <Defs>
                 <LinearGradient id="gradient" x1="0%" y1="0%" x2="100%" y2="100%">
-                  <Stop offset="0%" stopColor="#7b68ee" stopOpacity="1" />
-                  <Stop offset="25%" stopColor="#9d7be8" stopOpacity="1" />
-                  <Stop offset="50%" stopColor="#b88ddc" stopOpacity="1" />
-                  <Stop offset="75%" stopColor="#68c9ba" stopOpacity="1" />
-                  <Stop offset="100%" stopColor="#4ecdc4" stopOpacity="1" />
+                  <Stop offset="0%" stopColor="#4A5F8C" stopOpacity="1" />
+                  <Stop offset="25%" stopColor="#5B7BB4" stopOpacity="1" />
+                  <Stop offset="50%" stopColor="#6B9BD1" stopOpacity="1" />
+                  <Stop offset="75%" stopColor="#7DBCE7" stopOpacity="1" />
+                  <Stop offset="100%" stopColor="#90DDF0" stopOpacity="1" />
                 </LinearGradient>
               </Defs>
 
@@ -292,7 +352,7 @@ export default function EmbodimentSlider({
                 cx={CENTER}
                 cy={CENTER}
                 r={RADIUS}
-                stroke="rgba(255, 255, 255, 0.1)"
+                stroke={colors.border.subtle}
                 strokeWidth={STROKE_WIDTH}
                 fill="none"
               />
@@ -368,47 +428,40 @@ export default function EmbodimentSlider({
             </View>
           </View>
         ) : showChips && states.length > 0 ? (
-          // State 1: Show chips carousel centered in the same spot
-          <View style={styles.carouselCenterWrapper}>
-            <ScrollView
-              ref={scrollViewRef}
-              horizontal
-              pagingEnabled={false}
-              showsHorizontalScrollIndicator={false}
-              decelerationRate="fast"
-              snapToInterval={140}
-              snapToAlignment="center"
-              contentContainerStyle={styles.carouselContent}
-              style={styles.carousel}
-              onScroll={handleScroll}
-              scrollEventThrottle={16}
-            >
-              {states.map((state) => (
-                <TouchableOpacity
+          // Simple grid layout
+          <View style={styles.gridWrapper}>
+            {states.map((state) => {
+              const animations = chipAnimations.current[state.id] || { opacity: new Animated.Value(1), scale: new Animated.Value(1) }
+
+              return (
+                <Animated.View
                   key={state.id}
-                  onPress={() => handleChipPress(state.id)}
-                  activeOpacity={0.7}
                   style={[
-                    styles.carouselChip,
-                    { borderColor: state.color }
+                    styles.gridChip,
+                    {
+                      transform: [{ scale: animations.scale }],
+                      opacity: animations.opacity,
+                    }
                   ]}
                 >
-                  <View style={styles.carouselChipContent}>
-                    <Text style={styles.carouselChipIcon}>{STATE_DESCRIPTIONS[state.id]?.icon}</Text>
-                    <Text style={styles.carouselChipLabel}>
-                      {state.label}
-                    </Text>
-                    <TouchableOpacity
-                      onPress={() => handleInfoPress(state.id)}
-                      style={styles.carouselChipInfoButton}
-                      hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-                    >
-                      <Text style={styles.carouselChipInfoIcon}>ⓘ</Text>
-                    </TouchableOpacity>
-                  </View>
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
+                  <TouchableOpacity
+                    onPress={() => handleChipPress(state.id)}
+                    activeOpacity={0.7}
+                    style={[
+                      styles.gridChipButton,
+                      {
+                        borderColor: state.color,
+                        backgroundColor: helpMode ? state.color + '30' : state.color + '15',
+                        borderWidth: helpMode ? 3 : 2.5,
+                      }
+                    ]}
+                  >
+                    <Text style={styles.gridChipIcon}>{STATE_DESCRIPTIONS[state.id]?.icon}</Text>
+                    <Text style={styles.gridChipLabel}>{state.label}</Text>
+                  </TouchableOpacity>
+                </Animated.View>
+              )
+            })}
           </View>
         ) : null}
 
@@ -477,12 +530,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   question: {
-    color: '#f7f9fb',
-    fontSize: 22,
+    color: colors.text.primary,
+    fontSize: 20,
     fontWeight: '500',
-    marginBottom: 20,
+    marginBottom: 12,
     textAlign: 'left',
-    lineHeight: 28,
+    lineHeight: 26,
     letterSpacing: 0.3,
     width: '100%',
   },
@@ -514,7 +567,6 @@ const styles = StyleSheet.create({
     height: SVG_SIZE,
     alignItems: 'center',
     justifyContent: 'center',
-    marginVertical: 10,
     position: 'relative',
     overflow: 'visible',
   },
@@ -528,9 +580,9 @@ const styles = StyleSheet.create({
     width: 70,
     height: 70,
     borderRadius: 35,
-    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+    backgroundColor: colors.surface.tertiary,
     borderWidth: 3,
-    borderColor: 'rgba(255, 255, 255, 0.3)',
+    borderColor: colors.border.default,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -574,7 +626,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     backgroundColor: 'rgba(0, 0, 0, 0.6)',
     borderWidth: 1.5,
-    borderColor: 'rgba(255, 255, 255, 0.6)',
+    borderColor: colors.border.default,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -643,7 +695,7 @@ const styles = StyleSheet.create({
     fontSize: 22,
   },
   focusedChipLabel: {
-    color: '#ffffff',
+    color: colors.text.primary,
     fontSize: 15,
     fontWeight: '700',
     letterSpacing: 0.4,
@@ -660,9 +712,9 @@ const styles = StyleSheet.create({
     width: 32,
     height: 32,
     borderRadius: 16,
-    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+    backgroundColor: colors.surface.tertiary,
     borderWidth: 2,
-    borderColor: 'rgba(255, 255, 255, 0.3)',
+    borderColor: colors.border.default,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -681,7 +733,7 @@ const styles = StyleSheet.create({
     fontSize: 22,
   },
   carouselChipLabel: {
-    color: 'rgba(247, 249, 251, 0.85)',
+    color: colors.text.secondary,
     fontSize: 15,
     fontWeight: '600',
     letterSpacing: 0.4,
@@ -705,7 +757,7 @@ const styles = StyleSheet.create({
     borderRadius: 24,
     overflow: 'hidden',
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.2)',
+    borderColor: colors.border.default,
     maxWidth: 340,
     width: '100%',
   },
@@ -718,7 +770,7 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   tooltipTitle: {
-    color: '#f7f9fb',
+    color: colors.text.primary,
     fontSize: 22,
     fontWeight: '600',
     marginBottom: 12,
@@ -726,7 +778,7 @@ const styles = StyleSheet.create({
     letterSpacing: 0.5,
   },
   tooltipDescription: {
-    color: 'rgba(247, 249, 251, 0.8)',
+    color: colors.text.secondary,
     fontSize: 15,
     fontWeight: '400',
     lineHeight: 22,
@@ -735,15 +787,15 @@ const styles = StyleSheet.create({
     letterSpacing: 0.2,
   },
   tooltipCloseButton: {
-    backgroundColor: 'rgba(78, 205, 196, 0.2)',
+    backgroundColor: colors.surface.secondary,
     borderWidth: 2,
-    borderColor: '#4ecdc4',
+    borderColor: colors.accent.primary,
     borderRadius: 20,
     paddingVertical: 12,
     paddingHorizontal: 32,
   },
   tooltipCloseText: {
-    color: '#4ecdc4',
+    color: colors.accent.primary,
     fontSize: 16,
     fontWeight: '600',
     letterSpacing: 0.3,
@@ -756,9 +808,46 @@ const styles = StyleSheet.create({
     width: '100%',
   },
   label: {
-    color: 'rgba(247, 249, 251, 0.6)',
+    color: colors.text.muted,
     fontSize: 13,
     fontWeight: '500',
+    letterSpacing: 0.3,
+  },
+  // Simple grid layout styles
+  gridWrapper: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'center',
+    alignItems: 'center',
+    width: '100%',
+    maxWidth: 350,
+    gap: 12,
+  },
+  gridChip: {
+    width: '47%',
+  },
+  gridChipButton: {
+    borderRadius: 18,
+    borderWidth: 2.5,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    alignItems: 'center',
+    minHeight: 95,
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 6,
+    elevation: 4,
+  },
+  gridChipIcon: {
+    fontSize: 32,
+    marginBottom: 4,
+  },
+  gridChipLabel: {
+    color: colors.text.primary,
+    fontSize: 13,
+    fontWeight: '600',
     letterSpacing: 0.3,
   },
 })

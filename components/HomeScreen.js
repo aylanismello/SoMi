@@ -1,19 +1,20 @@
 import { useState, useCallback } from 'react'
-import { StyleSheet, View, Text, ScrollView } from 'react-native'
+import { StyleSheet, View, Text, ScrollView, Image } from 'react-native'
 import { LinearGradient } from 'expo-linear-gradient'
 import { BlurView } from 'expo-blur'
 import { somiChainService } from '../supabase'
 import { useFocusEffect } from '@react-navigation/native'
 import { POLYVAGAL_STATE_MAP } from './EmbodimentSlider'
+import { colors } from '../constants/theme'
 
 // Polyvagal states with colors and emojis (new code-based system)
 const POLYVAGAL_STATES = {
   0: { label: 'SOS', color: '#ff6b9d', emoji: '🆘' },
-  1: { label: 'Drained', color: '#7b68ee', emoji: '🌧' },
-  2: { label: 'Foggy', color: '#9d7be8', emoji: '🌫' },
-  3: { label: 'Wired', color: '#b88ddc', emoji: '🌪' },
-  4: { label: 'Steady', color: '#68c9ba', emoji: '🌤' },
-  5: { label: 'Glowing', color: '#4ecdc4', emoji: '☀️' },
+  1: { label: 'Drained', color: '#4A5F8C', emoji: '🌧' },
+  2: { label: 'Foggy', color: '#5B7BB4', emoji: '🌫' },
+  3: { label: 'Wired', color: '#6B9BD1', emoji: '🌪' },
+  4: { label: 'Steady', color: '#7DBCE7', emoji: '🌤' },
+  5: { label: 'Glowing', color: '#90DDF0', emoji: '☀️' },
 }
 
 export default function HomeScreen({ navigation }) {
@@ -76,16 +77,27 @@ export default function HomeScreen({ navigation }) {
   }
 
   return (
-    <LinearGradient
-      colors={['#0f0c29', '#302b63', '#24243e']}
-      style={styles.container}
-    >
+    <View style={styles.container}>
+      {/* Background Image - Hero Section */}
+      <Image
+        source={{ uri: 'https://qujifwhwntqxziymqdwu.supabase.co/storage/v1/object/public/test/home%20screen%20backgrounds/water_1.jpg' }}
+        style={styles.heroImage}
+        resizeMode="cover"
+      />
+
+      {/* Gradient overlay for better text readability */}
+      <LinearGradient
+        colors={['rgba(0, 0, 0, 0)', 'rgba(0, 0, 0, 0.3)', colors.background.primary]}
+        locations={[0, 0.5, 1]}
+        style={styles.heroGradient}
+      />
+
       <ScrollView
         style={styles.scrollView}
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
-        {/* SoMi Logo at top */}
+        {/* SoMi Logo at top - overlaid on image */}
         <View style={styles.logoSection}>
           <Text style={styles.logoText}>SoMi</Text>
         </View>
@@ -93,8 +105,8 @@ export default function HomeScreen({ navigation }) {
         {/* Welcome section */}
         <View style={styles.welcomeSection}>
         <View style={styles.welcomeContent}>
-          <Text style={styles.welcomeText}>Hi there.</Text>
-          <Text style={styles.welcomeSubtext}>Welcome back</Text>
+          <Text style={styles.welcomeText}>Hi Aylan.</Text>
+          <Text style={styles.welcomeSubtext}>Good morning </Text>
 
           {chainStats ? (
             <BlurView intensity={20} tint="dark" style={styles.statsCard}>
@@ -119,7 +131,7 @@ export default function HomeScreen({ navigation }) {
                 {/* Percentage change indicator */}
                 <View style={styles.statRow}>
                   <LinearGradient
-                    colors={chainStats.change >= 0 ? ['#4ecdc4', '#44a08d'] : ['#7b68ee', '#6a5acd']}
+                    colors={chainStats.change >= 0 ? ['#00D9A3', '#00B488'] : ['#5B7BB4', '#4A6A9C']}
                     style={styles.progressIndicator}
                   >
                     <Text style={styles.statsChange}>{chainStats.changePercent}</Text>
@@ -162,13 +174,30 @@ export default function HomeScreen({ navigation }) {
           </View>
         )}
       </ScrollView>
-    </LinearGradient>
+    </View>
   )
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    backgroundColor: colors.background.primary,
+  },
+  heroImage: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    height: 400,
+    width: '100%',
+  },
+  heroGradient: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    height: 450,
+    width: '100%',
   },
   scrollView: {
     flex: 1,
@@ -177,15 +206,18 @@ const styles = StyleSheet.create({
     paddingBottom: 100,
   },
   logoSection: {
-    paddingTop: 70,
-    paddingBottom: 20,
+    paddingTop: 100,
+    paddingBottom: 50,
     alignItems: 'center',
   },
   logoText: {
-    color: '#f7f9fb',
-    fontSize: 36,
+    color: colors.text.primary,
+    fontSize: 48,
     fontWeight: '700',
-    letterSpacing: 2,
+    letterSpacing: 3,
+    textShadowColor: 'rgba(0, 0, 0, 0.3)',
+    textShadowOffset: { width: 0, height: 2 },
+    textShadowRadius: 4,
   },
   welcomeSection: {
     paddingHorizontal: 24,
@@ -196,7 +228,7 @@ const styles = StyleSheet.create({
     width: '100%',
   },
   welcomeText: {
-    color: '#f7f9fb',
+    color: colors.text.primary,
     fontSize: 32,
     fontWeight: '600',
     marginBottom: 8,
@@ -204,7 +236,7 @@ const styles = StyleSheet.create({
     letterSpacing: 0.5,
   },
   welcomeSubtext: {
-    color: 'rgba(247, 249, 251, 0.7)',
+    color: colors.text.muted,
     fontSize: 18,
     fontWeight: '400',
     marginBottom: 32,
@@ -215,7 +247,7 @@ const styles = StyleSheet.create({
     borderRadius: 24,
     overflow: 'hidden',
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.1)',
+    borderColor: colors.border.subtle,
     width: '100%',
   },
   statsContent: {
@@ -223,7 +255,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   statsLabel: {
-    color: 'rgba(247, 249, 251, 0.7)',
+    color: colors.text.muted,
     fontSize: 14,
     fontWeight: '500',
     marginBottom: 12,
@@ -246,7 +278,7 @@ const styles = StyleSheet.create({
     letterSpacing: 0.5,
   },
   statsDetail: {
-    color: 'rgba(247, 249, 251, 0.8)',
+    color: colors.text.secondary,
     fontSize: 16,
     fontWeight: '500',
     letterSpacing: 0.3,
@@ -300,12 +332,12 @@ const styles = StyleSheet.create({
     borderRadius: 24,
     overflow: 'hidden',
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.1)',
+    borderColor: colors.border.subtle,
     padding: 32,
     alignItems: 'center',
   },
   minutesLabel: {
-    color: 'rgba(247, 249, 251, 0.7)',
+    color: colors.text.muted,
     fontSize: 16,
     fontWeight: '500',
     marginBottom: 8,
@@ -325,7 +357,7 @@ const styles = StyleSheet.create({
     letterSpacing: 0.5,
   },
   minutesSubtext: {
-    color: 'rgba(247, 249, 251, 0.8)',
+    color: colors.text.secondary,
     fontSize: 16,
     fontWeight: '500',
     marginBottom: 16,

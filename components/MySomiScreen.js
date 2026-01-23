@@ -7,15 +7,16 @@ import Svg, { Circle, Line } from 'react-native-svg'
 import * as Haptics from 'expo-haptics'
 import { supabase, somiChainService } from '../supabase'
 import { POLYVAGAL_STATE_MAP, STATE_DESCRIPTIONS } from './EmbodimentSlider'
+import { colors } from '../constants/theme'
 
 // Match polyvagal states from SoMeCheckIn (new code-based system)
 const POLYVAGAL_STATES = [
   { id: 0, label: 'SOS', color: '#ff6b9d' },
-  { id: 1, label: 'Drained', color: '#7b68ee' },
-  { id: 2, label: 'Foggy', color: '#9d7be8' },
-  { id: 3, label: 'Wired', color: '#b88ddc' },
-  { id: 4, label: 'Steady', color: '#68c9ba' },
-  { id: 5, label: 'Glowing', color: '#4ecdc4' },
+  { id: 1, label: 'Drained', color: '#4A5F8C' },
+  { id: 2, label: 'Foggy', color: '#5B7BB4' },
+  { id: 3, label: 'Wired', color: '#6B9BD1' },
+  { id: 4, label: 'Steady', color: '#7DBCE7' },
+  { id: 5, label: 'Glowing', color: '#90DDF0' },
 ]
 
 const STATE_EMOJIS = {
@@ -444,11 +445,11 @@ export default function MySomiScreen({ navigation }) {
   if (loading) {
     return (
       <LinearGradient
-        colors={['#0f0c29', '#302b63', '#24243e']}
+        colors={[colors.background.primary, colors.background.secondary, colors.background.primary]}
         style={styles.container}
       >
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#4ecdc4" />
+          <ActivityIndicator size="large" color={colors.accent.primary} />
         </View>
       </LinearGradient>
     )
@@ -457,7 +458,7 @@ export default function MySomiScreen({ navigation }) {
   if (somiChains.length === 0) {
     return (
       <LinearGradient
-        colors={['#0f0c29', '#302b63', '#24243e']}
+        colors={[colors.background.primary, colors.background.secondary, colors.background.primary]}
         style={styles.container}
       >
         <View style={styles.header}>
@@ -473,7 +474,7 @@ export default function MySomiScreen({ navigation }) {
 
   return (
     <LinearGradient
-      colors={['#0f0c29', '#302b63', '#24243e']}
+      colors={[colors.background.primary, colors.background.secondary, colors.background.primary]}
       style={styles.container}
     >
       <View style={styles.header}>
@@ -493,11 +494,11 @@ export default function MySomiScreen({ navigation }) {
           <View style={styles.gardenContainer}>
             <LinearGradient
               colors={[
-                'rgba(30, 60, 114, 0.3)',
-                'rgba(42, 82, 152, 0.4)',
-                'rgba(78, 205, 196, 0.25)',
-                'rgba(42, 82, 152, 0.4)',
-                'rgba(30, 60, 114, 0.3)',
+                'rgba(42, 74, 111, 0.3)',
+                'rgba(74, 95, 140, 0.4)',
+                'rgba(0, 217, 163, 0.25)',
+                'rgba(74, 95, 140, 0.4)',
+                'rgba(42, 74, 111, 0.3)',
               ]}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 1 }}
@@ -530,7 +531,7 @@ export default function MySomiScreen({ navigation }) {
                       y1={`${currentY}%`}
                       x2={`${nextX}%`}
                       y2={`${nextY}%`}
-                      stroke="rgba(78, 205, 196, 0.3)"
+                      stroke="rgba(0, 217, 163, 0.3)"
                       strokeWidth="1"
                       strokeDasharray="3,3"
                     />
@@ -602,7 +603,7 @@ export default function MySomiScreen({ navigation }) {
             <View key={chain.id} style={styles.checkInItem}>
               {/* Timeline dot and line */}
               <View style={styles.timelineContainer}>
-                <View style={[styles.timelineDot, { backgroundColor: '#4ecdc4' }]} />
+                <View style={[styles.timelineDot, { backgroundColor: colors.accent.primary }]} />
                 {chainIndex < somiChains.length - 1 && (
                   <View style={styles.timelineLine} />
                 )}
@@ -847,14 +848,14 @@ const styles = StyleSheet.create({
     paddingTop: 10,
   },
   headerTitle: {
-    color: '#f7f9fb',
+    color: colors.text.primary,
     fontSize: 32,
     fontWeight: '700',
     letterSpacing: 0.5,
     marginBottom: 4,
   },
   headerSubtitle: {
-    color: 'rgba(247, 249, 251, 0.6)',
+    color: colors.text.muted,
     fontSize: 15,
     fontWeight: '500',
     letterSpacing: 0.3,
@@ -882,14 +883,14 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   emptyTitle: {
-    color: '#f7f9fb',
+    color: colors.text.primary,
     fontSize: 22,
     fontWeight: '600',
     marginBottom: 12,
     letterSpacing: 0.3,
   },
   emptyText: {
-    color: 'rgba(247, 249, 251, 0.6)',
+    color: colors.text.muted,
     fontSize: 15,
     textAlign: 'center',
     lineHeight: 22,
@@ -900,12 +901,12 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     marginBottom: 32,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.1)',
+    borderColor: colors.border.subtle,
     padding: 24,
     minHeight: 300,
   },
   gardenTitle: {
-    color: 'rgba(247, 249, 251, 0.8)',
+    color: colors.text.secondary,
     fontSize: 14,
     fontWeight: '600',
     letterSpacing: 1,
@@ -960,12 +961,12 @@ const styles = StyleSheet.create({
   },
   orbTooltip: {
     position: 'absolute',
-    backgroundColor: 'rgba(15, 12, 41, 0.95)',
+    backgroundColor: colors.overlay.dark,
     borderRadius: 12,
     paddingVertical: 6,
     paddingHorizontal: 12,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.2)',
+    borderColor: colors.border.default,
     minWidth: 80,
     alignItems: 'center',
     shadowColor: '#000',
@@ -991,20 +992,20 @@ const styles = StyleSheet.create({
     right: 0,
   },
   orbTooltipText: {
-    color: '#f7f9fb',
+    color: colors.text.primary,
     fontSize: 13,
     fontWeight: '700',
     letterSpacing: 0.3,
   },
   orbTooltipState: {
-    color: 'rgba(247, 249, 251, 0.85)',
+    color: colors.text.secondary,
     fontSize: 10,
     fontWeight: '600',
     letterSpacing: 0.3,
     marginTop: 2,
   },
   orbTooltipDate: {
-    color: 'rgba(247, 249, 251, 0.6)',
+    color: colors.text.muted,
     fontSize: 9,
     fontWeight: '500',
     letterSpacing: 0.3,
@@ -1015,7 +1016,7 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     marginBottom: 32,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.1)',
+    borderColor: colors.border.subtle,
     padding: 24,
   },
   statsGrid: {
@@ -1028,14 +1029,14 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   statValue: {
-    color: '#4ecdc4',
+    color: colors.accent.primary,
     fontSize: 28,
     fontWeight: '700',
     letterSpacing: 0.3,
     marginBottom: 6,
   },
   statLabel: {
-    color: 'rgba(247, 249, 251, 0.6)',
+    color: colors.text.muted,
     fontSize: 12,
     fontWeight: '500',
     letterSpacing: 0.5,
@@ -1049,7 +1050,7 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   sectionTitle: {
-    color: 'rgba(247, 249, 251, 0.8)',
+    color: colors.text.secondary,
     fontSize: 14,
     fontWeight: '600',
     letterSpacing: 1,
@@ -1070,12 +1071,12 @@ const styles = StyleSheet.create({
     height: 12,
     borderRadius: 6,
     borderWidth: 2,
-    borderColor: 'rgba(255, 255, 255, 0.3)',
+    borderColor: colors.border.default,
   },
   timelineLine: {
     width: 2,
     flex: 1,
-    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+    backgroundColor: colors.surface.tertiary,
     marginTop: 4,
     minHeight: 40,
   },
@@ -1084,7 +1085,7 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     overflow: 'hidden',
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.1)',
+    borderColor: colors.border.subtle,
     padding: 16,
   },
   checkInHeader: {
@@ -1155,20 +1156,20 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   chainTitle: {
-    color: '#f7f9fb',
+    color: colors.text.primary,
     fontSize: 16,
     fontWeight: '600',
     letterSpacing: 0.3,
     marginBottom: 4,
   },
   chainSubtitle: {
-    color: 'rgba(247, 249, 251, 0.6)',
+    color: colors.text.muted,
     fontSize: 12,
     fontWeight: '500',
     letterSpacing: 0.3,
   },
   expandIcon: {
-    color: '#4ecdc4',
+    color: colors.accent.primary,
     fontSize: 14,
     marginLeft: 12,
   },
@@ -1182,7 +1183,7 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   chainSectionTitle: {
-    color: 'rgba(247, 249, 251, 0.8)',
+    color: colors.text.secondary,
     fontSize: 12,
     fontWeight: '600',
     letterSpacing: 0.5,
@@ -1217,7 +1218,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingVertical: 10,
     paddingHorizontal: 12,
-    backgroundColor: 'rgba(78, 205, 196, 0.08)',
+    backgroundColor: 'rgba(0, 217, 163, 0.08)',
     borderRadius: 12,
     marginBottom: 8,
   },
@@ -1231,26 +1232,26 @@ const styles = StyleSheet.create({
     width: 28,
     height: 28,
     borderRadius: 14,
-    backgroundColor: 'rgba(78, 205, 196, 0.2)',
+    backgroundColor: 'rgba(0, 217, 163, 0.2)',
     borderWidth: 1,
-    borderColor: 'rgba(78, 205, 196, 0.4)',
+    borderColor: 'rgba(0, 217, 163, 0.4)',
     alignItems: 'center',
     justifyContent: 'center',
   },
   playIcon: {
-    color: '#4ecdc4',
+    color: colors.accent.primary,
     fontSize: 12,
     marginLeft: 2,
   },
   blockName: {
-    color: '#f7f9fb',
+    color: colors.text.primary,
     fontSize: 14,
     fontWeight: '600',
     letterSpacing: 0.3,
     flex: 1,
   },
   blockTime: {
-    color: '#4ecdc4',
+    color: colors.accent.primary,
     fontSize: 13,
     fontWeight: '700',
     letterSpacing: 0.3,
@@ -1289,7 +1290,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   deleteModalText: {
-    color: 'rgba(247, 249, 251, 0.8)',
+    color: colors.text.secondary,
     fontSize: 14,
     fontWeight: '500',
     lineHeight: 20,
@@ -1305,7 +1306,7 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: 'rgba(255, 255, 255, 0.1)',
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.2)',
+    borderColor: colors.border.default,
     borderRadius: 16,
     paddingVertical: 14,
     paddingHorizontal: 20,
@@ -1347,7 +1348,7 @@ const styles = StyleSheet.create({
   },
   journalViewFullscreen: {
     flex: 1,
-    backgroundColor: '#faf8ff',
+    backgroundColor: colors.text.primary,
   },
   journalViewNotebook: {
     flex: 1,
@@ -1362,12 +1363,12 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: 'rgba(147, 112, 219, 0.08)',
+    backgroundColor: colors.surface.tertiary,
     alignItems: 'center',
     justifyContent: 'center',
   },
   journalViewCloseText: {
-    color: 'rgba(147, 112, 219, 0.6)',
+    color: colors.text.muted,
     fontSize: 24,
     fontWeight: '300',
   },
@@ -1376,7 +1377,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 32,
   },
   journalViewNotebookTitle: {
-    color: '#2d2438',
+    color: colors.text.inverse,
     fontSize: 28,
     fontWeight: '600',
     letterSpacing: 0.3,
@@ -1386,7 +1387,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   journalViewText: {
-    color: '#2d2438',
+    color: colors.text.inverse,
     fontSize: 18,
     fontWeight: '400',
     lineHeight: 28,
