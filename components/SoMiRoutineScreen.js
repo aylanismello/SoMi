@@ -599,11 +599,14 @@ export default function SoMiRoutineScreen({ navigation, route }) {
     // End the active chain to reset state completely
     await somiChainService.endActiveChain()
 
-    // Navigate back to CheckIn screen which will reset everything
+    // First, reset the CheckIn stack to completely clear it
     navigation.reset({
       index: 0,
       routes: [{ name: 'CheckIn' }],
     })
+
+    // Then navigate to Home tab (using parent Tab navigator)
+    navigation.getParent()?.navigate('Home')
   }
 
   const handleCancelExit = () => {
