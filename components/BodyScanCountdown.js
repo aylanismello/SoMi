@@ -9,8 +9,8 @@ import { colors } from '../constants/theme'
 const COUNTDOWN_DURATION_SECONDS = 60
 
 // Body scan audio URLs
-const START_BODY_SCAN_AUDIO = 'https://qujifwhwntqxziymqdwu.supabase.co/storage/v1/object/public/test/aylan%20audio/start_body_scan.m4a'
-const END_BODY_SCAN_AUDIO = 'https://qujifwhwntqxziymqdwu.supabase.co/storage/v1/object/public/test/aylan%20audio/end_body_scan.m4a'
+const START_BODY_SCAN_AUDIO = 'https://qujifwhwntqxziymqdwu.supabase.co/storage/v1/object/public/test/somi%20sounds/body_scan_music_1%20.mp3'
+const END_BODY_SCAN_AUDIO = 'https://qujifwhwntqxziymqdwu.supabase.co/storage/v1/object/public/test/somi%20sounds/body_scan_music_2.mp3'
 
 const AnimatedCircle = Animated.createAnimatedComponent(Circle)
 
