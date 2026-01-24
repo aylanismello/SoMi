@@ -27,7 +27,6 @@ export default function PlayerScreen({ navigation, route }) {
   const [scrubbingPosition, setScrubbingPosition] = useState(0)
   const [isPlayingState, setIsPlayingState] = useState(false)
   const [showBackgroundVideo, setShowBackgroundVideo] = useState(isAudio) // Auto-show for audio
-  const [isMuted, setIsMuted] = useState(false)
   const controlsOpacity = useRef(new Animated.Value(0)).current
   const progressBarRef = useRef(null)
   const hideTimeoutRef = useRef(null)
@@ -269,15 +268,6 @@ export default function PlayerScreen({ navigation, route }) {
     setTimeout(() => setShowControls(true), 10)
   }
 
-  const handleToggleMute = () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
-    const newMutedState = !isMuted
-    setIsMuted(newMutedState)
-    player.muted = newMutedState
-    // Reset the auto-hide timer
-    setShowControls(false)
-    setTimeout(() => setShowControls(true), 10)
-  }
 
   const calculatePosition = (touchX, barWidth) => {
     const seekPosition = (touchX / barWidth) * duration
@@ -396,14 +386,6 @@ export default function PlayerScreen({ navigation, route }) {
           onPress={handleToggleBackgroundVideo}
         >
           <Text style={styles.toggleText}>{showBackgroundVideo ? '🎬' : '🏔️'}</Text>
-        </TouchableOpacity>
-
-        {/* Mute toggle button */}
-        <TouchableOpacity
-          style={styles.muteButton}
-          onPress={handleToggleMute}
-        >
-          <Text style={styles.toggleText}>{isMuted ? '🔇' : '🔊'}</Text>
         </TouchableOpacity>
 
         <View style={styles.controlsContainer}>
@@ -527,17 +509,6 @@ const styles = StyleSheet.create({
   },
   toggleText: {
     fontSize: 24,
-  },
-  muteButton: {
-    position: 'absolute',
-    top: 120,
-    left: 30,
-    width: 44,
-    height: 44,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    borderRadius: 22,
   },
   controlsContainer: {
     position: 'absolute',

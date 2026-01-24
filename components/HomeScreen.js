@@ -45,10 +45,6 @@ export default function HomeScreen({ navigation }) {
     const firstCheck = checks[0]
     const lastCheck = checks[checks.length - 1]
 
-    // Calculate percentage change
-    const change = lastCheck.embodiment_level - firstCheck.embodiment_level
-    const changePercent = change > 0 ? `+${change}%` : `${change}%`
-
     const fromStateCode = firstCheck.polyvagal_state_code !== undefined ? firstCheck.polyvagal_state_code : 1
     const toStateCode = lastCheck.polyvagal_state_code !== undefined ? lastCheck.polyvagal_state_code : 1
 
@@ -57,8 +53,6 @@ export default function HomeScreen({ navigation }) {
     const totalMinutes = Math.round(totalSeconds / 60)
 
     return {
-      changePercent,
-      change,
       fromState: POLYVAGAL_STATES[fromStateCode] || POLYVAGAL_STATES[1],
       toState: POLYVAGAL_STATES[toStateCode] || POLYVAGAL_STATES[1],
       totalMinutes,
@@ -128,16 +122,6 @@ export default function HomeScreen({ navigation }) {
                   </View>
                 </View>
 
-                {/* Percentage change indicator */}
-                <View style={styles.statRow}>
-                  <LinearGradient
-                    colors={chainStats.change >= 0 ? ['#00D9A3', '#00B488'] : ['#5B7BB4', '#4A6A9C']}
-                    style={styles.progressIndicator}
-                  >
-                    <Text style={styles.statsChange}>{chainStats.changePercent}</Text>
-                  </LinearGradient>
-                </View>
-
                 {/* State labels */}
                 <View style={styles.stateLabels}>
                   <Text style={[styles.stateLabelText, { color: chainStats.fromState.color }]}>
@@ -147,6 +131,11 @@ export default function HomeScreen({ navigation }) {
                   <Text style={[styles.stateLabelText, { color: chainStats.toState.color }]}>
                     {chainStats.toState.label}
                   </Text>
+                </View>
+
+                {/* Minutes spent */}
+                <View style={styles.minutesRow}>
+                  <Text style={styles.minutesLabel}>{chainStats.totalMinutes} minutes</Text>
                 </View>
               </View>
             </BlurView>
@@ -261,20 +250,18 @@ const styles = StyleSheet.create({
     marginBottom: 12,
     letterSpacing: 0.5,
   },
-  statRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  progressIndicator: {
-    paddingVertical: 12,
-    paddingHorizontal: 24,
+  minutesRow: {
+    marginTop: 16,
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+    backgroundColor: 'rgba(78, 205, 196, 0.15)',
     borderRadius: 16,
   },
-  statsChange: {
-    color: '#ffffff',
-    fontSize: 28,
-    fontWeight: '700',
+  minutesLabel: {
+    color: '#4ecdc4',
+    fontSize: 16,
+    fontWeight: '600',
+    textAlign: 'center',
     letterSpacing: 0.5,
   },
   statsDetail: {

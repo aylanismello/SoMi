@@ -72,6 +72,7 @@ export default function SoMeCheckIn({ navigation, route }) {
   // Transition modal state
   const [showTransitionModal, setShowTransitionModal] = useState(false)
   const [pendingAction, setPendingAction] = useState(null) // 'continue' or 'done'
+  const [totalMinutes, setTotalMinutes] = useState(0)
 
   // Exit confirmation modal state
   const [showExitModal, setShowExitModal] = useState(false)
@@ -502,6 +503,13 @@ export default function SoMeCheckIn({ navigation, route }) {
 
     // Save loop check to database
     await saveEmbodimentCheck(loopSliderValue, loopPolyvagalState, loopJournalEntry || null)
+
+    // Get the active chain to calculate total minutes before ending it
+    const activeChain = await somiChainService.getLatestChain()
+    if (activeChain && activeChain.somi_chain_entries) {
+      const totalSeconds = activeChain.somi_chain_entries.reduce((sum, entry) => sum + (entry.seconds_elapsed || 0), 0)
+      setTotalMinutes(Math.round(totalSeconds / 60))
+    }
 
     // End the active chain when done
     await somiChainService.endActiveChain()
@@ -1070,7 +1078,6 @@ export default function SoMeCheckIn({ navigation, route }) {
                       {POLYVAGAL_STATES.find(s => s.id === initialPolyvagalState)?.label}
                     </Text>
                   </View>
-                  <Text style={styles.transitionPercentage}>{Math.round(initialSliderValue)}%</Text>
                 </View>
 
                 {/* Arrow */}
@@ -1087,8 +1094,12 @@ export default function SoMeCheckIn({ navigation, route }) {
                       {POLYVAGAL_STATES.find(s => s.id === loopPolyvagalState)?.label}
                     </Text>
                   </View>
-                  <Text style={styles.transitionPercentage}>{Math.round(loopSliderValue)}%</Text>
                 </View>
+              </View>
+
+              {/* Minutes spent */}
+              <View style={styles.transitionMinutes}>
+                <Text style={styles.transitionMinutesText}>{totalMinutes} minutes</Text>
               </View>
 
               {/* Got it button */}
@@ -1660,18 +1671,25 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     letterSpacing: 0.3,
   },
-  transitionPercentage: {
-    color: colors.text.primary,
-    fontSize: 22,
-    fontWeight: '700',
-    letterSpacing: 0.3,
-  },
   transitionArrow: {
     color: colors.text.muted,
     fontSize: 24,
     fontWeight: '300',
     marginHorizontal: 8,
-    marginTop: -20,
+  },
+  transitionMinutes: {
+    marginBottom: 24,
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    backgroundColor: 'rgba(78, 205, 196, 0.15)',
+    borderRadius: 16,
+  },
+  transitionMinutesText: {
+    color: '#4ecdc4',
+    fontSize: 18,
+    fontWeight: '600',
+    textAlign: 'center',
+    letterSpacing: 0.5,
   },
   transitionModalButton: {
     backgroundColor: 'rgba(0, 217, 163, 0.2)',
