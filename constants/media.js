@@ -3,6 +3,7 @@
 export {
   getMediaForSliderValue,
   getSOSMedia,
+  getBlocksForRoutine,
   BACKGROUND_VIDEO,
   BODY_SCAN_MEDIA,
   prefetchVideoBlocks

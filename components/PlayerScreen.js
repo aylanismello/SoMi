@@ -7,6 +7,8 @@ import * as Haptics from 'expo-haptics'
 import { BACKGROUND_VIDEO } from '../constants/media'
 import { somiChainService } from '../supabase'
 import { soundManager } from '../utils/SoundManager'
+import { useSettings } from '../contexts/SettingsContext'
+import SettingsModal from './SettingsModal'
 
 export default function PlayerScreen({ navigation, route }) {
   const {
@@ -27,7 +29,10 @@ export default function PlayerScreen({ navigation, route }) {
   const [scrubbingPosition, setScrubbingPosition] = useState(0)
   const [isPlayingState, setIsPlayingState] = useState(false)
   const [showBackgroundVideo, setShowBackgroundVideo] = useState(isAudio) // Auto-show for audio
+  const [showSettingsModal, setShowSettingsModal] = useState(false)
   const controlsOpacity = useRef(new Animated.Value(0)).current
+
+  const { isMusicEnabled } = useSettings()
   const progressBarRef = useRef(null)
   const hideTimeoutRef = useRef(null)
   const thumbScale = useRef(new Animated.Value(1)).current
@@ -40,6 +45,7 @@ export default function PlayerScreen({ navigation, route }) {
   const player = isAudio
     ? useAudioPlayer(media.url)
     : useVideoPlayer(media.url, player => {
+        player.muted = true
         player.play()
       })
 
@@ -89,13 +95,20 @@ export default function PlayerScreen({ navigation, route }) {
   // Auto-play when player is ready and play start sound
   useEffect(() => {
     if (player) {
+      // Mute audio players if music is disabled
+      if (isAudio && !isMusicEnabled) {
+        player.volume = 0
+      } else if (isAudio) {
+        player.volume = 1
+      }
+
       player.play()
       // Play block start sound only during check-in flow (not from Explore)
-      if (!fromExplore) {
+      if (!fromExplore && isMusicEnabled) {
         soundManager.playBlockStart()
       }
     }
-  }, [player, fromExplore])
+  }, [player, fromExplore, isAudio, isMusicEnabled])
 
   // Track media playback progress
   useEffect(() => {
@@ -116,10 +129,15 @@ export default function PlayerScreen({ navigation, route }) {
 
   // Auto-navigate when media ends
   useEffect(() => {
+    // Prevent duplicate saves/navigations
+    if (hasSavedRef.current) {
+      return
+    }
+
     if (duration > 0 && currentTime >= duration - 0.5) {
       player.pause()
       // Play block end sound only during check-in flow (not from Explore)
-      if (!fromExplore) {
+      if (!fromExplore && isMusicEnabled) {
         soundManager.playBlockEnd()
       }
       // Save completed block before navigating
@@ -232,7 +250,7 @@ export default function PlayerScreen({ navigation, route }) {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium)
     player.pause()
     // Play block end sound only during check-in flow (not from Explore)
-    if (!fromExplore) {
+    if (!fromExplore && isMusicEnabled) {
       soundManager.playBlockEnd()
     }
     // Save completed block before closing
@@ -260,12 +278,13 @@ export default function PlayerScreen({ navigation, route }) {
     setShowControls(!showControls)
   }
 
-  const handleToggleBackgroundVideo = () => {
+  const handleOpenSettings = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
-    setShowBackgroundVideo(!showBackgroundVideo)
-    // Reset the auto-hide timer
-    setShowControls(false)
-    setTimeout(() => setShowControls(true), 10)
+    setShowSettingsModal(true)
+  }
+
+  const handleCloseSettings = () => {
+    setShowSettingsModal(false)
   }
 
 
@@ -380,12 +399,12 @@ export default function PlayerScreen({ navigation, route }) {
           <Text style={styles.closeText}>✕</Text>
         </TouchableOpacity>
 
-        {/* Toggle button for background video */}
+        {/* Settings button */}
         <TouchableOpacity
-          style={styles.toggleButton}
-          onPress={handleToggleBackgroundVideo}
+          style={styles.settingsButton}
+          onPress={handleOpenSettings}
         >
-          <Text style={styles.toggleText}>{showBackgroundVideo ? '🎬' : '🏔️'}</Text>
+          <Text style={styles.settingsText}>⚙️</Text>
         </TouchableOpacity>
 
         <View style={styles.controlsContainer}>
@@ -448,6 +467,8 @@ export default function PlayerScreen({ navigation, route }) {
           </View>
         </View>
       </Animated.View>
+
+      <SettingsModal visible={showSettingsModal} onClose={handleCloseSettings} />
     </View>
   )
 }
@@ -496,7 +517,7 @@ const styles = StyleSheet.create({
     color: '#ffffff',
     fontSize: 24,
   },
-  toggleButton: {
+  settingsButton: {
     position: 'absolute',
     top: 60,
     left: 30,
@@ -507,7 +528,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
     borderRadius: 22,
   },
-  toggleText: {
+  settingsText: {
     fontSize: 24,
   },
   controlsContainer: {

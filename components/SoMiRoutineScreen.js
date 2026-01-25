@@ -8,8 +8,12 @@ import Svg, { Circle } from 'react-native-svg'
 import * as Haptics from 'expo-haptics'
 import { supabase, somiChainService } from '../supabase'
 import { selectRoutineVideo } from '../services/videoSelectionAlgorithm'
+import { getBlocksForRoutine } from '../services/mediaService'
 import { soundManager } from '../utils/SoundManager'
 import { colors } from '../constants/theme'
+import CollapsibleCategorySelector from './CollapsibleCategorySelector'
+import { useSettings } from '../contexts/SettingsContext'
+import SettingsModal from './SettingsModal'
 
 const AnimatedCircle = Animated.createAnimatedComponent(Circle)
 
@@ -71,15 +75,20 @@ export default function SoMiRoutineScreen({ navigation, route }) {
 
   // Video state
   const [videoQueue, setVideoQueue] = useState([])
+  const [hardcodedQueue, setHardcodedQueue] = useState([])
   const [currentVideo, setCurrentVideo] = useState(null)
   const [previousVideoId, setPreviousVideoId] = useState(null)
   const [selectedVideoId, setSelectedVideoId] = useState(null)
+  const [userOverrodeBlock, setUserOverrodeBlock] = useState(false)
 
   // Loading state
   const [isLoadingVideos, setIsLoadingVideos] = useState(true)
 
   // Exit confirmation modal
   const [showExitModal, setShowExitModal] = useState(false)
+  const [showSettingsModal, setShowSettingsModal] = useState(false)
+
+  const { isMusicEnabled } = useSettings()
 
   // Video playback tracking
   const [videoProgress, setVideoProgress] = useState(0)
@@ -89,7 +98,6 @@ export default function SoMiRoutineScreen({ navigation, route }) {
   const [isPlayingState, setIsPlayingState] = useState(false)
   const [isScrubbing, setIsScrubbing] = useState(false)
   const [scrubbingPosition, setScrubbingPosition] = useState(0)
-  const [isMuted, setIsMuted] = useState(false)
   const [showBackground, setShowBackground] = useState(false)
 
   const startTimeRef = useRef(null)
@@ -107,8 +115,11 @@ export default function SoMiRoutineScreen({ navigation, route }) {
   const messageIntervalRef = useRef(null)
 
   // Video player - always create with current video URL or fallback
+  // IMPORTANT: All videos are muted (uploaded with sound by mistake)
   const videoUrl = currentVideo?.media_url || 'https://qujifwhwntqxziymqdwu.supabase.co/storage/v1/object/public/test/output_tiktok.mp4'
-  const player = useVideoPlayer(videoUrl)
+  const player = useVideoPlayer(videoUrl, (player) => {
+    player.muted = true
+  })
 
   // Fetch all available videos on mount
   useEffect(() => {
@@ -149,13 +160,14 @@ export default function SoMiRoutineScreen({ navigation, route }) {
   const fetchAvailableVideos = async () => {
     try {
       setIsLoadingVideos(true)
+
+      // Fetch all available videos for the selector
       const { data, error } = await supabase
         .from('somi_blocks')
         .select('*')
         .eq('media_type', 'video')
         .eq('active', true)
         .eq('block_type', 'vagal_toning')
-        .or('is_routine.is.null,is_routine.eq.false')
         .not('media_url', 'is', null)
 
       if (error) {
@@ -165,13 +177,21 @@ export default function SoMiRoutineScreen({ navigation, route }) {
 
       setVideoQueue(data || [])
 
-      // Select initial video for first cycle
-      if (data && data.length > 0) {
-        // Convert numeric state code to old database format
-        const stateTarget = STATE_CODE_TO_TARGET[polyvagalState] || 'settling'
-        const firstVideo = selectRoutineVideo(data, stateTarget, null)
-        setCurrentVideo(firstVideo)
-        setSelectedVideoId(firstVideo?.id)
+      // Fetch the hardcoded queue based on totalBlocks
+      const queue = await getBlocksForRoutine(totalBlocks)
+      setHardcodedQueue(queue)
+
+      console.log(`Loaded hardcoded queue for ${totalBlocks} blocks:`, queue.map(b => b.name))
+
+      // Set initial video from hardcoded queue
+      if (queue && queue.length > 0) {
+        const firstBlock = queue[0]
+        // Find the full block data from videoQueue
+        const firstVideo = data?.find(v => v.id === firstBlock.somi_block_id)
+        if (firstVideo) {
+          setCurrentVideo(firstVideo)
+          setSelectedVideoId(firstVideo.id)
+        }
       }
     } catch (err) {
       console.error('Unexpected error fetching videos:', err)
@@ -396,23 +416,6 @@ export default function SoMiRoutineScreen({ navigation, route }) {
     setShowControls(!showControls)
   }
 
-  const handleToggleMute = () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
-    const newMutedState = !isMuted
-    setIsMuted(newMutedState)
-    player.muted = newMutedState
-    // Reset the auto-hide timer
-    setShowControls(false)
-    setTimeout(() => setShowControls(true), 10)
-  }
-
-  const handleToggleBackground = () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
-    setShowBackground(!showBackground)
-    // Reset the auto-hide timer
-    setShowControls(false)
-    setTimeout(() => setShowControls(true), 10)
-  }
 
   const calculatePosition = (touchX, barWidth) => {
     const cappedDuration = Math.min(videoDuration, VIDEO_DURATION_CAP_SECONDS)
@@ -501,9 +504,9 @@ export default function SoMiRoutineScreen({ navigation, route }) {
       console.log(`Completed block ${currentVideo.id} in cycle ${currentCycle}`)
     }
 
-    // Check if we've completed all 8 cycles
+    // Check if we've completed all cycles
     if (currentCycle >= TOTAL_CYCLES) {
-      // After 8th block: Go straight to body scan (no final interstitial)
+      // After last block: Go straight to body scan (no final interstitial)
       navigation.navigate('BodyScanCountdown', {
         isInitial: false,
         savedInitialValue,
@@ -514,17 +517,25 @@ export default function SoMiRoutineScreen({ navigation, route }) {
       const nextCycle = currentCycle + 1
       setCurrentCycle(nextCycle)
 
-      // Select next video (avoid previous video if possible)
-      // Convert numeric state code to old database format
-      const stateTarget = STATE_CODE_TO_TARGET[polyvagalState] || 'settling'
-      const nextVideo = selectRoutineVideo(
-        videoQueue,
-        stateTarget,
-        currentVideo?.id
-      )
+      // Get next video from hardcoded queue (if not overridden by user)
+      let nextVideo = null
+      if (hardcodedQueue && hardcodedQueue.length >= nextCycle) {
+        const nextBlock = hardcodedQueue[nextCycle - 1]
+        nextVideo = videoQueue.find(v => v.id === nextBlock.somi_block_id)
+        console.log(`Using hardcoded block ${nextCycle}/${TOTAL_CYCLES}: ${nextVideo?.name}`)
+      }
+
+      // Fallback to algorithm if hardcoded queue is empty or incomplete
+      if (!nextVideo) {
+        const stateTarget = STATE_CODE_TO_TARGET[polyvagalState] || 'settling'
+        nextVideo = selectRoutineVideo(videoQueue, stateTarget, currentVideo?.id)
+        console.log(`Fallback to algorithm: ${nextVideo?.name}`)
+      }
+
       setCurrentVideo(nextVideo)
       setSelectedVideoId(nextVideo?.id)
       setPreviousVideoId(currentVideo?.id)
+      setUserOverrodeBlock(false) // Reset override flag for next cycle
 
       // Reset to interstitial phase
       setPhase('interstitial')
@@ -536,6 +547,8 @@ export default function SoMiRoutineScreen({ navigation, route }) {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
     setCurrentVideo(video)
     setSelectedVideoId(video.id)
+    setUserOverrodeBlock(true) // User manually chose a different block
+    console.log(`User overrode block selection: ${video.name}`)
   }
 
   const handleExit = () => {
@@ -565,7 +578,7 @@ export default function SoMiRoutineScreen({ navigation, route }) {
 
     // Go to next interstitial (same logic as handleVideoComplete)
     if (currentCycle >= TOTAL_CYCLES) {
-      // After 8th block: Go straight to body scan (no final interstitial)
+      // After last block: Go straight to body scan (no final interstitial)
       navigation.navigate('BodyScanCountdown', {
         isInitial: false,
         savedInitialValue,
@@ -576,16 +589,25 @@ export default function SoMiRoutineScreen({ navigation, route }) {
       const nextCycle = currentCycle + 1
       setCurrentCycle(nextCycle)
 
-      // Select next video
-      const stateTarget = STATE_CODE_TO_TARGET[polyvagalState] || 'settling'
-      const nextVideo = selectRoutineVideo(
-        videoQueue,
-        stateTarget,
-        currentVideo?.id
-      )
+      // Get next video from hardcoded queue (if not overridden by user)
+      let nextVideo = null
+      if (hardcodedQueue && hardcodedQueue.length >= nextCycle) {
+        const nextBlock = hardcodedQueue[nextCycle - 1]
+        nextVideo = videoQueue.find(v => v.id === nextBlock.somi_block_id)
+        console.log(`Using hardcoded block ${nextCycle}/${TOTAL_CYCLES}: ${nextVideo?.name}`)
+      }
+
+      // Fallback to algorithm if hardcoded queue is empty or incomplete
+      if (!nextVideo) {
+        const stateTarget = STATE_CODE_TO_TARGET[polyvagalState] || 'settling'
+        nextVideo = selectRoutineVideo(videoQueue, stateTarget, currentVideo?.id)
+        console.log(`Fallback to algorithm: ${nextVideo?.name}`)
+      }
+
       setCurrentVideo(nextVideo)
       setSelectedVideoId(nextVideo?.id)
       setPreviousVideoId(currentVideo?.id)
+      setUserOverrodeBlock(false) // Reset override flag for next cycle
 
       // Reset to interstitial phase
       setPhase('interstitial')
@@ -614,6 +636,15 @@ export default function SoMiRoutineScreen({ navigation, route }) {
     setShowExitModal(false)
   }
 
+  const handleOpenSettings = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
+    setShowSettingsModal(true)
+  }
+
+  const handleCloseSettings = () => {
+    setShowSettingsModal(false)
+  }
+
   // Loading state
   if (isLoadingVideos) {
     return (
@@ -629,7 +660,7 @@ export default function SoMiRoutineScreen({ navigation, route }) {
   // Interstitial Phase
   if (phase === 'interstitial') {
     // Calculate smooth progress for circular indicator
-    const radius = 120
+    const radius = 100
     const strokeWidth = 8
     const circumference = 2 * Math.PI * radius
 
@@ -653,6 +684,13 @@ export default function SoMiRoutineScreen({ navigation, route }) {
 
         {/* Header */}
         <View style={styles.header}>
+          <TouchableOpacity
+            onPress={handleOpenSettings}
+            style={styles.settingsButton}
+            activeOpacity={0.7}
+          >
+            <Text style={styles.settingsButtonText}>⚙️</Text>
+          </TouchableOpacity>
           <TouchableOpacity
             onPress={handleSkipInterstitial}
             style={styles.skipButton}
@@ -745,58 +783,12 @@ export default function SoMiRoutineScreen({ navigation, route }) {
             </View>
           )}
 
-          {/* Video Carousel */}
-          <View style={styles.carouselSection}>
-            <Text style={styles.carouselLabel}>or choose a different block:</Text>
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.carouselContent}
-              decelerationRate="fast"
-              snapToInterval={196}
-              snapToAlignment="start"
-            >
-              {videoQueue.map((video) => {
-                const stateInfo = STATE_EMOJIS[video.state_target]
-                const isSelected = selectedVideoId === video.id
-
-                return (
-                  <TouchableOpacity
-                    key={video.id}
-                    onPress={() => handleVideoSelect(video)}
-                    activeOpacity={0.8}
-                    style={[
-                      styles.carouselCard,
-                      isSelected && stateInfo && {
-                        borderColor: stateInfo.color,
-                        borderWidth: 2,
-                      },
-                      !isSelected && styles.carouselCardUnselected,
-                    ]}
-                  >
-                    <BlurView intensity={10} tint="dark" style={styles.carouselCardBlur}>
-                      <Text style={styles.carouselCardName} numberOfLines={2}>
-                        {video.name}
-                      </Text>
-                      {stateInfo && (
-                        <View style={[
-                          styles.carouselCardBadge,
-                          {
-                            backgroundColor: `${stateInfo.color}30`,
-                            borderColor: stateInfo.color,
-                          }
-                        ]}>
-                          <Text style={[styles.carouselCardBadgeText, { color: stateInfo.color }]}>
-                            {video.state_target} {stateInfo.emoji}
-                          </Text>
-                        </View>
-                      )}
-                    </BlurView>
-                  </TouchableOpacity>
-                )
-              })}
-            </ScrollView>
-          </View>
+          {/* Collapsible Category Selector */}
+          <CollapsibleCategorySelector
+            blocks={videoQueue}
+            selectedBlockId={selectedVideoId}
+            onBlockSelect={handleVideoSelect}
+          />
         </View>
 
         {/* Exit Confirmation Modal */}
@@ -881,20 +873,12 @@ export default function SoMiRoutineScreen({ navigation, route }) {
           <Text style={styles.closeText}>✕</Text>
         </TouchableOpacity>
 
-        {/* Background toggle button */}
+        {/* Settings button */}
         <TouchableOpacity
-          style={styles.backgroundToggleButton}
-          onPress={handleToggleBackground}
+          style={styles.videoSettingsButton}
+          onPress={handleOpenSettings}
         >
-          <Text style={styles.toggleText}>{showBackground ? '🎬' : '🏔️'}</Text>
-        </TouchableOpacity>
-
-        {/* Mute toggle button */}
-        <TouchableOpacity
-          style={styles.muteButton}
-          onPress={handleToggleMute}
-        >
-          <Text style={styles.toggleText}>{isMuted ? '🔇' : '🔊'}</Text>
+          <Text style={styles.settingsText}>⚙️</Text>
         </TouchableOpacity>
 
         <View style={styles.controlsContainer}>
@@ -994,6 +978,8 @@ export default function SoMiRoutineScreen({ navigation, route }) {
           </BlurView>
         </View>
       </Modal>
+
+      <SettingsModal visible={showSettingsModal} onClose={handleCloseSettings} />
     </View>
   )
 }
@@ -1026,6 +1012,18 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     marginBottom: 12,
   },
+  settingsButton: {
+    width: 44,
+    height: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  settingsButtonText: {
+    fontSize: 24,
+  },
+  settingsText: {
+    fontSize: 24,
+  },
   exitButton: {
     paddingVertical: 8,
     paddingHorizontal: 12,
@@ -1056,22 +1054,23 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     justifyContent: 'flex-start',
+    paddingBottom: 20,
   },
   integrationMessage: {
     color: colors.text.secondary,
-    fontSize: 24,
+    fontSize: 20,
     fontWeight: '400',
     textAlign: 'center',
-    lineHeight: 32,
+    lineHeight: 28,
     marginTop: 8,
-    marginBottom: 20,
+    marginBottom: 12,
     paddingHorizontal: 20,
   },
   circleContainer: {
     position: 'relative',
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 32,
+    marginBottom: 16,
   },
   circleCenter: {
     position: 'absolute',
@@ -1080,20 +1079,20 @@ const styles = StyleSheet.create({
   },
   circleText: {
     color: colors.text.primary,
-    fontSize: 36,
+    fontSize: 32,
     fontWeight: '700',
     letterSpacing: 2,
   },
   nextVideoSection: {
-    marginBottom: 12,
+    marginBottom: 8,
     paddingHorizontal: 24,
     width: '100%',
   },
   nextVideoLabel: {
     color: colors.text.muted,
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: '500',
-    marginBottom: 6,
+    marginBottom: 4,
     textAlign: 'center',
   },
   nextVideoCard: {
@@ -1108,34 +1107,34 @@ const styles = StyleSheet.create({
     elevation: 4,
   },
   nextVideoBlur: {
-    paddingVertical: 14,
-    paddingHorizontal: 18,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
     alignItems: 'center',
-    gap: 8,
+    gap: 6,
   },
   nextVideoName: {
     color: colors.text.primary,
-    fontSize: 17,
+    fontSize: 15,
     fontWeight: '700',
     textAlign: 'center',
     letterSpacing: 0.3,
   },
   nextVideoDescription: {
     color: colors.text.secondary,
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: '400',
     textAlign: 'center',
-    lineHeight: 18,
+    lineHeight: 16,
   },
   nextVideoBadge: {
-    paddingHorizontal: 14,
-    paddingVertical: 6,
-    borderRadius: 14,
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    borderRadius: 12,
     borderWidth: 1,
-    marginTop: 4,
+    marginTop: 2,
   },
   nextVideoBadgeText: {
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: '600',
     textTransform: 'capitalize',
   },
@@ -1248,23 +1247,9 @@ const styles = StyleSheet.create({
     color: '#ffffff',
     fontSize: 24,
   },
-  toggleText: {
-    fontSize: 24,
-  },
-  backgroundToggleButton: {
+  videoSettingsButton: {
     position: 'absolute',
-    top: 180,
-    left: 30,
-    width: 44,
-    height: 44,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    borderRadius: 22,
-  },
-  muteButton: {
-    position: 'absolute',
-    top: 120,
+    top: 60,
     left: 30,
     width: 44,
     height: 44,

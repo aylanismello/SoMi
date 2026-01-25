@@ -16,6 +16,7 @@ import ExploreScreen from './components/ExploreScreen'
 import CategoryDetailScreen from './components/CategoryDetailScreen'
 import { prefetchVideoBlocks } from './constants/media'
 import { colors } from './constants/theme'
+import { SettingsProvider } from './contexts/SettingsContext'
 
 const Stack = createStackNavigator()
 const Tab = createBottomTabNavigator()
@@ -140,9 +141,10 @@ export default function App() {
   }, [])
 
   return (
-    <NavigationContainer>
-      <StatusBar style="light" />
-      <Tab.Navigator
+    <SettingsProvider>
+      <NavigationContainer>
+        <StatusBar style="light" />
+        <Tab.Navigator
         screenOptions={({ route }) => ({
           headerShown: false,
           tabBarIcon: ({ focused }) => {
@@ -303,5 +305,6 @@ export default function App() {
         />
       </Tab.Navigator>
     </NavigationContainer>
+    </SettingsProvider>
   )
 }

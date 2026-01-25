@@ -1,5 +1,6 @@
 import { supabase } from '../supabase'
 import { selectNextVideo, selectSOSVideo } from './videoSelectionAlgorithm'
+import { getBlocksForCount } from '../constants/blockAlgorithm'
 
 // Cache for video blocks to avoid redundant fetches
 let videoBlocksCache = null
@@ -115,4 +116,38 @@ export const BODY_SCAN_MEDIA = {
 // Prefetch video blocks on app startup (optional, for better UX)
 export async function prefetchVideoBlocks() {
   await fetchVideoBlocks()
+}
+
+/**
+ * Get blocks for a specific block count using the hardcoded algorithm
+ *
+ * @param {number} blockCount - Number of blocks (2, 6, or 10)
+ * @returns {Array} Array of media objects ready for the player
+ */
+export async function getBlocksForRoutine(blockCount) {
+  // Get all blocks from database
+  const allBlocks = await fetchVideoBlocks()
+
+  // Get the canonical names for this block count from the algorithm
+  const canonicalNames = getBlocksForCount(blockCount)
+
+  if (!canonicalNames || canonicalNames.length === 0) {
+    console.error(`No blocks configured for count: ${blockCount}`)
+    return []
+  }
+
+  // Filter and order blocks based on the algorithm's canonical names
+  const selectedBlocks = canonicalNames
+    .map(canonicalName => {
+      const block = allBlocks.find(b => b.canonical_name === canonicalName)
+      if (!block) {
+        console.warn(`Block not found for canonical_name: ${canonicalName}`)
+      }
+      return block
+    })
+    .filter(block => block !== undefined) // Remove any missing blocks
+    .map(block => blockToMedia(block)) // Convert to media format
+
+  console.log(`Selected ${selectedBlocks.length} blocks for routine (requested ${blockCount})`)
+  return selectedBlocks
 }

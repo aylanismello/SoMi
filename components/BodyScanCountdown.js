@@ -7,6 +7,9 @@ import Svg, { Circle } from 'react-native-svg'
 import * as Haptics from 'expo-haptics'
 import { colors } from '../constants/theme'
 import { somiChainService } from '../supabase'
+import { soundManager } from '../utils/SoundManager'
+import { useSettings } from '../contexts/SettingsContext'
+import SettingsModal from './SettingsModal'
 
 const COUNTDOWN_DURATION_SECONDS = 60
 
@@ -27,6 +30,11 @@ export default function BodyScanCountdown({ route, navigation }) {
   const [countdown, setCountdown] = useState(COUNTDOWN_DURATION_SECONDS)
   const countdownIntervalRef = useRef(null)
   const [showExitModal, setShowExitModal] = useState(false)
+  const [showSettingsModal, setShowSettingsModal] = useState(false)
+  const [infinityMode, setInfinityMode] = useState(false)
+  const startTimeRef = useRef(null)
+
+  const { isMusicEnabled } = useSettings()
 
   // Animated value for smooth progress
   const progressAnim = useRef(new Animated.Value(0)).current
@@ -35,10 +43,22 @@ export default function BodyScanCountdown({ route, navigation }) {
   const audioUrl = isInitial ? START_BODY_SCAN_AUDIO : END_BODY_SCAN_AUDIO
   const audioPlayer = useAudioPlayer(audioUrl)
 
-  // Auto-play audio on mount
+  // Initialize start time and audio on mount (runs once)
   useEffect(() => {
+    // Reset start time
+    startTimeRef.current = Date.now()
+
     if (audioPlayer) {
-      audioPlayer.play()
+      // Reset audio to beginning
+      audioPlayer.seekTo(0)
+
+      // Respect music setting
+      if (isMusicEnabled) {
+        audioPlayer.volume = 1
+        audioPlayer.play()
+      } else {
+        audioPlayer.volume = 0
+      }
     }
 
     return () => {
@@ -52,43 +72,86 @@ export default function BodyScanCountdown({ route, navigation }) {
         console.log('Audio cleanup on unmount:', err.message)
       }
     }
-  }, [audioPlayer])
+  }, [audioPlayer, isMusicEnabled])
+
+  // Handle audio looping in infinity mode (separate effect)
+  useEffect(() => {
+    const checkAudioLoop = setInterval(() => {
+      if (audioPlayer && infinityMode && isMusicEnabled) {
+        // If audio is near the end, restart it
+        if (audioPlayer.duration > 0 && audioPlayer.currentTime >= audioPlayer.duration - 0.5) {
+          audioPlayer.seekTo(0)
+          audioPlayer.play()
+        }
+      }
+    }, 500)
+
+    return () => {
+      clearInterval(checkAudioLoop)
+    }
+  }, [audioPlayer, infinityMode, isMusicEnabled])
 
   // Smooth animation for progress circle
   useEffect(() => {
-    Animated.timing(progressAnim, {
-      toValue: 1,
-      duration: COUNTDOWN_DURATION_SECONDS * 1000,
-      useNativeDriver: false,
-    }).start(() => {
-      handleComplete()
-    })
+    // Reset animation to start
+    progressAnim.setValue(0)
+
+    const runAnimation = () => {
+      Animated.timing(progressAnim, {
+        toValue: 1,
+        duration: COUNTDOWN_DURATION_SECONDS * 1000,
+        useNativeDriver: false,
+      }).start(({ finished }) => {
+        if (finished) {
+          if (infinityMode) {
+            // In infinity mode, reset and loop
+            progressAnim.setValue(0)
+            runAnimation()
+          } else {
+            // Normal mode, complete the body scan
+            handleComplete()
+          }
+        }
+      })
+    }
+
+    runAnimation()
 
     return () => {
       progressAnim.stopAnimation()
     }
-  }, [])
+  }, [infinityMode])
 
-  // Countdown timer for display
+  // Timer for display (countdown in normal mode, count up in infinity mode)
   useEffect(() => {
-    countdownIntervalRef.current = setInterval(() => {
-      setCountdown(prev => {
-        if (prev <= 1) {
-          clearInterval(countdownIntervalRef.current)
-          return 0
-        }
-        return prev - 1
-      })
-    }, 1000)
+    if (infinityMode) {
+      // Infinity mode: start counting up from 0
+      setCountdown(0)
+      countdownIntervalRef.current = setInterval(() => {
+        setCountdown(prev => prev + 1)
+      }, 1000)
+    } else {
+      // Normal mode: count down from 60
+      setCountdown(COUNTDOWN_DURATION_SECONDS)
+      countdownIntervalRef.current = setInterval(() => {
+        setCountdown(prev => {
+          if (prev <= 1) {
+            clearInterval(countdownIntervalRef.current)
+            return 0
+          }
+          return prev - 1
+        })
+      }, 1000)
+    }
 
     return () => {
       if (countdownIntervalRef.current) {
         clearInterval(countdownIntervalRef.current)
       }
     }
-  }, [])
+  }, [infinityMode])
 
-  const handleComplete = () => {
+  const handleComplete = async () => {
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success)
 
     // Pause audio before navigating (with safety checks)
@@ -99,6 +162,17 @@ export default function BodyScanCountdown({ route, navigation }) {
     } catch (err) {
       console.log('Audio player cleanup warning:', err.message)
     }
+
+    // Play block end sound
+    soundManager.playBlockEnd()
+
+    // Save body scan as a completed block
+    const elapsedMs = Date.now() - startTimeRef.current
+    const elapsedSeconds = Math.round(elapsedMs / 1000)
+    const BODY_SCAN_BLOCK_ID = 20 // From somi_blocks table
+    const chainId = await somiChainService.getOrCreateActiveChain()
+    await somiChainService.saveCompletedBlock(BODY_SCAN_BLOCK_ID, elapsedSeconds, 0, chainId)
+    console.log(`Body scan completed and saved: ${elapsedSeconds}s`)
 
     if (skipToRoutine) {
       // Skip check-in, go directly to Step 2 (selection)
@@ -165,6 +239,20 @@ export default function BodyScanCountdown({ route, navigation }) {
     setShowExitModal(false)
   }
 
+  const handleOpenSettings = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
+    setShowSettingsModal(true)
+  }
+
+  const handleCloseSettings = () => {
+    setShowSettingsModal(false)
+  }
+
+  const handleToggleInfinity = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium)
+    setInfinityMode(!infinityMode)
+  }
+
   const message = isInitial
     ? "how do you feel in the body?\nnotice any sensations\ngoing into this SoMi check-in"
     : "how do you feel those sensations\ncoming out of the SoMi check-in"
@@ -185,8 +273,15 @@ export default function BodyScanCountdown({ route, navigation }) {
       colors={[colors.background.primary, colors.background.secondary, colors.background.primary]}
       style={styles.container}
     >
-      {/* Header with Skip and Close buttons */}
+      {/* Header with Settings, Skip and Close buttons */}
       <View style={styles.header}>
+        <TouchableOpacity
+          onPress={handleOpenSettings}
+          style={styles.settingsButton}
+          activeOpacity={0.7}
+        >
+          <Text style={styles.settingsButtonText}>⚙️</Text>
+        </TouchableOpacity>
         <TouchableOpacity
           onPress={handleSkip}
           style={styles.skipButtonLeft}
@@ -236,9 +331,20 @@ export default function BodyScanCountdown({ route, navigation }) {
               transform={`rotate(-90 ${radius + strokeWidth} ${radius + strokeWidth})`}
             />
           </Svg>
-          <View style={styles.circleCenter}>
-            <Text style={styles.circleText}>SoMi</Text>
-          </View>
+          <TouchableOpacity
+            style={styles.circleCenter}
+            onPress={handleToggleInfinity}
+            activeOpacity={0.8}
+          >
+            {infinityMode ? (
+              <Text style={styles.infinitySymbol}>∞</Text>
+            ) : (
+              <>
+                <Text style={styles.circleText}>SoMi</Text>
+                <Text style={styles.infinityHint}>tap for ∞</Text>
+              </>
+            )}
+          </TouchableOpacity>
         </View>
       </View>
 
@@ -278,6 +384,8 @@ export default function BodyScanCountdown({ route, navigation }) {
           </BlurView>
         </View>
       </Modal>
+
+      <SettingsModal visible={showSettingsModal} onClose={handleCloseSettings} />
     </LinearGradient>
   )
 }
@@ -293,6 +401,15 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: 16,
     marginBottom: 20,
+  },
+  settingsButton: {
+    width: 44,
+    height: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  settingsButtonText: {
+    fontSize: 24,
   },
   skipButtonLeft: {
     paddingVertical: 12,
@@ -355,6 +472,19 @@ const styles = StyleSheet.create({
     fontSize: 32,
     fontWeight: '700',
     letterSpacing: 2,
+    marginBottom: 4,
+  },
+  infinityHint: {
+    color: colors.text.secondary,
+    fontSize: 11,
+    fontWeight: '400',
+    letterSpacing: 0.5,
+    opacity: 0.6,
+  },
+  infinitySymbol: {
+    color: colors.accent.primary,
+    fontSize: 48,
+    fontWeight: '300',
   },
   modalOverlay: {
     flex: 1,
