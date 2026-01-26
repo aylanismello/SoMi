@@ -11,7 +11,6 @@ import { selectRoutineVideo } from '../services/videoSelectionAlgorithm'
 import { getBlocksForRoutine } from '../services/mediaService'
 import { soundManager } from '../utils/SoundManager'
 import { colors } from '../constants/theme'
-import CollapsibleCategorySelector from './CollapsibleCategorySelector'
 import { useSettings } from '../contexts/SettingsContext'
 import SettingsModal from './SettingsModal'
 
@@ -62,6 +61,7 @@ export default function SoMiRoutineScreen({ navigation, route }) {
     savedInitialValue,
     savedInitialState,
     totalBlocks = 8, // Default to 8 blocks if not specified
+    customQueue = null, // Custom queue from preview screen if edited
   } = route.params
 
   // Dynamic block count based on user selection
@@ -87,6 +87,8 @@ export default function SoMiRoutineScreen({ navigation, route }) {
   // Exit confirmation modal
   const [showExitModal, setShowExitModal] = useState(false)
   const [showSettingsModal, setShowSettingsModal] = useState(false)
+  const [showEditModal, setShowEditModal] = useState(false)
+  const [allBlocks, setAllBlocks] = useState([])
 
   const { isMusicEnabled } = useSettings()
 
@@ -101,6 +103,7 @@ export default function SoMiRoutineScreen({ navigation, route }) {
   const [showBackground, setShowBackground] = useState(false)
 
   const startTimeRef = useRef(null)
+  const hasSavedCurrentBlockRef = useRef(false)
   const controlsOpacity = useRef(new Animated.Value(0)).current
   const progressBarRef = useRef(null)
   const thumbScale = useRef(new Animated.Value(1)).current
@@ -145,8 +148,8 @@ export default function SoMiRoutineScreen({ navigation, route }) {
   // Auto-play when entering video phase
   useEffect(() => {
     if (phase === 'video' && player && currentVideo) {
-      // Show controls briefly when video starts
-      setShowControls(true)
+      // Don't show controls when video starts
+      setShowControls(false)
 
       // Start playing
       setTimeout(() => {
@@ -176,14 +179,21 @@ export default function SoMiRoutineScreen({ navigation, route }) {
       }
 
       setVideoQueue(data || [])
+      setAllBlocks(data || []) // Store all blocks for edit modal
 
-      // Fetch the hardcoded queue based on totalBlocks
-      const queue = await getBlocksForRoutine(totalBlocks)
+      // Use custom queue if provided, otherwise fetch hardcoded queue
+      let queue
+      if (customQueue && customQueue.length > 0) {
+        queue = customQueue
+        console.log('Using custom queue from preview:', queue.map(b => b.name))
+      } else {
+        queue = await getBlocksForRoutine(totalBlocks)
+        console.log(`Loaded hardcoded queue for ${totalBlocks} blocks:`, queue.map(b => b.name))
+      }
+
       setHardcodedQueue(queue)
 
-      console.log(`Loaded hardcoded queue for ${totalBlocks} blocks:`, queue.map(b => b.name))
-
-      // Set initial video from hardcoded queue
+      // Set initial video from queue
       if (queue && queue.length > 0) {
         const firstBlock = queue[0]
         // Find the full block data from videoQueue
@@ -362,6 +372,7 @@ export default function SoMiRoutineScreen({ navigation, route }) {
     setShowControls(false)
     // Track start time for elapsed time calculation
     startTimeRef.current = Date.now()
+    hasSavedCurrentBlockRef.current = false // Reset save guard for new block
   }
 
   const handleSkipInterstitial = () => {
@@ -486,10 +497,11 @@ export default function SoMiRoutineScreen({ navigation, route }) {
 
   const handleVideoComplete = async () => {
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success)
-    // soundManager.playBlockEnd() // Temporarily disabled
+    soundManager.playBlockEnd()
 
-    // Save the completed block
-    if (currentVideo) {
+    // Save the completed block (prevent duplicate saves)
+    if (currentVideo && !hasSavedCurrentBlockRef.current) {
+      hasSavedCurrentBlockRef.current = true
       const elapsedSeconds = Math.min(
         Math.round((Date.now() - startTimeRef.current) / 1000),
         VIDEO_DURATION_CAP_SECONDS
@@ -559,10 +571,11 @@ export default function SoMiRoutineScreen({ navigation, route }) {
 
   const handleCloseVideo = async () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium)
-    // soundManager.playBlockEnd() // Temporarily disabled
+    soundManager.playBlockEnd()
 
-    // Save current video progress
-    if (currentVideo && startTimeRef.current) {
+    // Save current video progress (prevent duplicate saves)
+    if (currentVideo && startTimeRef.current && !hasSavedCurrentBlockRef.current) {
+      hasSavedCurrentBlockRef.current = true
       const elapsedSeconds = Math.min(
         Math.round((Date.now() - startTimeRef.current) / 1000),
         VIDEO_DURATION_CAP_SECONDS
@@ -643,6 +656,45 @@ export default function SoMiRoutineScreen({ navigation, route }) {
 
   const handleCloseSettings = () => {
     setShowSettingsModal(false)
+  }
+
+  const handleOpenEditModal = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
+    setShowEditModal(true)
+    // Pause countdown
+    if (countdownIntervalRef.current) {
+      clearInterval(countdownIntervalRef.current)
+    }
+    interstitialProgressAnim.stopAnimation()
+  }
+
+  const handleCloseEditModal = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
+    setShowEditModal(false)
+    // Resume countdown from current state
+    // The useEffect for countdown will restart when modal closes
+  }
+
+  const handleBlockSelectFromEdit = (selectedBlock) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium)
+
+    // Update the current video to the selected block
+    setCurrentVideo(selectedBlock)
+    setSelectedVideoId(selectedBlock.id)
+
+    // Update the hardcoded queue at current position
+    const newQueue = [...hardcodedQueue]
+    const blockData = {
+      somi_block_id: selectedBlock.id,
+      name: selectedBlock.name,
+      canonical_name: selectedBlock.canonical_name,
+      url: selectedBlock.media_url,
+      type: 'video',
+    }
+    newQueue[currentCycle - 1] = blockData
+    setHardcodedQueue(newQueue)
+
+    setShowEditModal(false)
   }
 
   // Loading state
@@ -783,12 +835,14 @@ export default function SoMiRoutineScreen({ navigation, route }) {
             </View>
           )}
 
-          {/* Collapsible Category Selector */}
-          <CollapsibleCategorySelector
-            blocks={videoQueue}
-            selectedBlockId={selectedVideoId}
-            onBlockSelect={handleVideoSelect}
-          />
+          {/* Edit Routine Button */}
+          <TouchableOpacity
+            onPress={handleOpenEditModal}
+            style={styles.editRoutineButton}
+            activeOpacity={0.8}
+          >
+            <Text style={styles.editRoutineButtonText}>✎ Edit Routine</Text>
+          </TouchableOpacity>
         </View>
 
         {/* Exit Confirmation Modal */}
@@ -825,6 +879,98 @@ export default function SoMiRoutineScreen({ navigation, route }) {
                 </View>
               </View>
             </BlurView>
+          </View>
+        </Modal>
+
+        <SettingsModal visible={showSettingsModal} onClose={handleCloseSettings} />
+
+        {/* Edit Routine Modal */}
+        <Modal
+          visible={showEditModal}
+          transparent={true}
+          animationType="slide"
+          onRequestClose={handleCloseEditModal}
+        >
+          <View style={styles.editModalOverlay}>
+            <View style={styles.editModalContainer}>
+              <View style={styles.editModalHeader}>
+                <TouchableOpacity onPress={handleCloseEditModal} style={styles.editModalBackButton}>
+                  <Text style={styles.editModalBackButtonText}>←</Text>
+                </TouchableOpacity>
+                <Text style={styles.editModalTitle}>Choose Exercise</Text>
+                <Text style={styles.editModalSubtitle}>
+                  {allBlocks.length} {allBlocks.length === 1 ? 'exercise' : 'exercises'}
+                </Text>
+              </View>
+
+              <ScrollView
+                style={styles.editModalScrollView}
+                contentContainerStyle={styles.editModalListContent}
+                showsVerticalScrollIndicator={false}
+              >
+                {(() => {
+                  let isFirstSection = true
+                  return Object.entries(STATE_EMOJIS).map(([stateId, stateInfo]) => {
+                    const blocksForState = allBlocks.filter(b => b.state_target === stateId)
+
+                    if (blocksForState.length === 0) return null
+
+                    const isFirst = isFirstSection
+                    isFirstSection = false
+
+                    return (
+                      <View key={stateId}>
+                        <View style={[styles.editModalStateHeaderContainer, isFirst && { marginTop: 0 }]}>
+                          <View style={styles.editModalStateHeaderLine} />
+                          <View style={styles.editModalStateHeader}>
+                            <Text style={styles.editModalStateHeaderEmoji}>{stateInfo.emoji}</Text>
+                            <Text style={[styles.editModalStateHeaderText, { color: stateInfo.color }]}>
+                              {stateInfo.label}
+                            </Text>
+                          </View>
+                          <View style={styles.editModalStateHeaderLine} />
+                        </View>
+
+                        {blocksForState.map((block) => (
+                          <TouchableOpacity
+                            key={block.id}
+                            onPress={() => handleBlockSelectFromEdit(block)}
+                            style={[
+                              styles.editModalBlockCard,
+                              { borderColor: `${stateInfo.color}50` }
+                            ]}
+                            activeOpacity={0.85}
+                          >
+                            <LinearGradient
+                              colors={[`${stateInfo.color}20`, `${stateInfo.color}10`]}
+                              start={{ x: 0, y: 0 }}
+                              end={{ x: 1, y: 1 }}
+                              style={styles.editModalBlockGradient}
+                            >
+                              <View style={styles.editModalBlockContent}>
+                                <View style={styles.editModalStateIconContainer}>
+                                  <Text style={styles.editModalStateIconEmoji}>{stateInfo.emoji}</Text>
+                                </View>
+                                <View style={styles.editModalBlockInfo}>
+                                  <Text style={styles.editModalBlockName}>{block.name}</Text>
+                                  {block.description && (
+                                    <Text style={styles.editModalBlockDescription} numberOfLines={2}>
+                                      {block.description}
+                                    </Text>
+                                  )}
+                                </View>
+                                <View style={styles.editModalSelectIconContainer}>
+                                  <Text style={styles.editModalSelectIcon}>+</Text>
+                                </View>
+                              </View>
+                            </LinearGradient>
+                          </TouchableOpacity>
+                        ))}
+                      </View>
+                    )
+                  })())}
+              </ScrollView>
+            </View>
           </View>
         </Modal>
       </LinearGradient>
@@ -1419,5 +1565,153 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '600',
     letterSpacing: 0.3,
+  },
+  editRoutineButton: {
+    backgroundColor: colors.surface.tertiary,
+    paddingVertical: 14,
+    paddingHorizontal: 24,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: colors.border.default,
+    alignItems: 'center',
+    marginHorizontal: 24,
+    marginTop: 8,
+  },
+  editRoutineButtonText: {
+    color: colors.text.primary,
+    fontSize: 16,
+    fontWeight: '600',
+    letterSpacing: 0.3,
+  },
+  editModalOverlay: {
+    flex: 1,
+    backgroundColor: colors.background.primary,
+  },
+  editModalContainer: {
+    flex: 1,
+    backgroundColor: colors.background.primary,
+  },
+  editModalHeader: {
+    paddingTop: 60,
+    paddingBottom: 32,
+    paddingHorizontal: 24,
+    backgroundColor: colors.background.primary,
+  },
+  editModalBackButton: {
+    width: 40,
+    height: 40,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: colors.surface.tertiary,
+    borderRadius: 20,
+    marginBottom: 20,
+    borderWidth: 1,
+    borderColor: colors.border.default,
+  },
+  editModalBackButtonText: {
+    fontSize: 24,
+    color: colors.text.primary,
+    fontWeight: '600',
+  },
+  editModalTitle: {
+    fontSize: 32,
+    fontWeight: '700',
+    color: colors.text.primary,
+    marginBottom: 8,
+    letterSpacing: 0.5,
+  },
+  editModalSubtitle: {
+    fontSize: 14,
+    color: colors.text.secondary,
+    fontWeight: '500',
+  },
+  editModalScrollView: {
+    flex: 1,
+  },
+  editModalListContent: {
+    paddingHorizontal: 24,
+    paddingTop: 24,
+    paddingBottom: 40,
+  },
+  editModalStateHeaderContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 24,
+    marginBottom: 16,
+    gap: 12,
+  },
+  editModalStateHeaderLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: colors.border.subtle,
+  },
+  editModalStateHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingHorizontal: 12,
+  },
+  editModalStateHeaderEmoji: {
+    fontSize: 18,
+  },
+  editModalStateHeaderText: {
+    fontSize: 14,
+    fontWeight: '600',
+    letterSpacing: 0.5,
+    textTransform: 'lowercase',
+  },
+  editModalBlockCard: {
+    borderRadius: 16,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: colors.border.default,
+    marginBottom: 16,
+  },
+  editModalBlockGradient: {
+    padding: 20,
+  },
+  editModalBlockContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 16,
+  },
+  editModalStateIconContainer: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  editModalStateIconEmoji: {
+    fontSize: 24,
+  },
+  editModalBlockInfo: {
+    flex: 1,
+    gap: 8,
+  },
+  editModalBlockName: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: colors.text.primary,
+    letterSpacing: 0.3,
+  },
+  editModalBlockDescription: {
+    fontSize: 14,
+    color: colors.text.secondary,
+    lineHeight: 20,
+  },
+  editModalSelectIconContainer: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  editModalSelectIcon: {
+    fontSize: 24,
+    color: colors.text.primary,
+    fontWeight: '300',
   },
 })

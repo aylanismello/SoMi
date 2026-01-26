@@ -462,8 +462,8 @@ export default function SoMeCheckIn({ navigation, route }) {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium)
     setSelectedBlockCount(blockCount)
 
-    // Navigate to SoMi Routine with selected block count
-    navigation.navigate('SoMiRoutine', {
+    // Navigate to queue preview first, then to routine
+    navigation.navigate('RoutineQueuePreview', {
       polyvagalState,
       sliderValue,
       savedInitialValue: sliderValue,

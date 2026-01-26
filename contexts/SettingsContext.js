@@ -12,14 +12,21 @@ export const useSettings = () => {
 
 export const SettingsProvider = ({ children }) => {
   const [isMusicEnabled, setIsMusicEnabled] = useState(true)
+  const [showTime, setShowTime] = useState(false)
 
   const toggleMusic = () => {
     setIsMusicEnabled(prev => !prev)
   }
 
+  const toggleShowTime = () => {
+    setShowTime(prev => !prev)
+  }
+
   const value = {
     isMusicEnabled,
     toggleMusic,
+    showTime,
+    toggleShowTime,
   }
 
   return (

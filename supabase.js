@@ -78,10 +78,23 @@ export const somiChainService = {
     }
   },
 
+  // Create a NEW chain (always creates, never reuses)
+  async createNewChain() {
+    try {
+      // End any existing active chain first
+      await this.endActiveChain()
+      // Create new chain
+      return await this.createChain()
+    } catch (err) {
+      console.error('Error creating new chain:', err)
+      return null
+    }
+  },
+
   // Save embodiment check to chain
   async saveEmbodimentCheck(sliderValue, polyvagalStateCode, journalEntry = null) {
     try {
-      const chainId = await this.getOrCreateActiveChain()
+      const chainId = await this.createNewChain()
 
       const { data, error} = await supabase
         .from('embodiment_checks')

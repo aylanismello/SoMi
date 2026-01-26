@@ -35,28 +35,64 @@ export default function HomeScreen({ navigation }) {
     setLoading(false)
   }
 
-  // Calculate stats from latest chain
+  // Calculate stats from latest chain (flexible - works with any chain type)
   const getChainStats = () => {
-    if (!latestChain || !latestChain.embodiment_checks || latestChain.embodiment_checks.length < 2) {
+    if (!latestChain) {
       return null
     }
 
-    const checks = latestChain.embodiment_checks
-    const firstCheck = checks[0]
-    const lastCheck = checks[checks.length - 1]
-
-    const fromStateCode = firstCheck.polyvagal_state_code !== undefined ? firstCheck.polyvagal_state_code : 1
-    const toStateCode = lastCheck.polyvagal_state_code !== undefined ? lastCheck.polyvagal_state_code : 1
-
-    // Calculate total minutes from entries
+    // Calculate total minutes from entries (blocks)
     const totalSeconds = (latestChain.somi_chain_entries || []).reduce((sum, entry) => sum + (entry.seconds_elapsed || 0), 0)
     const totalMinutes = Math.round(totalSeconds / 60)
 
-    return {
-      fromState: POLYVAGAL_STATES[fromStateCode] || POLYVAGAL_STATES[1],
-      toState: POLYVAGAL_STATES[toStateCode] || POLYVAGAL_STATES[1],
-      totalMinutes,
+    const checks = latestChain.embodiment_checks || []
+
+    // If we have 2+ checks, show transformation
+    if (checks.length >= 2) {
+      const firstCheck = checks[0]
+      const lastCheck = checks[checks.length - 1]
+
+      const fromStateCode = firstCheck.polyvagal_state_code !== undefined ? firstCheck.polyvagal_state_code : 1
+      const toStateCode = lastCheck.polyvagal_state_code !== undefined ? lastCheck.polyvagal_state_code : 1
+
+      return {
+        fromState: POLYVAGAL_STATES[fromStateCode] || POLYVAGAL_STATES[1],
+        toState: POLYVAGAL_STATES[toStateCode] || POLYVAGAL_STATES[1],
+        totalMinutes,
+        hasTransformation: true,
+      }
     }
+
+    // If we have 1 check, show single state
+    if (checks.length === 1) {
+      const stateCode = checks[0].polyvagal_state_code !== undefined ? checks[0].polyvagal_state_code : 1
+      return {
+        fromState: POLYVAGAL_STATES[stateCode] || POLYVAGAL_STATES[1],
+        toState: null,
+        totalMinutes,
+        hasTransformation: false,
+      }
+    }
+
+    // If no checks but has blocks (e.g., just body scan or single video)
+    if ((latestChain.somi_chain_entries || []).length > 0) {
+      return {
+        fromState: null,
+        toState: null,
+        totalMinutes,
+        hasTransformation: false,
+      }
+    }
+
+    return null
+  }
+
+  // Get time-based greeting
+  const getGreeting = () => {
+    const hour = new Date().getHours()
+    if (hour < 12) return 'Good morning'
+    if (hour < 18) return 'Good afternoon'
+    return 'Good evening'
   }
 
   const chainStats = getChainStats()
@@ -100,49 +136,74 @@ export default function HomeScreen({ navigation }) {
         <View style={styles.welcomeSection}>
         <View style={styles.welcomeContent}>
           <Text style={styles.welcomeText}>Hi Aylan.</Text>
-          <Text style={styles.welcomeSubtext}>Good morning </Text>
+          <Text style={styles.welcomeSubtext}>{getGreeting()}</Text>
 
           {chainStats ? (
             <BlurView intensity={20} tint="dark" style={styles.statsCard}>
               <View style={styles.statsContent}>
-                <Text style={styles.statsLabel}>Last check-in</Text>
+                <Text style={styles.statsLabel}>Last session</Text>
 
-                {/* State transition with emojis */}
-                <View style={styles.stateTransition}>
-                  <View style={[styles.stateCircle, { backgroundColor: chainStats.fromState.color + '33', borderColor: chainStats.fromState.color }]}>
-                    <Text style={styles.stateEmoji}>{chainStats.fromState.emoji}</Text>
-                  </View>
+                {chainStats.hasTransformation ? (
+                  <>
+                    {/* State transition with emojis */}
+                    <View style={styles.stateTransition}>
+                      <View style={[styles.stateCircle, { backgroundColor: chainStats.fromState.color + '33', borderColor: chainStats.fromState.color }]}>
+                        <Text style={styles.stateEmoji}>{chainStats.fromState.emoji}</Text>
+                      </View>
 
-                  <View style={styles.transitionArrow}>
-                    <Text style={styles.arrowText}>→</Text>
-                  </View>
+                      <View style={styles.transitionArrow}>
+                        <Text style={styles.arrowText}>→</Text>
+                      </View>
 
-                  <View style={[styles.stateCircle, { backgroundColor: chainStats.toState.color + '33', borderColor: chainStats.toState.color }]}>
-                    <Text style={styles.stateEmoji}>{chainStats.toState.emoji}</Text>
-                  </View>
-                </View>
+                      <View style={[styles.stateCircle, { backgroundColor: chainStats.toState.color + '33', borderColor: chainStats.toState.color }]}>
+                        <Text style={styles.stateEmoji}>{chainStats.toState.emoji}</Text>
+                      </View>
+                    </View>
 
-                {/* State labels */}
-                <View style={styles.stateLabels}>
-                  <Text style={[styles.stateLabelText, { color: chainStats.fromState.color }]}>
-                    {chainStats.fromState.label}
-                  </Text>
-                  <Text style={styles.stateLabelArrow}>→</Text>
-                  <Text style={[styles.stateLabelText, { color: chainStats.toState.color }]}>
-                    {chainStats.toState.label}
-                  </Text>
-                </View>
+                    {/* State labels */}
+                    <View style={styles.stateLabels}>
+                      <Text style={[styles.stateLabelText, { color: chainStats.fromState.color }]}>
+                        {chainStats.fromState.label}
+                      </Text>
+                      <Text style={styles.stateLabelArrow}>→</Text>
+                      <Text style={[styles.stateLabelText, { color: chainStats.toState.color }]}>
+                        {chainStats.toState.label}
+                      </Text>
+                    </View>
+                  </>
+                ) : chainStats.fromState ? (
+                  <>
+                    {/* Single check-in state */}
+                    <View style={styles.stateTransition}>
+                      <View style={[styles.stateCircle, { backgroundColor: chainStats.fromState.color + '33', borderColor: chainStats.fromState.color }]}>
+                        <Text style={styles.stateEmoji}>{chainStats.fromState.emoji}</Text>
+                      </View>
+                    </View>
+                    <View style={styles.stateLabels}>
+                      <Text style={[styles.stateLabelText, { color: chainStats.fromState.color }]}>
+                        {chainStats.fromState.label}
+                      </Text>
+                    </View>
+                  </>
+                ) : (
+                  <>
+                    {/* No check-ins, just practice */}
+                    <Text style={styles.statsDetail}>Practice session</Text>
+                  </>
+                )}
 
                 {/* Minutes spent */}
-                <View style={styles.minutesRow}>
-                  <Text style={styles.minutesLabel}>{chainStats.totalMinutes} minutes</Text>
-                </View>
+                {chainStats.totalMinutes > 0 && (
+                  <View style={styles.minutesRow}>
+                    <Text style={styles.minutesLabel}>{chainStats.totalMinutes} {chainStats.totalMinutes === 1 ? 'minute' : 'minutes'}</Text>
+                  </View>
+                )}
               </View>
             </BlurView>
           ) : (
             <BlurView intensity={20} tint="dark" style={styles.statsCard}>
               <View style={styles.statsContent}>
-                <Text style={styles.statsLabel}>No check-ins yet</Text>
+                <Text style={styles.statsLabel}>No sessions yet</Text>
                 <Text style={styles.statsDetail}>Start your first SoMi session</Text>
               </View>
             </BlurView>

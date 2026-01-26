@@ -11,6 +11,7 @@ import PlayerScreen from './components/PlayerScreen'
 import MySomiScreen from './components/MySomiScreen'
 import SoMiTimer from './components/SoMiTimer'
 import SoMiRoutineScreen from './components/SoMiRoutineScreen'
+import RoutineQueuePreview from './components/RoutineQueuePreview'
 import BodyScanCountdown from './components/BodyScanCountdown'
 import ExploreScreen from './components/ExploreScreen'
 import CategoryDetailScreen from './components/CategoryDetailScreen'
@@ -57,6 +58,13 @@ function CheckInStack() {
       <Stack.Screen
         name="SoMiTimer"
         component={SoMiTimer}
+        options={{
+          presentation: 'card',
+        }}
+      />
+      <Stack.Screen
+        name="RoutineQueuePreview"
+        component={RoutineQueuePreview}
         options={{
           presentation: 'card',
         }}

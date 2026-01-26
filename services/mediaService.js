@@ -136,12 +136,16 @@ export async function getBlocksForRoutine(blockCount) {
     return []
   }
 
+  console.log(`Building queue for ${blockCount} blocks using algorithm:`, canonicalNames)
+
   // Filter and order blocks based on the algorithm's canonical names
   const selectedBlocks = canonicalNames
     .map(canonicalName => {
       const block = allBlocks.find(b => b.canonical_name === canonicalName)
       if (!block) {
-        console.warn(`Block not found for canonical_name: ${canonicalName}`)
+        console.warn(`❌ Block not found for canonical_name: ${canonicalName}`)
+      } else {
+        console.log(`✓ Found block: ${block.name} (${canonicalName})`)
       }
       return block
     })
@@ -149,5 +153,6 @@ export async function getBlocksForRoutine(blockCount) {
     .map(block => blockToMedia(block)) // Convert to media format
 
   console.log(`Selected ${selectedBlocks.length} blocks for routine (requested ${blockCount})`)
+  console.log('Final queue:', selectedBlocks.map(b => b.name))
   return selectedBlocks
 }

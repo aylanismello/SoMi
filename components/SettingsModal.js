@@ -5,11 +5,16 @@ import { colors } from '../constants/theme'
 import { useSettings } from '../contexts/SettingsContext'
 
 export default function SettingsModal({ visible, onClose }) {
-  const { isMusicEnabled, toggleMusic } = useSettings()
+  const { isMusicEnabled, toggleMusic, showTime, toggleShowTime } = useSettings()
 
   const handleToggleMusic = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
     toggleMusic()
+  }
+
+  const handleToggleShowTime = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
+    toggleShowTime()
   }
 
   const handleClose = () => {
@@ -39,6 +44,21 @@ export default function SettingsModal({ visible, onClose }) {
               <Switch
                 value={isMusicEnabled}
                 onValueChange={handleToggleMusic}
+                trackColor={{ false: colors.surface.tertiary, true: colors.accent.primary }}
+                thumbColor={colors.text.primary}
+              />
+            </View>
+
+            <View style={[styles.settingRow, { borderBottomWidth: 0, marginBottom: 32 }]}>
+              <View style={styles.settingInfo}>
+                <Text style={styles.settingLabel}>Show Time</Text>
+                <Text style={styles.settingDescription}>
+                  Display countdown timer
+                </Text>
+              </View>
+              <Switch
+                value={showTime}
+                onValueChange={handleToggleShowTime}
                 trackColor={{ false: colors.surface.tertiary, true: colors.accent.primary }}
                 thumbColor={colors.text.primary}
               />

@@ -7,7 +7,6 @@ import Svg, { Circle } from 'react-native-svg'
 import * as Haptics from 'expo-haptics'
 import { colors } from '../constants/theme'
 import { somiChainService } from '../supabase'
-import { soundManager } from '../utils/SoundManager'
 import { useSettings } from '../contexts/SettingsContext'
 import SettingsModal from './SettingsModal'
 
@@ -32,6 +31,7 @@ export default function BodyScanCountdown({ route, navigation }) {
   const [showExitModal, setShowExitModal] = useState(false)
   const [showSettingsModal, setShowSettingsModal] = useState(false)
   const [infinityMode, setInfinityMode] = useState(false)
+  const infinityModeRef = useRef(false)
   const startTimeRef = useRef(null)
 
   const { isMusicEnabled } = useSettings()
@@ -72,7 +72,21 @@ export default function BodyScanCountdown({ route, navigation }) {
         console.log('Audio cleanup on unmount:', err.message)
       }
     }
-  }, [audioPlayer, isMusicEnabled])
+  }, [audioPlayer])
+
+  // Handle music toggle separately - don't restart audio
+  useEffect(() => {
+    if (audioPlayer) {
+      if (isMusicEnabled) {
+        audioPlayer.volume = 1
+        if (!audioPlayer.playing) {
+          audioPlayer.play()
+        }
+      } else {
+        audioPlayer.volume = 0
+      }
+    }
+  }, [isMusicEnabled, audioPlayer])
 
   // Handle audio looping in infinity mode (separate effect)
   useEffect(() => {
@@ -91,9 +105,8 @@ export default function BodyScanCountdown({ route, navigation }) {
     }
   }, [audioPlayer, infinityMode, isMusicEnabled])
 
-  // Smooth animation for progress circle
+  // Smooth animation for progress circle (runs once on mount)
   useEffect(() => {
-    // Reset animation to start
     progressAnim.setValue(0)
 
     const runAnimation = () => {
@@ -103,7 +116,7 @@ export default function BodyScanCountdown({ route, navigation }) {
         useNativeDriver: false,
       }).start(({ finished }) => {
         if (finished) {
-          if (infinityMode) {
+          if (infinityModeRef.current) {
             // In infinity mode, reset and loop
             progressAnim.setValue(0)
             runAnimation()
@@ -120,19 +133,18 @@ export default function BodyScanCountdown({ route, navigation }) {
     return () => {
       progressAnim.stopAnimation()
     }
-  }, [infinityMode])
+  }, [])
 
   // Timer for display (countdown in normal mode, count up in infinity mode)
   useEffect(() => {
+    // Don't reset the countdown value, just change the behavior
     if (infinityMode) {
-      // Infinity mode: start counting up from 0
-      setCountdown(0)
+      // Infinity mode: count up from current value
       countdownIntervalRef.current = setInterval(() => {
         setCountdown(prev => prev + 1)
       }, 1000)
     } else {
-      // Normal mode: count down from 60
-      setCountdown(COUNTDOWN_DURATION_SECONDS)
+      // Normal mode: count down from current value
       countdownIntervalRef.current = setInterval(() => {
         setCountdown(prev => {
           if (prev <= 1) {
@@ -163,16 +175,14 @@ export default function BodyScanCountdown({ route, navigation }) {
       console.log('Audio player cleanup warning:', err.message)
     }
 
-    // Play block end sound
-    soundManager.playBlockEnd()
-
     // Save body scan as a completed block
+    // Use active chain if exists (from check-in), otherwise create new one
     const elapsedMs = Date.now() - startTimeRef.current
     const elapsedSeconds = Math.round(elapsedMs / 1000)
     const BODY_SCAN_BLOCK_ID = 20 // From somi_blocks table
     const chainId = await somiChainService.getOrCreateActiveChain()
     await somiChainService.saveCompletedBlock(BODY_SCAN_BLOCK_ID, elapsedSeconds, 0, chainId)
-    console.log(`Body scan completed and saved: ${elapsedSeconds}s`)
+    console.log(`Body scan completed and saved: ${elapsedSeconds}s, chain: ${chainId}`)
 
     if (skipToRoutine) {
       // Skip check-in, go directly to Step 2 (selection)
@@ -250,7 +260,9 @@ export default function BodyScanCountdown({ route, navigation }) {
 
   const handleToggleInfinity = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium)
-    setInfinityMode(!infinityMode)
+    const newMode = !infinityMode
+    setInfinityMode(newMode)
+    infinityModeRef.current = newMode
   }
 
   const message = isInitial
