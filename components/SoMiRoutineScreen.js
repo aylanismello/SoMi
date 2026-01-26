@@ -908,67 +908,62 @@ export default function SoMiRoutineScreen({ navigation, route }) {
                 contentContainerStyle={styles.editModalListContent}
                 showsVerticalScrollIndicator={false}
               >
-                {(() => {
-                  let isFirstSection = true
-                  return Object.entries(STATE_EMOJIS).map(([stateId, stateInfo]) => {
-                    const blocksForState = allBlocks.filter(b => b.state_target === stateId)
+                {Object.entries(STATE_EMOJIS).map(([stateId, stateInfo], sectionIndex) => {
+                  const blocksForState = allBlocks.filter(b => b.state_target === stateId)
 
-                    if (blocksForState.length === 0) return null
+                  if (blocksForState.length === 0) return null
 
-                    const isFirst = isFirstSection
-                    isFirstSection = false
-
-                    return (
-                      <View key={stateId}>
-                        <View style={[styles.editModalStateHeaderContainer, isFirst && { marginTop: 0 }]}>
-                          <View style={styles.editModalStateHeaderLine} />
-                          <View style={styles.editModalStateHeader}>
-                            <Text style={styles.editModalStateHeaderEmoji}>{stateInfo.emoji}</Text>
-                            <Text style={[styles.editModalStateHeaderText, { color: stateInfo.color }]}>
-                              {stateInfo.label}
-                            </Text>
-                          </View>
-                          <View style={styles.editModalStateHeaderLine} />
+                  return (
+                    <View key={stateId}>
+                      <View style={[styles.editModalStateHeaderContainer, sectionIndex === 0 && { marginTop: 0 }]}>
+                        <View style={styles.editModalStateHeaderLine} />
+                        <View style={styles.editModalStateHeader}>
+                          <Text style={styles.editModalStateHeaderEmoji}>{stateInfo.emoji}</Text>
+                          <Text style={[styles.editModalStateHeaderText, { color: stateInfo.color }]}>
+                            {stateInfo.label}
+                          </Text>
                         </View>
-
-                        {blocksForState.map((block) => (
-                          <TouchableOpacity
-                            key={block.id}
-                            onPress={() => handleBlockSelectFromEdit(block)}
-                            style={[
-                              styles.editModalBlockCard,
-                              { borderColor: `${stateInfo.color}50` }
-                            ]}
-                            activeOpacity={0.85}
-                          >
-                            <LinearGradient
-                              colors={[`${stateInfo.color}20`, `${stateInfo.color}10`]}
-                              start={{ x: 0, y: 0 }}
-                              end={{ x: 1, y: 1 }}
-                              style={styles.editModalBlockGradient}
-                            >
-                              <View style={styles.editModalBlockContent}>
-                                <View style={styles.editModalStateIconContainer}>
-                                  <Text style={styles.editModalStateIconEmoji}>{stateInfo.emoji}</Text>
-                                </View>
-                                <View style={styles.editModalBlockInfo}>
-                                  <Text style={styles.editModalBlockName}>{block.name}</Text>
-                                  {block.description && (
-                                    <Text style={styles.editModalBlockDescription} numberOfLines={2}>
-                                      {block.description}
-                                    </Text>
-                                  )}
-                                </View>
-                                <View style={styles.editModalSelectIconContainer}>
-                                  <Text style={styles.editModalSelectIcon}>+</Text>
-                                </View>
-                              </View>
-                            </LinearGradient>
-                          </TouchableOpacity>
-                        ))}
+                        <View style={styles.editModalStateHeaderLine} />
                       </View>
-                    )
-                  })())}
+
+                      {blocksForState.map((block) => (
+                        <TouchableOpacity
+                          key={block.id}
+                          onPress={() => handleBlockSelectFromEdit(block)}
+                          style={[
+                            styles.editModalBlockCard,
+                            { borderColor: `${stateInfo.color}50` }
+                          ]}
+                          activeOpacity={0.85}
+                        >
+                          <LinearGradient
+                            colors={[`${stateInfo.color}20`, `${stateInfo.color}10`]}
+                            start={{ x: 0, y: 0 }}
+                            end={{ x: 1, y: 1 }}
+                            style={styles.editModalBlockGradient}
+                          >
+                            <View style={styles.editModalBlockContent}>
+                              <View style={styles.editModalStateIconContainer}>
+                                <Text style={styles.editModalStateIconEmoji}>{stateInfo.emoji}</Text>
+                              </View>
+                              <View style={styles.editModalBlockInfo}>
+                                <Text style={styles.editModalBlockName}>{block.name}</Text>
+                                {block.description && (
+                                  <Text style={styles.editModalBlockDescription} numberOfLines={2}>
+                                    {block.description}
+                                  </Text>
+                                )}
+                              </View>
+                              <View style={styles.editModalSelectIconContainer}>
+                                <Text style={styles.editModalSelectIcon}>+</Text>
+                              </View>
+                            </View>
+                          </LinearGradient>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                  )
+                })}
               </ScrollView>
             </View>
           </View>

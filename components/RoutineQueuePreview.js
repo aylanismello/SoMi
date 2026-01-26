@@ -237,21 +237,16 @@ export default function RoutineQueuePreview({ navigation, route }) {
               contentContainerStyle={styles.libraryListContent}
               showsVerticalScrollIndicator={false}
             >
-              {(() => {
-                let isFirstSection = true
-                return Object.entries(STATE_EMOJIS).map(([stateId, stateInfo]) => {
-                  // Filter blocks for this state
-                  const blocksForState = libraryBlocks.filter(b => b.state_target === stateId)
+              {Object.entries(STATE_EMOJIS).map(([stateId, stateInfo], sectionIndex) => {
+                // Filter blocks for this state
+                const blocksForState = libraryBlocks.filter(b => b.state_target === stateId)
 
-                  if (blocksForState.length === 0) return null
+                if (blocksForState.length === 0) return null
 
-                  const isFirst = isFirstSection
-                  isFirstSection = false
-
-                  return (
-                    <View key={stateId}>
-                      {/* State header */}
-                      <View style={[styles.stateHeaderContainer, isFirst && { marginTop: 0 }]}>
+                return (
+                  <View key={stateId}>
+                    {/* State header */}
+                    <View style={[styles.stateHeaderContainer, sectionIndex === 0 && { marginTop: 0 }]}>
                       <View style={styles.stateHeaderLine} />
                       <View style={styles.stateHeader}>
                         <Text style={styles.stateHeaderEmoji}>{stateInfo.emoji}</Text>
@@ -300,7 +295,7 @@ export default function RoutineQueuePreview({ navigation, route }) {
                     ))}
                   </View>
                 )
-              })())}
+              })}
             </ScrollView>
           </View>
         </View>
