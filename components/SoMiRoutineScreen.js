@@ -741,8 +741,30 @@ export default function SoMiRoutineScreen({ navigation, route }) {
   const handleCloseEditModal = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
     setShowEditModal(false)
-    // Resume countdown from current state
-    // The useEffect for countdown will restart when modal closes
+
+    // Resume countdown and animation
+    // Restart the countdown interval
+    countdownIntervalRef.current = setInterval(() => {
+      setCountdown(prev => {
+        if (prev <= 1) {
+          clearInterval(countdownIntervalRef.current)
+          return 0
+        }
+        return prev - 1
+      })
+    }, 1000)
+
+    // Resume the progress animation from where it left off
+    const remainingTime = countdown * 1000
+    Animated.timing(interstitialProgressAnim, {
+      toValue: 1,
+      duration: remainingTime,
+      useNativeDriver: false,
+    }).start(({ finished }) => {
+      if (finished) {
+        transitionToVideoPhase()
+      }
+    })
   }
 
   const handleBlockSelectFromEdit = (selectedBlock) => {
@@ -1269,8 +1291,8 @@ const styles = StyleSheet.create({
   interstitialContent: {
     flex: 1,
     alignItems: 'center',
-    justifyContent: 'flex-start',
-    paddingBottom: 20,
+    justifyContent: 'center',
+    paddingBottom: 40,
   },
   integrationMessage: {
     color: colors.text.secondary,
@@ -1278,15 +1300,15 @@ const styles = StyleSheet.create({
     fontWeight: '400',
     textAlign: 'center',
     lineHeight: 28,
-    marginTop: 8,
-    marginBottom: 12,
+    marginTop: 32,
+    marginBottom: 48,
     paddingHorizontal: 20,
   },
   circleContainer: {
     position: 'relative',
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 40,
+    marginBottom: 60,
   },
   circleCenter: {
     position: 'absolute',
@@ -1308,7 +1330,7 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   nextVideoSection: {
-    marginBottom: 8,
+    marginBottom: 24,
     paddingHorizontal: 24,
     width: '100%',
   },
@@ -1653,7 +1675,7 @@ const styles = StyleSheet.create({
     borderColor: colors.border.default,
     alignItems: 'center',
     marginHorizontal: 24,
-    marginTop: 24,
+    marginTop: 0,
   },
   editRoutineButtonText: {
     color: colors.text.primary,
