@@ -673,17 +673,10 @@ export default function SoMeCheckIn({ navigation, route }) {
       return
     }
 
-    // Save current values before navigating to body scan
-    const currentSlider = currentStep === 1 ? sliderValue : loopSliderValue
-    const currentState = currentStep === 1 ? polyvagalState : loopPolyvagalState
-
-    navigation.navigate('Player', {
-      media: BODY_SCAN_MEDIA,
-      initialValue: currentSlider,
-      isBodyScan: true, // Flag to indicate this is just a body scan, not an exercise
-      currentStep: currentStep, // Remember which step we're on
-      savedSliderValue: currentSlider, // Save slider value to restore
-      savedPolyvagalState: currentState, // Save polyvagal state to restore
+    // Navigate to BodyScanCountdown with skipToRoutine to return to this step after
+    navigation.navigate('BodyScanCountdown', {
+      isInitial: true,
+      skipToRoutine: true,
     })
   }
 
@@ -949,7 +942,7 @@ export default function SoMeCheckIn({ navigation, route }) {
               <Text style={styles.journalIconFloating}>📝</Text>
             </TouchableOpacity>
             <Text style={styles.questionTextStep4}>
-              {loopPolyvagalState ? 'how present are those\nfeelings in the body?' : 'how do you feel\nin your body right now?'}
+              {loopPolyvagalState ? 'how present are those\nfeelings in the body?' : 'after your SoMi check-in,\nhow do you feel?'}
             </Text>
           </View>
 

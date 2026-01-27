@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { useEvent } from 'expo'
 import { useVideoPlayer, VideoView } from 'expo-video'
+import { useAudioPlayer } from 'expo-audio'
 import { StyleSheet, View, TouchableOpacity, Text, ScrollView, Animated, Pressable, Modal } from 'react-native'
 import { LinearGradient } from 'expo-linear-gradient'
 import { BlurView } from 'expo-blur'
@@ -25,6 +26,9 @@ const AnimatedCircle = Animated.createAnimatedComponent(Circle)
 // ============================================================================
 const VIDEO_DURATION_CAP_SECONDS = 60
 const INTERSTITIAL_DURATION_SECONDS = 20
+
+// Routine background music URL
+const ROUTINE_BACKGROUND_MUSIC = 'https://qujifwhwntqxziymqdwu.supabase.co/storage/v1/object/public/test/somi%20og%20music/fluids%20v2.mp3'
 
 // Map new polyvagal state codes to old database state_target values
 const STATE_CODE_TO_TARGET = {
@@ -90,7 +94,7 @@ export default function SoMiRoutineScreen({ navigation, route }) {
   const [showEditModal, setShowEditModal] = useState(false)
   const [allBlocks, setAllBlocks] = useState([])
 
-  const { isMusicEnabled } = useSettings()
+  const { isMusicEnabled, showTime } = useSettings()
 
   // Video playback tracking
   const [videoProgress, setVideoProgress] = useState(0)
@@ -124,6 +128,10 @@ export default function SoMiRoutineScreen({ navigation, route }) {
     player.muted = true
   })
 
+  // Background music player for routine
+  const routineMusicPlayer = useAudioPlayer(ROUTINE_BACKGROUND_MUSIC)
+  const hasStartedRoutineMusicRef = useRef(false)
+
   // Fetch all available videos on mount
   useEffect(() => {
     fetchAvailableVideos()
@@ -156,9 +164,44 @@ export default function SoMiRoutineScreen({ navigation, route }) {
         player.play()
       }, 100)
 
+      // Start routine background music on first video (only once)
+      if (!hasStartedRoutineMusicRef.current && routineMusicPlayer && isMusicEnabled) {
+        hasStartedRoutineMusicRef.current = true
+        routineMusicPlayer.volume = 0.5 // Set volume to 50% to not overpower
+        routineMusicPlayer.loop = true
+        routineMusicPlayer.play()
+      }
+
       // soundManager.playBlockStart() // Temporarily disabled
     }
   }, [phase])
+
+  // Handle music toggle for routine background music
+  useEffect(() => {
+    if (routineMusicPlayer && hasStartedRoutineMusicRef.current) {
+      if (isMusicEnabled) {
+        routineMusicPlayer.volume = 0.5
+        if (!routineMusicPlayer.playing) {
+          routineMusicPlayer.play()
+        }
+      } else {
+        routineMusicPlayer.volume = 0
+      }
+    }
+  }, [isMusicEnabled, routineMusicPlayer])
+
+  // Cleanup routine background music on unmount
+  useEffect(() => {
+    return () => {
+      try {
+        if (routineMusicPlayer && routineMusicPlayer.playing) {
+          routineMusicPlayer.pause()
+        }
+      } catch (err) {
+        console.log('Routine music cleanup:', err.message)
+      }
+    }
+  }, [routineMusicPlayer])
 
   const fetchAvailableVideos = async () => {
     try {
@@ -518,6 +561,15 @@ export default function SoMiRoutineScreen({ navigation, route }) {
 
     // Check if we've completed all cycles
     if (currentCycle >= TOTAL_CYCLES) {
+      // Stop routine background music before final body scan
+      try {
+        if (routineMusicPlayer && routineMusicPlayer.playing) {
+          routineMusicPlayer.pause()
+        }
+      } catch (err) {
+        console.log('Error stopping routine music:', err.message)
+      }
+
       // After last block: Go straight to body scan (no final interstitial)
       navigation.navigate('BodyScanCountdown', {
         isInitial: false,
@@ -591,6 +643,15 @@ export default function SoMiRoutineScreen({ navigation, route }) {
 
     // Go to next interstitial (same logic as handleVideoComplete)
     if (currentCycle >= TOTAL_CYCLES) {
+      // Stop routine background music before final body scan
+      try {
+        if (routineMusicPlayer && routineMusicPlayer.playing) {
+          routineMusicPlayer.pause()
+        }
+      } catch (err) {
+        console.log('Error stopping routine music:', err.message)
+      }
+
       // After last block: Go straight to body scan (no final interstitial)
       navigation.navigate('BodyScanCountdown', {
         isInitial: false,
@@ -630,6 +691,15 @@ export default function SoMiRoutineScreen({ navigation, route }) {
 
   const handleConfirmExit = async () => {
     setShowExitModal(false)
+
+    // Stop routine background music when exiting early
+    try {
+      if (routineMusicPlayer && routineMusicPlayer.playing) {
+        routineMusicPlayer.pause()
+      }
+    } catch (err) {
+      console.log('Error stopping routine music on exit:', err.message)
+    }
 
     // End the active chain to reset state completely
     await somiChainService.endActiveChain()
@@ -794,6 +864,11 @@ export default function SoMiRoutineScreen({ navigation, route }) {
             </Svg>
             <View style={styles.circleCenter}>
               <Text style={styles.circleText}>SoMi</Text>
+              {showTime && (
+                <Text style={styles.countdownText}>
+                  {Math.floor(countdown / 60)}:{String(countdown % 60).padStart(2, '0')}
+                </Text>
+              )}
             </View>
           </View>
 
@@ -1211,7 +1286,7 @@ const styles = StyleSheet.create({
     position: 'relative',
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 16,
+    marginBottom: 40,
   },
   circleCenter: {
     position: 'absolute',
@@ -1223,6 +1298,14 @@ const styles = StyleSheet.create({
     fontSize: 32,
     fontWeight: '700',
     letterSpacing: 2,
+  },
+  countdownText: {
+    color: colors.text.secondary,
+    fontSize: 14,
+    fontWeight: '500',
+    letterSpacing: 0.5,
+    opacity: 0.5,
+    marginTop: 4,
   },
   nextVideoSection: {
     marginBottom: 8,
@@ -1570,7 +1653,7 @@ const styles = StyleSheet.create({
     borderColor: colors.border.default,
     alignItems: 'center',
     marginHorizontal: 24,
-    marginTop: 8,
+    marginTop: 24,
   },
   editRoutineButtonText: {
     color: colors.text.primary,

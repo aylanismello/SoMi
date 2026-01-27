@@ -34,7 +34,7 @@ export default function BodyScanCountdown({ route, navigation }) {
   const infinityModeRef = useRef(false)
   const startTimeRef = useRef(null)
 
-  const { isMusicEnabled } = useSettings()
+  const { isMusicEnabled, showTime } = useSettings()
 
   // Animated value for smooth progress
   const progressAnim = useRef(new Animated.Value(0)).current
@@ -353,6 +353,11 @@ export default function BodyScanCountdown({ route, navigation }) {
             ) : (
               <>
                 <Text style={styles.circleText}>SoMi</Text>
+                {showTime && (
+                  <Text style={styles.countdownText}>
+                    {Math.floor(countdown / 60)}:{String(countdown % 60).padStart(2, '0')}
+                  </Text>
+                )}
                 <Text style={styles.infinityHint}>tap for ∞</Text>
               </>
             )}
@@ -484,6 +489,15 @@ const styles = StyleSheet.create({
     fontSize: 32,
     fontWeight: '700',
     letterSpacing: 2,
+    marginBottom: 4,
+  },
+  countdownText: {
+    color: colors.text.secondary,
+    fontSize: 14,
+    fontWeight: '500',
+    letterSpacing: 0.5,
+    opacity: 0.5,
+    marginTop: 4,
     marginBottom: 4,
   },
   infinityHint: {
