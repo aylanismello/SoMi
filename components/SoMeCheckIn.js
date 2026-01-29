@@ -9,6 +9,9 @@ import { getSOSMedia, BODY_SCAN_MEDIA } from '../constants/media'
 import EmbodimentSlider, { POLYVAGAL_STATE_MAP, STATE_DESCRIPTIONS } from './EmbodimentSlider'
 import { supabase, somiChainService } from '../supabase'
 import { colors } from '../constants/theme'
+import { useFlowMusic } from '../contexts/FlowMusicContext'
+import SettingsModal from './SettingsModal'
+import { ROUTINE_TYPES, ROUTINE_TYPE_LABELS, ROUTINE_TYPE_EMOJIS, getAutoRoutineType } from '../services/routineConfig'
 
 // Polyvagal states for chip selection (new code-based system)
 const POLYVAGAL_STATES = [
@@ -67,7 +70,8 @@ export default function SoMeCheckIn({ navigation, route }) {
   const [initialPolyvagalState, setInitialPolyvagalState] = useState(null)
 
   // Time selection state (Step 2)
-  const [selectedBlockCount, setSelectedBlockCount] = useState(null)
+  const [selectedBlockCount, setSelectedBlockCount] = useState(6) // Default to 10 minutes
+  const [selectedRoutineType, setSelectedRoutineType] = useState(getAutoRoutineType())
 
   // Transition modal state
   const [showTransitionModal, setShowTransitionModal] = useState(false)
@@ -76,6 +80,7 @@ export default function SoMeCheckIn({ navigation, route }) {
 
   // Exit confirmation modal state
   const [showExitModal, setShowExitModal] = useState(false)
+  const [showSettingsModal, setShowSettingsModal] = useState(false)
 
   // Journal entry state
   const [journalEntry, setJournalEntry] = useState('')
@@ -83,6 +88,8 @@ export default function SoMeCheckIn({ navigation, route }) {
   const [showJournalModal, setShowJournalModal] = useState(false)
   const [journalForStep, setJournalForStep] = useState(1) // Track which step the journal is for
   const journalInputRef = useRef(null)
+
+  const { stopFlowMusic } = useFlowMusic()
 
 
   // Reset key to force carousel to scroll back to start
@@ -458,17 +465,32 @@ export default function SoMeCheckIn({ navigation, route }) {
     setShowTransitionModal(true)
   }
 
+  const handleRoutineTypeSelect = (routineType) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
+    setSelectedRoutineType(routineType)
+  }
+
   const handleTimeSelection = (blockCount) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium)
     setSelectedBlockCount(blockCount)
+  }
 
-    // Navigate to queue preview first, then to routine
+  const handleContinueToPreview = () => {
+    if (!selectedBlockCount) {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error)
+      return
+    }
+
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium)
+
+    // Navigate to queue preview with routine type
     navigation.navigate('RoutineQueuePreview', {
       polyvagalState,
       sliderValue,
       savedInitialValue: sliderValue,
       savedInitialState: polyvagalState,
-      totalBlocks: blockCount,
+      totalBlocks: selectedBlockCount,
+      routineType: selectedRoutineType,
     })
   }
 
@@ -508,11 +530,19 @@ export default function SoMeCheckIn({ navigation, route }) {
     const activeChain = await somiChainService.getLatestChain()
     if (activeChain && activeChain.somi_chain_entries) {
       const totalSeconds = activeChain.somi_chain_entries.reduce((sum, entry) => sum + (entry.seconds_elapsed || 0), 0)
-      setTotalMinutes(Math.round(totalSeconds / 60))
+      // Use Math.ceil to always round up - if any time was spent, show at least 1 minute
+      const calculatedMinutes = totalSeconds > 0 ? Math.max(1, Math.ceil(totalSeconds / 60)) : 0
+      setTotalMinutes(calculatedMinutes)
+      console.log(`Total time: ${totalSeconds}s = ${calculatedMinutes} minutes`)
+    } else {
+      setTotalMinutes(0)
     }
 
     // End the active chain when done
     await somiChainService.endActiveChain()
+
+    // Stop flow music when finishing the flow
+    stopFlowMusic()
 
     // Show transition modal before going home
     if (loopPolyvagalState && initialPolyvagalState) {
@@ -529,6 +559,9 @@ export default function SoMeCheckIn({ navigation, route }) {
 
     // End the active chain when skipping
     await somiChainService.endActiveChain()
+
+    // Stop flow music when skipping final check-in
+    stopFlowMusic()
 
     // Go home without saving or showing transition
     navigation.navigate('Home')
@@ -595,10 +628,21 @@ export default function SoMeCheckIn({ navigation, route }) {
     setShowExitModal(true)
   }
 
+  const handleOpenSettings = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
+    setShowSettingsModal(true)
+  }
+
+  const handleCloseSettings = () => {
+    setShowSettingsModal(false)
+  }
+
   const handleConfirmExit = async () => {
     setShowExitModal(false)
     // End the active chain when closing
     await somiChainService.endActiveChain()
+    // Stop flow music when exiting early
+    stopFlowMusic()
     // Go directly to home (no body scan when exiting early from Step 1)
     navigation.navigate('Home')
   }
@@ -677,6 +721,7 @@ export default function SoMeCheckIn({ navigation, route }) {
     navigation.navigate('BodyScanCountdown', {
       isInitial: true,
       skipToRoutine: true,
+      fromCheckIn: true,
     })
   }
 
@@ -695,24 +740,34 @@ export default function SoMeCheckIn({ navigation, route }) {
       colors={[colors.background.primary, colors.background.secondary, colors.background.primary]}
       style={styles.container}
     >
-      {/* Header Bar */}
+      {/* Header Bar - matching Body Scan style */}
       <View style={styles.headerBar}>
-        <TouchableOpacity
-          onPress={handleBackPress}
-          style={styles.headerButton}
-          activeOpacity={0.7}
-        >
-          <Text style={styles.headerButtonText}>←</Text>
-        </TouchableOpacity>
+        <View style={styles.headerLeftGroup}>
+          <TouchableOpacity
+            onPress={handleOpenSettings}
+            style={styles.headerIconButton}
+            activeOpacity={0.7}
+          >
+            <Text style={styles.headerIconText}>⚙️</Text>
+          </TouchableOpacity>
 
-        <Text style={styles.headerTitle}>SoMi Check-in</Text>
+          {currentStep !== 2 && (
+            <TouchableOpacity
+              onPress={handleSkipCheckin}
+              style={styles.headerSkipButton}
+              activeOpacity={0.7}
+            >
+              <Text style={styles.headerSkipText}>Skip</Text>
+            </TouchableOpacity>
+          )}
+        </View>
 
         <TouchableOpacity
           onPress={handleClosePress}
-          style={styles.headerButton}
+          style={styles.headerCloseButton}
           activeOpacity={0.7}
         >
-          <Text style={styles.headerButtonText}>✕</Text>
+          <Text style={styles.headerCloseText}>✕</Text>
         </TouchableOpacity>
       </View>
 
@@ -772,58 +827,39 @@ export default function SoMeCheckIn({ navigation, route }) {
             {/* Bottom buttons */}
             {!showConfirmMessage && (
               <View style={styles.bottomButtonsWrapper}>
-                {/* SOS and body scan on first row */}
-                <View style={styles.sosBodyScanRow}>
-                  <TouchableOpacity
-                    onPressIn={handleSOSPress}
-                    onPressOut={handleSOSRelease}
-                    activeOpacity={0.85}
-                    style={[
-                      styles.sosButtonSmall,
-                      helpMode && styles.helpModeHighlightSOS
-                    ]}
-                  >
-                    <LinearGradient
-                      colors={['#ff6b9d', '#ffa8b3']}
-                      start={{ x: 0, y: 0 }}
-                      end={{ x: 1, y: 1 }}
-                      style={styles.sosButtonSmallGradient}
-                    >
-                      <Text style={styles.sosTextSmall}>SOS</Text>
-                    </LinearGradient>
-                  </TouchableOpacity>
-
-                  <TouchableOpacity
-                    onPressIn={handleBodyScanPress}
-                    onPressOut={handleBodyScanRelease}
-                    activeOpacity={0.8}
-                    style={[
-                      styles.bodyScanButton,
-                      helpMode && styles.helpModeHighlight
-                    ]}
-                  >
-                    <Text style={styles.bodyScanText}>do a body scan</Text>
-                  </TouchableOpacity>
-
-                  <TouchableOpacity
-                    onPress={handleHelpModeToggle}
-                    activeOpacity={0.8}
-                    style={[styles.helpButtonSmall, helpMode && styles.helpButtonSmallActive]}
-                  >
-                    <Text style={styles.helpButtonSmallIcon}>?</Text>
-                  </TouchableOpacity>
-                </View>
-
-                {/* Skip Check-in and Continue on second row */}
+                {/* Single row: SOS, Help, and Continue */}
                 <View style={styles.step1NavigationRow}>
-                  <TouchableOpacity
-                    onPress={handleSkipCheckin}
-                    activeOpacity={0.7}
-                    style={styles.step1NevermindButton}
-                  >
-                    <Text style={styles.step1NevermindButtonText}>Skip Check-in</Text>
-                  </TouchableOpacity>
+                  {/* Left: SOS and Help buttons */}
+                  <View style={styles.step1LeftButtons}>
+                    <TouchableOpacity
+                      onPressIn={handleSOSPress}
+                      onPressOut={handleSOSRelease}
+                      activeOpacity={0.85}
+                      style={[
+                        styles.sosButtonSmall,
+                        helpMode && styles.helpModeHighlightSOS
+                      ]}
+                    >
+                      <LinearGradient
+                        colors={['#ff6b9d', '#ffa8b3']}
+                        start={{ x: 0, y: 0 }}
+                        end={{ x: 1, y: 1 }}
+                        style={styles.sosButtonSmallGradient}
+                      >
+                        <Text style={styles.sosTextSmall}>SOS</Text>
+                      </LinearGradient>
+                    </TouchableOpacity>
 
+                    <TouchableOpacity
+                      onPress={handleHelpModeToggle}
+                      activeOpacity={0.8}
+                      style={[styles.helpButtonSmall, helpMode && styles.helpButtonSmallActive]}
+                    >
+                      <Text style={styles.helpButtonSmallIcon}>?</Text>
+                    </TouchableOpacity>
+                  </View>
+
+                  {/* Right: Continue button */}
                   <TouchableOpacity
                     onPress={handleCheckboxPress}
                     activeOpacity={0.7}
@@ -846,7 +882,7 @@ export default function SoMeCheckIn({ navigation, route }) {
             {/* Confirmation message */}
             {showConfirmMessage && (
               <Animated.View style={[styles.confirmMessage, { opacity: messageOpacity }]}>
-                <Text style={styles.confirmText}>✓ check-in logged</Text>
+                <Text style={styles.confirmText}>✓ logged</Text>
               </Animated.View>
             )}
           </View>
@@ -868,46 +904,96 @@ export default function SoMeCheckIn({ navigation, route }) {
         ]}
         pointerEvents={currentStep === 2 ? 'auto' : 'none'}
       >
-        {/* Time selection question */}
-        <Text style={styles.timeSelectionQuestion}>
-          How much time do you have?
-        </Text>
+        <View style={styles.step2Container}>
+          {/* Routine Type Selection */}
+          <View style={styles.routineTypeSection}>
+            <Text style={styles.routineTypeQuestion}>What type of flow?</Text>
+            <View style={styles.routineTypeOptions}>
+              <TouchableOpacity
+                onPress={() => handleRoutineTypeSelect(ROUTINE_TYPES.MORNING)}
+                activeOpacity={0.85}
+                style={[
+                  styles.routineTypeTile,
+                  selectedRoutineType === ROUTINE_TYPES.MORNING && styles.routineTypeTileSelected
+                ]}
+              >
+                <Text style={styles.routineTypeEmoji}>{ROUTINE_TYPE_EMOJIS[ROUTINE_TYPES.MORNING]}</Text>
+                <Text style={styles.routineTypeLabel}>{ROUTINE_TYPE_LABELS[ROUTINE_TYPES.MORNING]}</Text>
+              </TouchableOpacity>
 
-        <View style={styles.timeOptionsContainer}>
-          <TouchableOpacity
-            onPress={() => handleTimeSelection(2)}
-            activeOpacity={0.9}
-            style={styles.timeOptionTile}
-          >
-            <BlurView intensity={15} tint="dark" style={styles.timeOptionBlur}>
-              <Text style={styles.timeOptionMinutes}>5</Text>
-              <Text style={styles.timeOptionLabel}>minutes</Text>
-              <Text style={styles.timeOptionBlocks}>2 blocks</Text>
-            </BlurView>
-          </TouchableOpacity>
+              <TouchableOpacity
+                onPress={() => handleRoutineTypeSelect(ROUTINE_TYPES.NIGHT)}
+                activeOpacity={0.85}
+                style={[
+                  styles.routineTypeTile,
+                  selectedRoutineType === ROUTINE_TYPES.NIGHT && styles.routineTypeTileSelected
+                ]}
+              >
+                <Text style={styles.routineTypeEmoji}>{ROUTINE_TYPE_EMOJIS[ROUTINE_TYPES.NIGHT]}</Text>
+                <Text style={styles.routineTypeLabel}>{ROUTINE_TYPE_LABELS[ROUTINE_TYPES.NIGHT]}</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
 
-          <TouchableOpacity
-            onPress={() => handleTimeSelection(6)}
-            activeOpacity={0.9}
-            style={styles.timeOptionTile}
-          >
-            <BlurView intensity={15} tint="dark" style={styles.timeOptionBlur}>
-              <Text style={styles.timeOptionMinutes}>10</Text>
-              <Text style={styles.timeOptionLabel}>minutes</Text>
-              <Text style={styles.timeOptionBlocks}>6 blocks</Text>
-            </BlurView>
-          </TouchableOpacity>
+          {/* Time Selection */}
+          <View style={styles.timeSelectionSection}>
+            <Text style={styles.timeSelectionQuestion}>How much time?</Text>
+            <View style={styles.timeOptionsContainer}>
+              <TouchableOpacity
+                onPress={() => handleTimeSelection(2)}
+                activeOpacity={0.85}
+                style={[
+                  styles.timeOptionTile,
+                  selectedBlockCount === 2 && styles.timeOptionTileSelected
+                ]}
+              >
+                <BlurView intensity={15} tint="dark" style={styles.timeOptionBlur}>
+                  <Text style={styles.timeOptionMinutes}>5</Text>
+                  <Text style={styles.timeOptionLabel}>min</Text>
+                </BlurView>
+              </TouchableOpacity>
 
+              <TouchableOpacity
+                onPress={() => handleTimeSelection(6)}
+                activeOpacity={0.85}
+                style={[
+                  styles.timeOptionTile,
+                  selectedBlockCount === 6 && styles.timeOptionTileSelected
+                ]}
+              >
+                <BlurView intensity={15} tint="dark" style={styles.timeOptionBlur}>
+                  <Text style={styles.timeOptionMinutes}>10</Text>
+                  <Text style={styles.timeOptionLabel}>min</Text>
+                </BlurView>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                onPress={() => handleTimeSelection(10)}
+                activeOpacity={0.85}
+                style={[
+                  styles.timeOptionTile,
+                  selectedBlockCount === 10 && styles.timeOptionTileSelected
+                ]}
+              >
+                <BlurView intensity={15} tint="dark" style={styles.timeOptionBlur}>
+                  <Text style={styles.timeOptionMinutes}>15</Text>
+                  <Text style={styles.timeOptionLabel}>min</Text>
+                </BlurView>
+              </TouchableOpacity>
+            </View>
+          </View>
+
+          {/* Continue Button */}
           <TouchableOpacity
-            onPress={() => handleTimeSelection(10)}
-            activeOpacity={0.9}
-            style={styles.timeOptionTile}
+            onPress={handleContinueToPreview}
+            activeOpacity={0.7}
+            style={[
+              styles.step2ContinueButton,
+              !selectedBlockCount && styles.step2ContinueButtonDisabled
+            ]}
+            disabled={!selectedBlockCount}
           >
-            <BlurView intensity={15} tint="dark" style={styles.timeOptionBlur}>
-              <Text style={styles.timeOptionMinutes}>15</Text>
-              <Text style={styles.timeOptionLabel}>minutes</Text>
-              <Text style={styles.timeOptionBlocks}>10 blocks</Text>
-            </BlurView>
+            <Text style={styles.step2ContinueButtonText}>Continue</Text>
           </TouchableOpacity>
         </View>
       </Animated.View>
@@ -1041,7 +1127,7 @@ export default function SoMeCheckIn({ navigation, route }) {
           {/* Confirmation message */}
           {showConfirmMessage && (
             <Animated.View style={[styles.confirmMessage, { opacity: messageOpacity }]}>
-              <Text style={styles.confirmText}>✓ check-in logged</Text>
+              <Text style={styles.confirmText}>✓ logged</Text>
             </Animated.View>
           )}
         </View>
@@ -1222,7 +1308,7 @@ export default function SoMeCheckIn({ navigation, route }) {
             <View style={styles.exitModalContent}>
               <Text style={styles.exitModalTitle}>End Session?</Text>
               <Text style={styles.exitModalMessage}>
-                Are you sure you want to end this check-in early?
+                Are you sure you want to end this flow early?
               </Text>
 
               <View style={styles.exitModalButtons}>
@@ -1246,6 +1332,8 @@ export default function SoMeCheckIn({ navigation, route }) {
           </BlurView>
         </View>
       </Modal>
+
+      <SettingsModal visible={showSettingsModal} onClose={handleCloseSettings} />
     </LinearGradient>
   )
 }
@@ -1271,22 +1359,44 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: colors.border.subtle,
   },
-  headerButton: {
+  headerLeftGroup: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  headerIconButton: {
     width: 44,
     height: 44,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  headerButtonText: {
-    color: colors.text.primary,
-    fontSize: 28,
-    fontWeight: '300',
+  headerIconText: {
+    fontSize: 24,
   },
-  headerTitle: {
+  headerSkipButton: {
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+  },
+  headerSkipText: {
     color: colors.text.primary,
-    fontSize: 20,
-    fontWeight: '600',
-    letterSpacing: 0.5,
+    fontSize: 18,
+    fontWeight: '500',
+    letterSpacing: 0.3,
+  },
+  headerCloseButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: colors.surface.tertiary,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: colors.border.default,
+  },
+  headerCloseText: {
+    color: colors.text.primary,
+    fontSize: 24,
+    fontWeight: '300',
   },
   contentContainer: {
     flex: 1,
@@ -1343,14 +1453,17 @@ const styles = StyleSheet.create({
     paddingBottom: 8,
   },
   bottomButtonsWrapper: {
-    gap: 12,
     paddingBottom: 8,
-    alignItems: 'center',
   },
-  sosBodyScanRow: {
+  step1NavigationRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
+  step1LeftButtons: {
+    flexDirection: 'row',
+    alignItems: 'center',
     gap: 12,
   },
   bodyScanButton: {
@@ -1440,46 +1553,110 @@ const styles = StyleSheet.create({
     marginBottom: 24,
     paddingHorizontal: 12,
   },
-  timeSelectionQuestion: {
+  step2Container: {
+    flex: 1,
+    paddingHorizontal: 24,
+    paddingTop: 20,
+    gap: 32,
+  },
+  routineTypeSection: {
+    gap: 16,
+  },
+  routineTypeQuestion: {
     color: colors.text.primary,
-    fontSize: 24,
+    fontSize: 20,
     fontWeight: '600',
     textAlign: 'center',
-    marginBottom: 32,
-    letterSpacing: 0.5,
+    letterSpacing: 0.3,
+  },
+  routineTypeOptions: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  routineTypeTile: {
+    flex: 1,
+    paddingVertical: 20,
+    paddingHorizontal: 16,
+    backgroundColor: colors.surface.tertiary,
+    borderRadius: 20,
+    borderWidth: 2,
+    borderColor: colors.border.default,
+    alignItems: 'center',
+    gap: 8,
+  },
+  routineTypeTileSelected: {
+    borderColor: colors.accent.primary,
+    backgroundColor: colors.surface.secondary,
+  },
+  routineTypeEmoji: {
+    fontSize: 32,
+  },
+  routineTypeLabel: {
+    color: colors.text.primary,
+    fontSize: 16,
+    fontWeight: '600',
+    letterSpacing: 0.3,
+  },
+  timeSelectionSection: {
+    gap: 16,
+  },
+  timeSelectionQuestion: {
+    color: colors.text.primary,
+    fontSize: 20,
+    fontWeight: '600',
+    textAlign: 'center',
+    letterSpacing: 0.3,
   },
   timeOptionsContainer: {
-    gap: 16,
-    paddingHorizontal: 24,
+    flexDirection: 'row',
+    gap: 12,
   },
   timeOptionTile: {
+    flex: 1,
     borderRadius: 20,
     overflow: 'hidden',
     borderWidth: 2,
     borderColor: colors.border.default,
   },
+  timeOptionTileSelected: {
+    borderColor: colors.accent.primary,
+  },
   timeOptionBlur: {
-    paddingVertical: 20,
-    paddingHorizontal: 24,
+    paddingVertical: 16,
+    paddingHorizontal: 12,
     alignItems: 'center',
   },
   timeOptionMinutes: {
     color: colors.accent.primary,
-    fontSize: 48,
+    fontSize: 36,
     fontWeight: '700',
     letterSpacing: -1,
   },
   timeOptionLabel: {
     color: colors.text.secondary,
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: '500',
     marginTop: 4,
   },
-  timeOptionBlocks: {
-    color: colors.text.muted,
-    fontSize: 13,
-    fontWeight: '500',
-    marginTop: 8,
+  step2ContinueButton: {
+    paddingVertical: 16,
+    paddingHorizontal: 32,
+    backgroundColor: colors.surface.secondary,
+    borderRadius: 24,
+    borderWidth: 2,
+    borderColor: colors.accent.primary,
+    alignItems: 'center',
+    marginTop: 'auto',
+    marginBottom: 20,
+  },
+  step2ContinueButtonDisabled: {
+    opacity: 0.5,
+  },
+  step2ContinueButtonText: {
+    color: colors.accent.primary,
+    fontSize: 17,
+    fontWeight: '700',
+    letterSpacing: 0.3,
   },
   optionsContainer: {
     gap: 16,

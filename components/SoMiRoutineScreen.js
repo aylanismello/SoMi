@@ -1,7 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { useEvent } from 'expo'
 import { useVideoPlayer, VideoView } from 'expo-video'
-import { useAudioPlayer } from 'expo-audio'
 import { StyleSheet, View, TouchableOpacity, Text, ScrollView, Animated, Pressable, Modal } from 'react-native'
 import { LinearGradient } from 'expo-linear-gradient'
 import { BlurView } from 'expo-blur'
@@ -13,6 +12,7 @@ import { getBlocksForRoutine } from '../services/mediaService'
 import { soundManager } from '../utils/SoundManager'
 import { colors } from '../constants/theme'
 import { useSettings } from '../contexts/SettingsContext'
+import { useFlowMusic } from '../contexts/FlowMusicContext'
 import SettingsModal from './SettingsModal'
 
 const AnimatedCircle = Animated.createAnimatedComponent(Circle)
@@ -26,9 +26,6 @@ const AnimatedCircle = Animated.createAnimatedComponent(Circle)
 // ============================================================================
 const VIDEO_DURATION_CAP_SECONDS = 60
 const INTERSTITIAL_DURATION_SECONDS = 20
-
-// Routine background music URL
-const ROUTINE_BACKGROUND_MUSIC = 'https://qujifwhwntqxziymqdwu.supabase.co/storage/v1/object/public/test/somi%20og%20music/fluids%20v2.mp3'
 
 // Map new polyvagal state codes to old database state_target values
 const STATE_CODE_TO_TARGET = {
@@ -95,6 +92,7 @@ export default function SoMiRoutineScreen({ navigation, route }) {
   const [allBlocks, setAllBlocks] = useState([])
 
   const { isMusicEnabled, showTime } = useSettings()
+  const { setFlowMusicVolume, updateMusicSetting, stopFlowMusic } = useFlowMusic()
 
   // Video playback tracking
   const [videoProgress, setVideoProgress] = useState(0)
@@ -128,9 +126,7 @@ export default function SoMiRoutineScreen({ navigation, route }) {
     player.muted = true
   })
 
-  // Background music player for routine
-  const routineMusicPlayer = useAudioPlayer(ROUTINE_BACKGROUND_MUSIC)
-  const hasStartedRoutineMusicRef = useRef(false)
+  // Flow music is already playing from BodyScanCountdown - we just manage its volume
 
   // Fetch all available videos on mount
   useEffect(() => {
@@ -164,44 +160,22 @@ export default function SoMiRoutineScreen({ navigation, route }) {
         player.play()
       }, 100)
 
-      // Start routine background music on first video (only once)
-      if (!hasStartedRoutineMusicRef.current && routineMusicPlayer && isMusicEnabled) {
-        hasStartedRoutineMusicRef.current = true
-        routineMusicPlayer.volume = 0.5 // Set volume to 50% to not overpower
-        routineMusicPlayer.loop = true
-        routineMusicPlayer.play()
-      }
-
       // soundManager.playBlockStart() // Temporarily disabled
     }
   }, [phase])
 
-  // Handle music toggle for routine background music
+  // Flow music is already playing - just manage volume
   useEffect(() => {
-    if (routineMusicPlayer && hasStartedRoutineMusicRef.current) {
-      if (isMusicEnabled) {
-        routineMusicPlayer.volume = 0.5
-        if (!routineMusicPlayer.playing) {
-          routineMusicPlayer.play()
-        }
-      } else {
-        routineMusicPlayer.volume = 0
-      }
+    // Keep flow music playing at normal volume during interstitials
+    if (phase === 'interstitial') {
+      setFlowMusicVolume(isMusicEnabled ? 1 : 0)
     }
-  }, [isMusicEnabled, routineMusicPlayer])
+  }, [phase, isMusicEnabled])
 
-  // Cleanup routine background music on unmount
+  // Handle music setting changes
   useEffect(() => {
-    return () => {
-      try {
-        if (routineMusicPlayer && routineMusicPlayer.playing) {
-          routineMusicPlayer.pause()
-        }
-      } catch (err) {
-        console.log('Routine music cleanup:', err.message)
-      }
-    }
-  }, [routineMusicPlayer])
+    updateMusicSetting(isMusicEnabled)
+  }, [isMusicEnabled])
 
   const fetchAvailableVideos = async () => {
     try {
@@ -561,14 +535,7 @@ export default function SoMiRoutineScreen({ navigation, route }) {
 
     // Check if we've completed all cycles
     if (currentCycle >= TOTAL_CYCLES) {
-      // Stop routine background music before final body scan
-      try {
-        if (routineMusicPlayer && routineMusicPlayer.playing) {
-          routineMusicPlayer.pause()
-        }
-      } catch (err) {
-        console.log('Error stopping routine music:', err.message)
-      }
+      // Flow music continues playing into final body scan
 
       // After last block: Go straight to body scan (no final interstitial)
       navigation.navigate('BodyScanCountdown', {
@@ -643,14 +610,7 @@ export default function SoMiRoutineScreen({ navigation, route }) {
 
     // Go to next interstitial (same logic as handleVideoComplete)
     if (currentCycle >= TOTAL_CYCLES) {
-      // Stop routine background music before final body scan
-      try {
-        if (routineMusicPlayer && routineMusicPlayer.playing) {
-          routineMusicPlayer.pause()
-        }
-      } catch (err) {
-        console.log('Error stopping routine music:', err.message)
-      }
+      // Flow music continues playing into final body scan
 
       // After last block: Go straight to body scan (no final interstitial)
       navigation.navigate('BodyScanCountdown', {
@@ -692,14 +652,8 @@ export default function SoMiRoutineScreen({ navigation, route }) {
   const handleConfirmExit = async () => {
     setShowExitModal(false)
 
-    // Stop routine background music when exiting early
-    try {
-      if (routineMusicPlayer && routineMusicPlayer.playing) {
-        routineMusicPlayer.pause()
-      }
-    } catch (err) {
-      console.log('Error stopping routine music on exit:', err.message)
-    }
+    // Stop flow music when exiting early
+    stopFlowMusic()
 
     // End the active chain to reset state completely
     await somiChainService.endActiveChain()
@@ -954,7 +908,7 @@ export default function SoMiRoutineScreen({ navigation, route }) {
               <View style={styles.exitModalContent}>
                 <Text style={styles.exitModalTitle}>End Session?</Text>
                 <Text style={styles.exitModalMessage}>
-                  Are you sure you want to end this check-in early?
+                  Are you sure you want to end this flow early?
                 </Text>
 
                 <View style={styles.exitModalButtons}>
@@ -1192,7 +1146,7 @@ export default function SoMiRoutineScreen({ navigation, route }) {
             <View style={styles.exitModalContent}>
               <Text style={styles.exitModalTitle}>End Session?</Text>
               <Text style={styles.exitModalMessage}>
-                Are you sure you want to end this check-in early?
+                Are you sure you want to end this flow early?
               </Text>
 
               <View style={styles.exitModalButtons}>

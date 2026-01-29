@@ -18,6 +18,7 @@ import CategoryDetailScreen from './components/CategoryDetailScreen'
 import { prefetchVideoBlocks } from './constants/media'
 import { colors } from './constants/theme'
 import { SettingsProvider } from './contexts/SettingsContext'
+import { FlowMusicProvider } from './contexts/FlowMusicContext'
 
 const Stack = createStackNavigator()
 const Tab = createBottomTabNavigator()
@@ -150,9 +151,10 @@ export default function App() {
 
   return (
     <SettingsProvider>
-      <NavigationContainer>
-        <StatusBar style="light" />
-        <Tab.Navigator
+      <FlowMusicProvider>
+        <NavigationContainer>
+          <StatusBar style="light" />
+          <Tab.Navigator
         screenOptions={({ route }) => ({
           headerShown: false,
           tabBarIcon: ({ focused }) => {
@@ -160,7 +162,7 @@ export default function App() {
 
             if (route.name === 'Home') {
               iconName = focused ? 'home' : 'home-outline'
-            } else if (route.name === 'Check In') {
+            } else if (route.name === 'Flow') {
               iconName = focused ? 'heart-circle' : 'heart-circle-outline'
             } else if (route.name === 'Explore') {
               iconName = focused ? 'compass' : 'compass-outline'
@@ -241,10 +243,10 @@ export default function App() {
           })}
         />
         <Tab.Screen
-          name="Check In"
+          name="Flow"
           component={CheckInStack}
           options={({ route }) => ({
-            tabBarLabel: 'Check In',
+            tabBarLabel: 'Flow',
             tabBarStyle: (() => {
               const routeName = getFocusedRouteNameFromRoute(route) ?? 'CheckIn'
               // Hide tab bar when on CheckIn screen, SoMiTimer, SoMiRoutine, BodyScanCountdown, or Player
@@ -311,8 +313,9 @@ export default function App() {
             })(),
           })}
         />
-      </Tab.Navigator>
-    </NavigationContainer>
+        </Tab.Navigator>
+      </NavigationContainer>
+      </FlowMusicProvider>
     </SettingsProvider>
   )
 }

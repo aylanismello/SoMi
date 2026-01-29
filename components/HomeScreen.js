@@ -1,11 +1,12 @@
 import { useState, useCallback } from 'react'
-import { StyleSheet, View, Text, ScrollView, Image } from 'react-native'
+import { StyleSheet, View, Text, ScrollView, Image, TouchableOpacity, Modal } from 'react-native'
 import { LinearGradient } from 'expo-linear-gradient'
 import { BlurView } from 'expo-blur'
+import Slider from '@react-native-community/slider'
 import { somiChainService } from '../supabase'
 import { useFocusEffect } from '@react-navigation/native'
-import { POLYVAGAL_STATE_MAP } from './EmbodimentSlider'
 import { colors } from '../constants/theme'
+import * as Haptics from 'expo-haptics'
 
 // Polyvagal states with colors and emojis (new code-based system)
 const POLYVAGAL_STATES = {
@@ -90,8 +91,9 @@ export default function HomeScreen({ navigation }) {
   // Get time-based greeting
   const getGreeting = () => {
     const hour = new Date().getHours()
-    if (hour < 12) return 'Good morning'
-    if (hour < 18) return 'Good afternoon'
+    if (hour >= 0 && hour < 5) return 'Hey there, night owl'
+    if (hour >= 5 && hour < 12) return 'Good morning'
+    if (hour >= 12 && hour < 18) return 'Good afternoon'
     return 'Good evening'
   }
 
@@ -104,6 +106,58 @@ export default function HomeScreen({ navigation }) {
     if (minutes < 10) return 'beautiful way to reconnect'
     if (minutes < 20) return 'what a gift you gave yourself'
     return 'deeply honoring your embodiment'
+  }
+
+  const [lastQuickCheckInState, setLastQuickCheckInState] = useState(null)
+  const [showQuickCheckInModal, setShowQuickCheckInModal] = useState(false)
+  const [quickSliderValue, setQuickSliderValue] = useState(50)
+  const [quickPolyvagalState, setQuickPolyvagalState] = useState(null)
+
+  const handleOpenQuickCheckIn = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
+    setQuickSliderValue(50)
+    setQuickPolyvagalState(null)
+    setShowQuickCheckInModal(true)
+  }
+
+  const handleQuickStateSelect = (stateId) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium)
+    setQuickPolyvagalState(stateId)
+  }
+
+  const handleQuickStateClear = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
+    setQuickPolyvagalState(null)
+    setQuickSliderValue(50)
+  }
+
+  const handleQuickCheckInSave = async () => {
+    if (!quickPolyvagalState) {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error)
+      return
+    }
+
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success)
+
+    // Save embodiment check
+    try {
+      const chainId = await somiChainService.getOrCreateActiveChain()
+      await somiChainService.saveEmbodimentCheck(quickSliderValue, quickPolyvagalState, null)
+
+      // Update last state and close modal
+      setLastQuickCheckInState(quickPolyvagalState)
+      setShowQuickCheckInModal(false)
+
+      // Refresh home data to show the new check-in
+      fetchHomeData()
+    } catch (err) {
+      console.error('Error saving quick check-in:', err)
+    }
+  }
+
+  const handleClearQuickCheckIn = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
+    setLastQuickCheckInState(null)
   }
 
   return (
@@ -210,6 +264,160 @@ export default function HomeScreen({ navigation }) {
           )}
         </View>
       </View>
+
+        {/* Quick Check-In Card (Calm-style) */}
+        <View style={styles.quickCheckInSection}>
+          <TouchableOpacity
+            onPress={handleOpenQuickCheckIn}
+            activeOpacity={0.85}
+            style={styles.quickCheckInCard}
+          >
+            <BlurView intensity={20} tint="dark" style={styles.quickCheckInBlur}>
+              {lastQuickCheckInState ? (
+                <View style={styles.quickCheckInSelected}>
+                  <Text style={styles.quickCheckInSelectedLabel}>You're feeling:</Text>
+                  <View style={styles.quickCheckInSelectedBadge}>
+                    <Text style={styles.quickCheckInSelectedEmoji}>
+                      {POLYVAGAL_STATES[lastQuickCheckInState]?.emoji}
+                    </Text>
+                    <Text style={[
+                      styles.quickCheckInSelectedText,
+                      { color: POLYVAGAL_STATES[lastQuickCheckInState]?.color }
+                    ]}>
+                      {POLYVAGAL_STATES[lastQuickCheckInState]?.label}
+                    </Text>
+                    <TouchableOpacity
+                      onPress={(e) => {
+                        e.stopPropagation()
+                        handleClearQuickCheckIn()
+                      }}
+                      style={styles.quickCheckInClear}
+                    >
+                      <Text style={styles.quickCheckInClearText}>✕</Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              ) : (
+                <View style={styles.quickCheckInPrompt}>
+                  <Text style={styles.quickCheckInEmoji}>😊</Text>
+                  <Text style={styles.quickCheckInText}>How are you feeling?</Text>
+                  <Text style={styles.quickCheckInChevron}>›</Text>
+                </View>
+              )}
+            </BlurView>
+          </TouchableOpacity>
+        </View>
+
+        {/* Quick Check-In Modal */}
+        <Modal
+          visible={showQuickCheckInModal}
+          transparent={true}
+          animationType="slide"
+          onRequestClose={() => setShowQuickCheckInModal(false)}
+        >
+          <View style={styles.modalOverlay}>
+            <BlurView intensity={40} tint="dark" style={styles.quickCheckInModalContainer}>
+              <View style={styles.quickCheckInModalContent}>
+                {/* Header with close button */}
+                <View style={styles.quickCheckInModalHeader}>
+                  <TouchableOpacity
+                    onPress={() => setShowQuickCheckInModal(false)}
+                    style={styles.quickCheckInModalClose}
+                  >
+                    <Text style={styles.quickCheckInModalCloseText}>✕</Text>
+                  </TouchableOpacity>
+                </View>
+
+                {/* Title */}
+                <Text style={styles.quickCheckInModalTitle}>
+                  {quickPolyvagalState ? 'how present are those\nfeelings in the body?' : 'how do you feel\nright now?'}
+                </Text>
+
+                {/* State chips or selected state */}
+                {quickPolyvagalState ? (
+                  // Selected state display
+                  <View style={styles.selectedStateContainer}>
+                    <View style={[
+                      styles.selectedStateCircle,
+                      {
+                        backgroundColor: POLYVAGAL_STATES[quickPolyvagalState]?.color + '30',
+                        borderColor: POLYVAGAL_STATES[quickPolyvagalState]?.color,
+                      }
+                    ]}>
+                      <Text style={styles.selectedStateEmoji}>
+                        {POLYVAGAL_STATES[quickPolyvagalState]?.emoji}
+                      </Text>
+                      <TouchableOpacity
+                        onPress={handleQuickStateClear}
+                        style={styles.selectedStateClearButton}
+                      >
+                        <Text style={styles.selectedStateClearText}>✕</Text>
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                ) : (
+                  // State selection chips
+                  <View style={styles.stateChipsContainer}>
+                    <ScrollView
+                      horizontal
+                      showsHorizontalScrollIndicator={false}
+                      contentContainerStyle={styles.stateChipsScroll}
+                    >
+                      {Object.entries(POLYVAGAL_STATES)
+                        .filter(([code]) => code !== '0')
+                        .map(([code, state]) => (
+                          <TouchableOpacity
+                            key={code}
+                            onPress={() => handleQuickStateSelect(parseInt(code))}
+                            activeOpacity={0.7}
+                            style={[
+                              styles.stateChip,
+                              { borderColor: state.color }
+                            ]}
+                          >
+                            <Text style={styles.stateChipEmoji}>{state.emoji}</Text>
+                            <Text style={[styles.stateChipLabel, { color: state.color }]}>
+                              {state.label}
+                            </Text>
+                          </TouchableOpacity>
+                        ))}
+                    </ScrollView>
+                  </View>
+                )}
+
+                {/* Slider - only show when state is selected */}
+                {quickPolyvagalState && (
+                  <View style={styles.compactSliderSection}>
+                    <Slider
+                      style={styles.compactSlider}
+                      minimumValue={0}
+                      maximumValue={100}
+                      value={quickSliderValue}
+                      onValueChange={(value) => {
+                        setQuickSliderValue(Math.round(value))
+                        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
+                      }}
+                      minimumTrackTintColor={POLYVAGAL_STATES[quickPolyvagalState]?.color}
+                      maximumTrackTintColor="rgba(255, 255, 255, 0.2)"
+                      thumbTintColor="#ffffff"
+                    />
+                  </View>
+                )}
+
+                {/* Save Button */}
+                {quickPolyvagalState && (
+                  <TouchableOpacity
+                    onPress={handleQuickCheckInSave}
+                    activeOpacity={0.7}
+                    style={styles.quickSaveButton}
+                  >
+                    <Text style={styles.quickSaveButtonText}>Save</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+            </BlurView>
+          </View>
+        </Modal>
 
         {/* Compassionate minutes message */}
         {chainStats && chainStats.totalMinutes >= 0 && (
@@ -370,6 +578,208 @@ const styles = StyleSheet.create({
   stateLabelArrow: {
     fontSize: 14,
     color: 'rgba(247, 249, 251, 0.5)',
+  },
+  quickCheckInSection: {
+    paddingHorizontal: 24,
+    paddingTop: 32,
+    paddingBottom: 20,
+  },
+  quickCheckInCard: {
+    borderRadius: 20,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: colors.border.subtle,
+  },
+  quickCheckInBlur: {
+    paddingVertical: 18,
+    paddingHorizontal: 20,
+  },
+  quickCheckInPrompt: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  quickCheckInEmoji: {
+    fontSize: 32,
+  },
+  quickCheckInText: {
+    flex: 1,
+    color: colors.text.primary,
+    fontSize: 18,
+    fontWeight: '600',
+    letterSpacing: 0.3,
+  },
+  quickCheckInChevron: {
+    color: colors.text.muted,
+    fontSize: 28,
+    fontWeight: '300',
+  },
+  quickCheckInSelected: {
+    gap: 10,
+  },
+  quickCheckInSelectedLabel: {
+    color: colors.text.muted,
+    fontSize: 13,
+    fontWeight: '500',
+    letterSpacing: 0.3,
+  },
+  quickCheckInSelectedBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.surface.secondary,
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 20,
+    gap: 10,
+    alignSelf: 'flex-start',
+  },
+  quickCheckInSelectedEmoji: {
+    fontSize: 24,
+  },
+  quickCheckInSelectedText: {
+    fontSize: 16,
+    fontWeight: '700',
+    letterSpacing: 0.3,
+  },
+  quickCheckInClear: {
+    marginLeft: 8,
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  quickCheckInClearText: {
+    color: colors.text.secondary,
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.75)',
+    justifyContent: 'flex-end',
+  },
+  quickCheckInModalContainer: {
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: colors.border.default,
+    borderBottomWidth: 0,
+  },
+  quickCheckInModalContent: {
+    paddingTop: 16,
+    paddingBottom: 32,
+    paddingHorizontal: 20,
+  },
+  quickCheckInModalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    marginBottom: 8,
+  },
+  quickCheckInModalClose: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: colors.surface.tertiary,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  quickCheckInModalCloseText: {
+    color: colors.text.primary,
+    fontSize: 18,
+    fontWeight: '300',
+  },
+  quickCheckInModalTitle: {
+    color: colors.text.primary,
+    fontSize: 18,
+    fontWeight: '500',
+    textAlign: 'center',
+    marginBottom: 24,
+    lineHeight: 24,
+    letterSpacing: 0.2,
+  },
+  selectedStateContainer: {
+    alignItems: 'center',
+    marginBottom: 24,
+  },
+  selectedStateCircle: {
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    borderWidth: 3,
+    alignItems: 'center',
+    justifyContent: 'center',
+    position: 'relative',
+  },
+  selectedStateEmoji: {
+    fontSize: 48,
+  },
+  selectedStateClearButton: {
+    position: 'absolute',
+    top: -8,
+    right: -8,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: colors.surface.tertiary,
+    borderWidth: 2,
+    borderColor: colors.border.default,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  selectedStateClearText: {
+    color: colors.text.primary,
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  stateChipsContainer: {
+    marginBottom: 20,
+  },
+  stateChipsScroll: {
+    paddingHorizontal: 4,
+    gap: 10,
+  },
+  stateChip: {
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 20,
+    borderWidth: 2,
+    backgroundColor: colors.surface.tertiary,
+    alignItems: 'center',
+    gap: 6,
+    minWidth: 90,
+  },
+  stateChipEmoji: {
+    fontSize: 28,
+  },
+  stateChipLabel: {
+    fontSize: 12,
+    fontWeight: '700',
+    letterSpacing: 0.3,
+  },
+  compactSliderSection: {
+    marginBottom: 20,
+  },
+  compactSlider: {
+    width: '100%',
+    height: 40,
+  },
+  quickSaveButton: {
+    paddingVertical: 12,
+    paddingHorizontal: 32,
+    backgroundColor: colors.surface.secondary,
+    borderRadius: 20,
+    borderWidth: 2,
+    borderColor: colors.accent.primary,
+    alignItems: 'center',
+  },
+  quickSaveButtonText: {
+    color: colors.accent.primary,
+    fontSize: 16,
+    fontWeight: '700',
+    letterSpacing: 0.3,
   },
   minutesSection: {
     paddingHorizontal: 24,

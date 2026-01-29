@@ -4,8 +4,8 @@ import { LinearGradient } from 'expo-linear-gradient'
 import { BlurView } from 'expo-blur'
 import * as Haptics from 'expo-haptics'
 import { colors } from '../constants/theme'
-import { getBlocksForRoutine } from '../services/mediaService'
 import { supabase } from '../supabase'
+import { getRoutineConfig, ROUTINE_TYPES } from '../services/routineConfig'
 
 // Polyvagal state emojis and colors
 const STATE_EMOJIS = {
@@ -23,6 +23,7 @@ export default function RoutineQueuePreview({ navigation, route }) {
     savedInitialValue,
     savedInitialState,
     totalBlocks,
+    routineType = ROUTINE_TYPES.MORNING, // Default to morning for backwards compatibility
   } = route.params
 
   const [queue, setQueue] = useState([])
@@ -38,18 +39,52 @@ export default function RoutineQueuePreview({ navigation, route }) {
 
   const loadQueue = async () => {
     setIsLoading(true)
-    const blocks = await getBlocksForRoutine(totalBlocks)
-    setQueue(blocks)
 
-    // Fetch full block details from database for descriptions and state info
-    const blockIds = blocks.map(b => b.somi_block_id)
+    // Get canonical names for this routine type and block count
+    const canonicalNames = getRoutineConfig(routineType, totalBlocks)
+    if (!canonicalNames) {
+      console.error('Failed to get routine config')
+      setIsLoading(false)
+      return
+    }
+
+    // Fetch blocks from database by canonical names
+    const { data: fetchedBlocks, error } = await supabase
+      .from('somi_blocks')
+      .select('id, canonical_name, name, description, state_target, media_url')
+      .in('canonical_name', canonicalNames)
+
+    if (error) {
+      console.error('Error fetching blocks:', error)
+      setIsLoading(false)
+      return
+    }
+
+    // Sort blocks to match the canonical names order
+    const sortedBlocks = canonicalNames.map(canonicalName =>
+      fetchedBlocks.find(block => block.canonical_name === canonicalName)
+    ).filter(Boolean) // Remove any null/undefined entries
+
+    // Convert to queue format
+    const queueFormat = sortedBlocks.map((block, index) => ({
+      somi_block_id: block.id,
+      name: block.name,
+      canonical_name: block.canonical_name,
+      url: block.media_url,
+      type: 'video',
+      order: index,
+    }))
+
+    setQueue(queueFormat)
+
+    // Enrich queue with full details
     const { data } = await supabase
       .from('somi_blocks')
       .select('id, name, description, state_target')
-      .in('id', blockIds)
+      .in('id', sortedBlocks.map(b => b.id))
 
     // Merge with queue order
-    const enriched = blocks.map(block => {
+    const enriched = queueFormat.map(block => {
       const details = data?.find(d => d.id === block.somi_block_id)
       return {
         ...block,
@@ -371,9 +406,10 @@ const styles = StyleSheet.create({
   },
   blockCard: {
     padding: 16,
-    borderRadius: 20,
+    borderRadius: 24,
     borderWidth: 2,
     borderColor: colors.border.default,
+    overflow: 'hidden',
   },
   blockHeader: {
     flexDirection: 'row',
@@ -536,7 +572,7 @@ const styles = StyleSheet.create({
     textTransform: 'lowercase',
   },
   libraryBlockCard: {
-    borderRadius: 16,
+    borderRadius: 20,
     overflow: 'hidden',
     borderWidth: 1,
     borderColor: colors.border.default,

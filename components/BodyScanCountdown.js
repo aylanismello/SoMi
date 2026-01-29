@@ -8,13 +8,10 @@ import * as Haptics from 'expo-haptics'
 import { colors } from '../constants/theme'
 import { somiChainService } from '../supabase'
 import { useSettings } from '../contexts/SettingsContext'
+import { useFlowMusic } from '../contexts/FlowMusicContext'
 import SettingsModal from './SettingsModal'
 
 const COUNTDOWN_DURATION_SECONDS = 60
-
-// Body scan audio URLs
-const START_BODY_SCAN_AUDIO = 'https://qujifwhwntqxziymqdwu.supabase.co/storage/v1/object/public/test/somi%20sounds/body_scan_music_1%20.mp3'
-const END_BODY_SCAN_AUDIO = 'https://qujifwhwntqxziymqdwu.supabase.co/storage/v1/object/public/test/somi%20sounds/body_scan_music_2.mp3'
 
 const AnimatedCircle = Animated.createAnimatedComponent(Circle)
 
@@ -24,6 +21,7 @@ export default function BodyScanCountdown({ route, navigation }) {
     savedInitialValue,
     savedInitialState,
     skipToRoutine, // If true, skip directly to Step 2 after body scan
+    fromCheckIn, // If true, show back button instead of skip
   } = route.params
 
   const [countdown, setCountdown] = useState(COUNTDOWN_DURATION_SECONDS)
@@ -35,75 +33,31 @@ export default function BodyScanCountdown({ route, navigation }) {
   const startTimeRef = useRef(null)
 
   const { isMusicEnabled, showTime } = useSettings()
+  const { startFlowMusic, stopFlowMusic, updateMusicSetting } = useFlowMusic()
 
   // Animated value for smooth progress
   const progressAnim = useRef(new Animated.Value(0)).current
 
-  // Audio player for body scan guidance
-  const audioUrl = isInitial ? START_BODY_SCAN_AUDIO : END_BODY_SCAN_AUDIO
-  const audioPlayer = useAudioPlayer(audioUrl)
-
-  // Initialize start time and audio on mount (runs once)
+  // Initialize start time and start flow music on mount (runs once)
   useEffect(() => {
     // Reset start time
     startTimeRef.current = Date.now()
 
-    if (audioPlayer) {
-      // Reset audio to beginning
-      audioPlayer.seekTo(0)
-
-      // Respect music setting
-      if (isMusicEnabled) {
-        audioPlayer.volume = 1
-        audioPlayer.play()
-      } else {
-        audioPlayer.volume = 0
-      }
+    // Start the flow music at the VERY FIRST body scan (if this is initial)
+    if (isInitial) {
+      startFlowMusic(isMusicEnabled)
     }
 
     return () => {
-      // Cleanup audio on unmount (with safety check)
-      try {
-        if (audioPlayer && audioPlayer.playing) {
-          audioPlayer.pause()
-        }
-      } catch (err) {
-        // Silent cleanup - audio may already be disposed
-        console.log('Audio cleanup on unmount:', err.message)
-      }
+      // Don't stop music on unmount - it should continue through the flow
+      // Music will only stop when flow is completely done
     }
-  }, [audioPlayer])
+  }, [])
 
-  // Handle music toggle separately - don't restart audio
+  // Handle music toggle
   useEffect(() => {
-    if (audioPlayer) {
-      if (isMusicEnabled) {
-        audioPlayer.volume = 1
-        if (!audioPlayer.playing) {
-          audioPlayer.play()
-        }
-      } else {
-        audioPlayer.volume = 0
-      }
-    }
-  }, [isMusicEnabled, audioPlayer])
-
-  // Handle audio looping in infinity mode (separate effect)
-  useEffect(() => {
-    const checkAudioLoop = setInterval(() => {
-      if (audioPlayer && infinityMode && isMusicEnabled) {
-        // If audio is near the end, restart it
-        if (audioPlayer.duration > 0 && audioPlayer.currentTime >= audioPlayer.duration - 0.5) {
-          audioPlayer.seekTo(0)
-          audioPlayer.play()
-        }
-      }
-    }, 500)
-
-    return () => {
-      clearInterval(checkAudioLoop)
-    }
-  }, [audioPlayer, infinityMode, isMusicEnabled])
+    updateMusicSetting(isMusicEnabled)
+  }, [isMusicEnabled])
 
   // Smooth animation for progress circle (runs once on mount)
   useEffect(() => {
@@ -137,43 +91,34 @@ export default function BodyScanCountdown({ route, navigation }) {
 
   // Timer for display (countdown in normal mode, count up in infinity mode)
   useEffect(() => {
-    // Don't reset the countdown value, just change the behavior
-    if (infinityMode) {
-      // Infinity mode: count up from current value
-      countdownIntervalRef.current = setInterval(() => {
-        setCountdown(prev => prev + 1)
-      }, 1000)
-    } else {
-      // Normal mode: count down from current value
-      countdownIntervalRef.current = setInterval(() => {
-        setCountdown(prev => {
+    // Single interval that runs continuously, direction controlled by ref
+    countdownIntervalRef.current = setInterval(() => {
+      setCountdown(prev => {
+        if (infinityModeRef.current) {
+          // Infinity mode: count up
+          return prev + 1
+        } else {
+          // Normal mode: count down
           if (prev <= 1) {
             clearInterval(countdownIntervalRef.current)
             return 0
           }
           return prev - 1
-        })
-      }, 1000)
-    }
+        }
+      })
+    }, 1000)
 
     return () => {
       if (countdownIntervalRef.current) {
         clearInterval(countdownIntervalRef.current)
       }
     }
-  }, [infinityMode])
+  }, [])
 
   const handleComplete = async () => {
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success)
 
-    // Pause audio before navigating (with safety checks)
-    try {
-      if (audioPlayer && audioPlayer.playing) {
-        audioPlayer.pause()
-      }
-    } catch (err) {
-      console.log('Audio player cleanup warning:', err.message)
-    }
+    // Don't stop music - it continues through the flow
 
     // Save body scan as a completed block
     // Use active chain if exists (from check-in), otherwise create new one
@@ -216,6 +161,20 @@ export default function BodyScanCountdown({ route, navigation }) {
     handleComplete()
   }
 
+  const handleBackPress = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium)
+
+    // Stop animations
+    progressAnim.stopAnimation()
+    if (countdownIntervalRef.current) {
+      clearInterval(countdownIntervalRef.current)
+    }
+
+    // Don't stop music - it continues through the flow
+    // Go back to check-in
+    navigation.goBack()
+  }
+
   const handleClosePress = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium)
     setShowExitModal(true)
@@ -224,18 +183,14 @@ export default function BodyScanCountdown({ route, navigation }) {
   const handleConfirmExit = async () => {
     setShowExitModal(false)
 
-    // Stop animations and audio
+    // Stop animations
     progressAnim.stopAnimation()
     if (countdownIntervalRef.current) {
       clearInterval(countdownIntervalRef.current)
     }
-    try {
-      if (audioPlayer && audioPlayer.playing) {
-        audioPlayer.pause()
-      }
-    } catch (err) {
-      console.log('Audio player cleanup warning:', err.message)
-    }
+
+    // Stop flow music when exiting early
+    stopFlowMusic()
 
     // End the active chain when exiting early
     await somiChainService.endActiveChain()
@@ -263,11 +218,34 @@ export default function BodyScanCountdown({ route, navigation }) {
     const newMode = !infinityMode
     setInfinityMode(newMode)
     infinityModeRef.current = newMode
+
+    if (newMode) {
+      // Toggling to infinity mode - stop the countdown animation
+      progressAnim.stopAnimation()
+    } else {
+      // Toggling back to normal mode from infinity
+      // Reset countdown to 60 seconds
+      setCountdown(COUNTDOWN_DURATION_SECONDS)
+
+      // Stop and restart the animation from the beginning
+      progressAnim.stopAnimation()
+      progressAnim.setValue(0)
+
+      Animated.timing(progressAnim, {
+        toValue: 1,
+        duration: COUNTDOWN_DURATION_SECONDS * 1000,
+        useNativeDriver: false,
+      }).start(({ finished }) => {
+        if (finished && !infinityModeRef.current) {
+          handleComplete()
+        }
+      })
+    }
   }
 
   const message = isInitial
-    ? "how do you feel in the body?\nnotice any sensations\ngoing into this SoMi check-in"
-    : "how do you feel those sensations\ncoming out of the SoMi check-in"
+    ? "how do you feel in the body?\nnotice any sensations\ngoing into this flow"
+    : "how do you feel those sensations\ncoming out of this flow"
 
   // Calculate progress for circular indicator
   const radius = 100
@@ -285,30 +263,52 @@ export default function BodyScanCountdown({ route, navigation }) {
       colors={[colors.background.primary, colors.background.secondary, colors.background.primary]}
       style={styles.container}
     >
-      {/* Header with Settings, Skip and Close buttons */}
+      {/* Header with Settings, Skip/Back and Close buttons */}
       <View style={styles.header}>
-        <TouchableOpacity
-          onPress={handleOpenSettings}
-          style={styles.settingsButton}
-          activeOpacity={0.7}
-        >
-          <Text style={styles.settingsButtonText}>⚙️</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          onPress={handleSkip}
-          style={styles.skipButtonLeft}
-          activeOpacity={0.7}
-        >
-          <Text style={styles.skipButtonText}>Skip</Text>
-        </TouchableOpacity>
+        {fromCheckIn ? (
+          <TouchableOpacity
+            onPress={handleBackPress}
+            style={styles.backButton}
+            activeOpacity={0.7}
+          >
+            <Text style={styles.backButtonText}>←</Text>
+          </TouchableOpacity>
+        ) : (
+          <TouchableOpacity
+            onPress={handleOpenSettings}
+            style={styles.settingsButton}
+            activeOpacity={0.7}
+          >
+            <Text style={styles.settingsButtonText}>⚙️</Text>
+          </TouchableOpacity>
+        )}
+        {!fromCheckIn && (
+          <TouchableOpacity
+            onPress={handleSkip}
+            style={styles.skipButtonLeft}
+            activeOpacity={0.7}
+          >
+            <Text style={styles.skipButtonText}>Skip</Text>
+          </TouchableOpacity>
+        )}
         <View style={{ flex: 1 }} />
-        <TouchableOpacity
-          onPress={handleClosePress}
-          style={styles.closeButton}
-          activeOpacity={0.7}
-        >
-          <Text style={styles.closeButtonText}>✕</Text>
-        </TouchableOpacity>
+        {fromCheckIn ? (
+          <TouchableOpacity
+            onPress={handleOpenSettings}
+            style={styles.settingsButton}
+            activeOpacity={0.7}
+          >
+            <Text style={styles.settingsButtonText}>⚙️</Text>
+          </TouchableOpacity>
+        ) : (
+          <TouchableOpacity
+            onPress={handleClosePress}
+            style={styles.closeButton}
+            activeOpacity={0.7}
+          >
+            <Text style={styles.closeButtonText}>✕</Text>
+          </TouchableOpacity>
+        )}
       </View>
 
       {/* Body Scan Content */}
@@ -424,6 +424,21 @@ const styles = StyleSheet.create({
     height: 44,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  backButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: colors.surface.tertiary,
+    borderWidth: 1,
+    borderColor: colors.border.default,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  backButtonText: {
+    color: colors.text.primary,
+    fontSize: 24,
+    fontWeight: '300',
   },
   settingsButtonText: {
     fontSize: 24,
