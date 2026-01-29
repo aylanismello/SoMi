@@ -24,6 +24,9 @@ export default function RoutineQueuePreview({ navigation, route }) {
     savedInitialState,
     totalBlocks,
     routineType = ROUTINE_TYPES.MORNING, // Default to morning for backwards compatibility
+    isEditMode = false, // True when editing from interstitial
+    currentCycle = 1, // Which block the user is currently on
+    currentQueue = null, // The current queue if editing
   } = route.params
 
   const [queue, setQueue] = useState([])
@@ -40,48 +43,56 @@ export default function RoutineQueuePreview({ navigation, route }) {
   const loadQueue = async () => {
     setIsLoading(true)
 
-    // Get canonical names for this routine type and block count
-    const canonicalNames = getRoutineConfig(routineType, totalBlocks)
-    if (!canonicalNames) {
-      console.error('Failed to get routine config')
-      setIsLoading(false)
-      return
+    let queueFormat
+
+    // If in edit mode, use the current queue
+    if (isEditMode && currentQueue) {
+      queueFormat = currentQueue
+    } else {
+      // Get canonical names for this routine type and block count
+      const canonicalNames = getRoutineConfig(routineType, totalBlocks)
+      if (!canonicalNames) {
+        console.error('Failed to get routine config')
+        setIsLoading(false)
+        return
+      }
+
+      // Fetch blocks from database by canonical names
+      const { data: fetchedBlocks, error } = await supabase
+        .from('somi_blocks')
+        .select('id, canonical_name, name, description, state_target, media_url')
+        .in('canonical_name', canonicalNames)
+
+      if (error) {
+        console.error('Error fetching blocks:', error)
+        setIsLoading(false)
+        return
+      }
+
+      // Sort blocks to match the canonical names order
+      const sortedBlocks = canonicalNames.map(canonicalName =>
+        fetchedBlocks.find(block => block.canonical_name === canonicalName)
+      ).filter(Boolean) // Remove any null/undefined entries
+
+      // Convert to queue format
+      queueFormat = sortedBlocks.map((block, index) => ({
+        somi_block_id: block.id,
+        name: block.name,
+        canonical_name: block.canonical_name,
+        url: block.media_url,
+        type: 'video',
+        order: index,
+      }))
     }
-
-    // Fetch blocks from database by canonical names
-    const { data: fetchedBlocks, error } = await supabase
-      .from('somi_blocks')
-      .select('id, canonical_name, name, description, state_target, media_url')
-      .in('canonical_name', canonicalNames)
-
-    if (error) {
-      console.error('Error fetching blocks:', error)
-      setIsLoading(false)
-      return
-    }
-
-    // Sort blocks to match the canonical names order
-    const sortedBlocks = canonicalNames.map(canonicalName =>
-      fetchedBlocks.find(block => block.canonical_name === canonicalName)
-    ).filter(Boolean) // Remove any null/undefined entries
-
-    // Convert to queue format
-    const queueFormat = sortedBlocks.map((block, index) => ({
-      somi_block_id: block.id,
-      name: block.name,
-      canonical_name: block.canonical_name,
-      url: block.media_url,
-      type: 'video',
-      order: index,
-    }))
 
     setQueue(queueFormat)
 
-    // Enrich queue with full details
+    // Enrich queue with full details (get block IDs from queueFormat)
+    const blockIds = queueFormat.map(b => b.somi_block_id)
     const { data } = await supabase
       .from('somi_blocks')
       .select('id, name, description, state_target')
-      .in('id', sortedBlocks.map(b => b.id))
+      .in('id', blockIds)
 
     // Merge with queue order
     const enriched = queueFormat.map(block => {
@@ -122,6 +133,12 @@ export default function RoutineQueuePreview({ navigation, route }) {
   }
 
   const handleSwapPress = (index) => {
+    // In edit mode, don't allow swapping past blocks
+    if (isEditMode && index < currentCycle - 1) {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error)
+      return
+    }
+
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
     setSwapIndex(index)
     setShowLibrary(true)
@@ -155,13 +172,25 @@ export default function RoutineQueuePreview({ navigation, route }) {
 
   const handleBack = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
-    // Navigate back to CheckIn and tell it to stay on Step 2
-    navigation.navigate('CheckIn', {
-      fromBodyScan: true,
-      skipToStep2: true,
-      polyvagalState,
-      sliderValue,
-    })
+
+    if (isEditMode) {
+      // Return to SoMiRoutine with updated queue, preserving all original params
+      navigation.navigate('SoMiRoutine', {
+        ...route.params,
+        updatedQueue: enrichedQueue,
+        isEditMode: undefined, // Clear edit mode flag
+        currentCycle: undefined, // Clear edit-specific params
+        currentQueue: undefined,
+      })
+    } else {
+      // Navigate back to CheckIn and tell it to stay on Step 2
+      navigation.navigate('CheckIn', {
+        fromBodyScan: true,
+        skipToStep2: true,
+        polyvagalState,
+        sliderValue,
+      })
+    }
   }
 
   const minutes = totalBlocks === 2 ? 5 : totalBlocks === 6 ? 10 : 15
@@ -175,7 +204,7 @@ export default function RoutineQueuePreview({ navigation, route }) {
         <TouchableOpacity onPress={handleBack} style={styles.backButton}>
           <Text style={styles.backButtonText}>←</Text>
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Your Routine</Text>
+        <Text style={styles.headerTitle}>{isEditMode ? 'Edit Routine' : 'Your Routine'}</Text>
         <View style={{ width: 44 }} />
       </View>
 
@@ -193,6 +222,9 @@ export default function RoutineQueuePreview({ navigation, route }) {
           <ScrollView style={styles.queueList} contentContainerStyle={styles.queueListContent}>
             {enrichedQueue.map((block, index) => {
               const stateInfo = STATE_EMOJIS[block.state_target]
+              const isPastBlock = isEditMode && index < currentCycle - 1
+              const isCurrentBlock = isEditMode && index === currentCycle - 1
+
               return (
                 <BlurView
                   key={index}
@@ -200,7 +232,9 @@ export default function RoutineQueuePreview({ navigation, route }) {
                   tint="dark"
                   style={[
                     styles.blockCard,
-                    stateInfo && { borderColor: stateInfo.color }
+                    stateInfo && { borderColor: stateInfo.color },
+                    isCurrentBlock && { borderWidth: 2 },
+                    isPastBlock && { opacity: 0.5 },
                   ]}
                 >
                   <View style={styles.blockHeader}>
@@ -209,7 +243,11 @@ export default function RoutineQueuePreview({ navigation, route }) {
                     </View>
                     <View style={styles.blockContent}>
                       <View style={styles.blockTitleRow}>
-                        <Text style={styles.blockName}>{block.name}</Text>
+                        <Text style={styles.blockName}>
+                          {block.name}
+                          {isCurrentBlock && <Text style={{ color: stateInfo?.color }}> (Current)</Text>}
+                          {isPastBlock && <Text style={{ color: colors.text.muted }}> (Completed)</Text>}
+                        </Text>
                         {stateInfo && (
                           <Text style={styles.stateEmoji}>{stateInfo.emoji}</Text>
                         )}
@@ -227,10 +265,11 @@ export default function RoutineQueuePreview({ navigation, route }) {
                     </View>
                     <TouchableOpacity
                       onPress={() => handleSwapPress(index)}
-                      style={styles.swapButton}
-                      activeOpacity={0.7}
+                      style={[styles.swapButton, isPastBlock && { opacity: 0.5 }]}
+                      activeOpacity={isPastBlock ? 1 : 0.7}
+                      disabled={isPastBlock}
                     >
-                      <Text style={styles.swapButtonText}>⇄</Text>
+                      <Text style={styles.swapButtonText}>{isPastBlock ? '🔒' : '⇄'}</Text>
                     </TouchableOpacity>
                   </View>
                 </BlurView>
@@ -239,13 +278,15 @@ export default function RoutineQueuePreview({ navigation, route }) {
           </ScrollView>
         )}
 
-        <TouchableOpacity
-          onPress={handleConfirm}
-          style={styles.confirmButton}
-          activeOpacity={0.8}
-        >
-          <Text style={styles.confirmButtonText}>Start Routine</Text>
-        </TouchableOpacity>
+        {!isEditMode && (
+          <TouchableOpacity
+            onPress={handleConfirm}
+            style={styles.confirmButton}
+            activeOpacity={0.8}
+          >
+            <Text style={styles.confirmButtonText}>Start Routine</Text>
+          </TouchableOpacity>
+        )}
       </View>
 
       {/* Library Modal */}

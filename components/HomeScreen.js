@@ -2,11 +2,13 @@ import { useState, useCallback } from 'react'
 import { StyleSheet, View, Text, ScrollView, Image, TouchableOpacity, Modal } from 'react-native'
 import { LinearGradient } from 'expo-linear-gradient'
 import { BlurView } from 'expo-blur'
-import Slider from '@react-native-community/slider'
-import { somiChainService } from '../supabase'
+import { somiChainService, supabase } from '../supabase'
 import { useFocusEffect } from '@react-navigation/native'
 import { colors } from '../constants/theme'
 import * as Haptics from 'expo-haptics'
+import { getRoutineConfig } from '../services/routineConfig'
+import SettingsModal from './SettingsModal'
+import EmbodimentSlider from './EmbodimentSlider'
 
 // Polyvagal states with colors and emojis (new code-based system)
 const POLYVAGAL_STATES = {
@@ -44,7 +46,7 @@ export default function HomeScreen({ navigation }) {
 
     // Calculate total minutes from entries (blocks)
     const totalSeconds = (latestChain.somi_chain_entries || []).reduce((sum, entry) => sum + (entry.seconds_elapsed || 0), 0)
-    const totalMinutes = Math.round(totalSeconds / 60)
+    const totalMinutes = totalSeconds > 0 ? Math.max(1, Math.ceil(totalSeconds / 60)) : 0
 
     const checks = latestChain.embodiment_checks || []
 
@@ -112,6 +114,7 @@ export default function HomeScreen({ navigation }) {
   const [showQuickCheckInModal, setShowQuickCheckInModal] = useState(false)
   const [quickSliderValue, setQuickSliderValue] = useState(50)
   const [quickPolyvagalState, setQuickPolyvagalState] = useState(null)
+  const [showSettingsModal, setShowSettingsModal] = useState(false)
 
   const handleOpenQuickCheckIn = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
@@ -123,12 +126,6 @@ export default function HomeScreen({ navigation }) {
   const handleQuickStateSelect = (stateId) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium)
     setQuickPolyvagalState(stateId)
-  }
-
-  const handleQuickStateClear = () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
-    setQuickPolyvagalState(null)
-    setQuickSliderValue(50)
   }
 
   const handleQuickCheckInSave = async () => {
@@ -160,6 +157,73 @@ export default function HomeScreen({ navigation }) {
     setLastQuickCheckInState(null)
   }
 
+  const handleOpenTimer = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
+    navigation.navigate('MeditationTimerSetup')
+  }
+
+  const handleOpenSettings = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
+    setShowSettingsModal(true)
+  }
+
+  const handleCloseSettings = () => {
+    setShowSettingsModal(false)
+  }
+
+  const handleQuickRoutine = async (routineType, blockCount) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium)
+
+    // Build the custom queue for this routine
+    const canonicalNames = getRoutineConfig(routineType, blockCount)
+    if (!canonicalNames) {
+      console.error('Failed to get routine config')
+      return
+    }
+
+    // Fetch blocks from database
+    const { data: fetchedBlocks, error } = await supabase
+      .from('somi_blocks')
+      .select('id, canonical_name, name, description, state_target, media_url')
+      .in('canonical_name', canonicalNames)
+
+    if (error) {
+      console.error('Error fetching blocks:', error)
+      return
+    }
+
+    // Sort blocks to match canonical names order
+    const sortedBlocks = canonicalNames.map(canonicalName =>
+      fetchedBlocks.find(block => block.canonical_name === canonicalName)
+    ).filter(Boolean)
+
+    // Convert to queue format
+    const customQueue = sortedBlocks.map((block, index) => ({
+      somi_block_id: block.id,
+      name: block.name,
+      canonical_name: block.canonical_name,
+      url: block.media_url,
+      type: 'video',
+      order: index,
+      description: block.description,
+      state_target: block.state_target,
+    }))
+
+    // Navigate directly to routine with default values (no initial check-in)
+    navigation.navigate('Flow', {
+      screen: 'SoMiRoutine',
+      params: {
+        polyvagalState: 4, // Default to "Steady"
+        sliderValue: 50,
+        savedInitialValue: 50,
+        savedInitialState: 4,
+        totalBlocks: blockCount,
+        customQueue: customQueue,
+        isQuickRoutine: true,
+      },
+    })
+  }
+
   return (
     <View style={styles.container}>
       {/* Background Image - Hero Section */}
@@ -175,6 +239,24 @@ export default function HomeScreen({ navigation }) {
         locations={[0, 0.5, 1]}
         style={styles.heroGradient}
       />
+
+      {/* Settings Icon - Upper Left */}
+      <TouchableOpacity
+        onPress={handleOpenSettings}
+        style={styles.settingsButton}
+        activeOpacity={0.7}
+      >
+        <Text style={styles.settingsIcon}>⚙️</Text>
+      </TouchableOpacity>
+
+      {/* Meditation Timer Bell Icon - Upper Right */}
+      <TouchableOpacity
+        onPress={handleOpenTimer}
+        style={styles.timerBellButton}
+        activeOpacity={0.7}
+      >
+        <Text style={styles.timerBellIcon}>🔔</Text>
+      </TouchableOpacity>
 
       <ScrollView
         style={styles.scrollView}
@@ -299,13 +381,95 @@ export default function HomeScreen({ navigation }) {
                 </View>
               ) : (
                 <View style={styles.quickCheckInPrompt}>
-                  <Text style={styles.quickCheckInEmoji}>😊</Text>
+                  <Text style={styles.quickCheckInEmoji}>🌤</Text>
                   <Text style={styles.quickCheckInText}>How are you feeling?</Text>
                   <Text style={styles.quickCheckInChevron}>›</Text>
                 </View>
               )}
             </BlurView>
           </TouchableOpacity>
+        </View>
+
+        {/* Quick Routine Carousel */}
+        <View style={styles.quickRoutineSection}>
+          <Text style={styles.quickRoutineTitle}>Quick Start</Text>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.quickRoutineScroll}
+          >
+            <TouchableOpacity
+              onPress={() => handleQuickRoutine('morning', 2)}
+              activeOpacity={0.85}
+              style={styles.quickRoutineCard}
+            >
+              <BlurView intensity={20} tint="dark" style={styles.quickRoutineBlur}>
+                <Text style={styles.quickRoutineEmoji}>☀️</Text>
+                <Text style={styles.quickRoutineLabel}>Morning</Text>
+                <Text style={styles.quickRoutineDuration}>5 min</Text>
+              </BlurView>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              onPress={() => handleQuickRoutine('morning', 6)}
+              activeOpacity={0.85}
+              style={styles.quickRoutineCard}
+            >
+              <BlurView intensity={20} tint="dark" style={styles.quickRoutineBlur}>
+                <Text style={styles.quickRoutineEmoji}>☀️</Text>
+                <Text style={styles.quickRoutineLabel}>Morning</Text>
+                <Text style={styles.quickRoutineDuration}>10 min</Text>
+              </BlurView>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              onPress={() => handleQuickRoutine('night', 2)}
+              activeOpacity={0.85}
+              style={styles.quickRoutineCard}
+            >
+              <BlurView intensity={20} tint="dark" style={styles.quickRoutineBlur}>
+                <Text style={styles.quickRoutineEmoji}>🌙</Text>
+                <Text style={styles.quickRoutineLabel}>Night</Text>
+                <Text style={styles.quickRoutineDuration}>5 min</Text>
+              </BlurView>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              onPress={() => handleQuickRoutine('night', 6)}
+              activeOpacity={0.85}
+              style={styles.quickRoutineCard}
+            >
+              <BlurView intensity={20} tint="dark" style={styles.quickRoutineBlur}>
+                <Text style={styles.quickRoutineEmoji}>🌙</Text>
+                <Text style={styles.quickRoutineLabel}>Night</Text>
+                <Text style={styles.quickRoutineDuration}>10 min</Text>
+              </BlurView>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              onPress={() => handleQuickRoutine('morning', 10)}
+              activeOpacity={0.85}
+              style={styles.quickRoutineCard}
+            >
+              <BlurView intensity={20} tint="dark" style={styles.quickRoutineBlur}>
+                <Text style={styles.quickRoutineEmoji}>☀️</Text>
+                <Text style={styles.quickRoutineLabel}>Morning</Text>
+                <Text style={styles.quickRoutineDuration}>15 min</Text>
+              </BlurView>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              onPress={() => handleQuickRoutine('night', 10)}
+              activeOpacity={0.85}
+              style={styles.quickRoutineCard}
+            >
+              <BlurView intensity={20} tint="dark" style={styles.quickRoutineBlur}>
+                <Text style={styles.quickRoutineEmoji}>🌙</Text>
+                <Text style={styles.quickRoutineLabel}>Night</Text>
+                <Text style={styles.quickRoutineDuration}>15 min</Text>
+              </BlurView>
+            </TouchableOpacity>
+          </ScrollView>
         </View>
 
         {/* Quick Check-In Modal */}
@@ -315,106 +479,61 @@ export default function HomeScreen({ navigation }) {
           animationType="slide"
           onRequestClose={() => setShowQuickCheckInModal(false)}
         >
-          <View style={styles.modalOverlay}>
+          <View style={styles.quickCheckInModalOverlay}>
             <BlurView intensity={40} tint="dark" style={styles.quickCheckInModalContainer}>
-              <View style={styles.quickCheckInModalContent}>
-                {/* Header with close button */}
-                <View style={styles.quickCheckInModalHeader}>
-                  <TouchableOpacity
-                    onPress={() => setShowQuickCheckInModal(false)}
-                    style={styles.quickCheckInModalClose}
-                  >
-                    <Text style={styles.quickCheckInModalCloseText}>✕</Text>
-                  </TouchableOpacity>
-                </View>
+              {/* Header with close button */}
+              <View style={styles.quickCheckInModalHeader}>
+                <TouchableOpacity
+                  onPress={() => setShowQuickCheckInModal(false)}
+                  style={styles.quickCheckInModalClose}
+                >
+                  <Text style={styles.quickCheckInModalCloseText}>✕</Text>
+                </TouchableOpacity>
+              </View>
 
-                {/* Title */}
-                <Text style={styles.quickCheckInModalTitle}>
-                  {quickPolyvagalState ? 'how present are those\nfeelings in the body?' : 'how do you feel\nright now?'}
-                </Text>
+              {/* Title */}
+              <Text style={styles.quickCheckInModalTitle}>
+                {quickPolyvagalState ? 'how present are those\nfeelings in the body?' : 'how do you feel\nright now?'}
+              </Text>
 
-                {/* State chips or selected state */}
-                {quickPolyvagalState ? (
-                  // Selected state display
-                  <View style={styles.selectedStateContainer}>
-                    <View style={[
-                      styles.selectedStateCircle,
-                      {
-                        backgroundColor: POLYVAGAL_STATES[quickPolyvagalState]?.color + '30',
-                        borderColor: POLYVAGAL_STATES[quickPolyvagalState]?.color,
-                      }
-                    ]}>
-                      <Text style={styles.selectedStateEmoji}>
-                        {POLYVAGAL_STATES[quickPolyvagalState]?.emoji}
-                      </Text>
-                      <TouchableOpacity
-                        onPress={handleQuickStateClear}
-                        style={styles.selectedStateClearButton}
-                      >
-                        <Text style={styles.selectedStateClearText}>✕</Text>
-                      </TouchableOpacity>
-                    </View>
-                  </View>
-                ) : (
-                  // State selection chips
-                  <View style={styles.stateChipsContainer}>
-                    <ScrollView
-                      horizontal
-                      showsHorizontalScrollIndicator={false}
-                      contentContainerStyle={styles.stateChipsScroll}
-                    >
-                      {Object.entries(POLYVAGAL_STATES)
-                        .filter(([code]) => code !== '0')
-                        .map(([code, state]) => (
-                          <TouchableOpacity
-                            key={code}
-                            onPress={() => handleQuickStateSelect(parseInt(code))}
-                            activeOpacity={0.7}
-                            style={[
-                              styles.stateChip,
-                              { borderColor: state.color }
-                            ]}
-                          >
-                            <Text style={styles.stateChipEmoji}>{state.emoji}</Text>
-                            <Text style={[styles.stateChipLabel, { color: state.color }]}>
-                              {state.label}
-                            </Text>
-                          </TouchableOpacity>
-                        ))}
-                    </ScrollView>
-                  </View>
-                )}
+              {/* EmbodimentSlider Component - Smaller */}
+              <View style={styles.quickCheckInModalSliderWrapper}>
+                <EmbodimentSlider
+                  value={quickSliderValue}
+                  onValueChange={(value) => setQuickSliderValue(value)}
+                  question={null}
+                  showStateLabel={false}
+                  showChips={true}
+                  states={Object.entries(POLYVAGAL_STATES)
+                    .filter(([code]) => code !== '0')
+                    .map(([code, state]) => ({
+                      id: parseInt(code),
+                      label: state.label,
+                      color: state.color,
+                      emoji: state.emoji,
+                    }))}
+                  selectedStateId={quickPolyvagalState}
+                  onStateChange={handleQuickStateSelect}
+                  isConfirmed={false}
+                  onConfirm={null}
+                  helpMode={false}
+                />
+              </View>
 
-                {/* Slider - only show when state is selected */}
-                {quickPolyvagalState && (
-                  <View style={styles.compactSliderSection}>
-                    <Slider
-                      style={styles.compactSlider}
-                      minimumValue={0}
-                      maximumValue={100}
-                      value={quickSliderValue}
-                      onValueChange={(value) => {
-                        setQuickSliderValue(Math.round(value))
-                        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
-                      }}
-                      minimumTrackTintColor={POLYVAGAL_STATES[quickPolyvagalState]?.color}
-                      maximumTrackTintColor="rgba(255, 255, 255, 0.2)"
-                      thumbTintColor="#ffffff"
-                    />
-                  </View>
-                )}
-
-                {/* Save Button */}
-                {quickPolyvagalState && (
+              {/* Save Button - Always visible when state selected */}
+              {quickPolyvagalState !== null && (
+                <View style={styles.quickCheckInModalButtonWrapper}>
                   <TouchableOpacity
                     onPress={handleQuickCheckInSave}
                     activeOpacity={0.7}
-                    style={styles.quickSaveButton}
+                    style={styles.quickCheckInModalSaveButton}
                   >
-                    <Text style={styles.quickSaveButtonText}>Save</Text>
+                    <Text style={styles.quickCheckInModalSaveButtonText}>
+                      Save
+                    </Text>
                   </TouchableOpacity>
-                )}
-              </View>
+                </View>
+              )}
             </BlurView>
           </View>
         </Modal>
@@ -432,6 +551,9 @@ export default function HomeScreen({ navigation }) {
           </View>
         )}
       </ScrollView>
+
+      {/* Settings Modal */}
+      <SettingsModal visible={showSettingsModal} onClose={handleCloseSettings} />
     </View>
   )
 }
@@ -655,40 +777,38 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
   },
-  modalOverlay: {
+  quickCheckInModalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.75)',
     justifyContent: 'flex-end',
   },
   quickCheckInModalContainer: {
-    borderTopLeftRadius: 28,
-    borderTopRightRadius: 28,
+    height: '60%',
+    borderTopLeftRadius: 32,
+    borderTopRightRadius: 32,
     overflow: 'hidden',
-    borderWidth: 1,
+    borderTopWidth: 1,
+    borderLeftWidth: 1,
+    borderRightWidth: 1,
     borderColor: colors.border.default,
-    borderBottomWidth: 0,
-  },
-  quickCheckInModalContent: {
-    paddingTop: 16,
-    paddingBottom: 32,
-    paddingHorizontal: 20,
   },
   quickCheckInModalHeader: {
-    flexDirection: 'row',
-    justifyContent: 'flex-end',
-    marginBottom: 8,
+    paddingHorizontal: 24,
+    paddingTop: 20,
+    paddingBottom: 12,
+    alignItems: 'flex-end',
   },
   quickCheckInModalClose: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     backgroundColor: colors.surface.tertiary,
     alignItems: 'center',
     justifyContent: 'center',
   },
   quickCheckInModalCloseText: {
     color: colors.text.primary,
-    fontSize: 18,
+    fontSize: 20,
     fontWeight: '300',
   },
   quickCheckInModalTitle: {
@@ -697,89 +817,36 @@ const styles = StyleSheet.create({
     fontWeight: '500',
     textAlign: 'center',
     marginBottom: 24,
-    lineHeight: 24,
-    letterSpacing: 0.2,
-  },
-  selectedStateContainer: {
-    alignItems: 'center',
-    marginBottom: 24,
-  },
-  selectedStateCircle: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
-    borderWidth: 3,
-    alignItems: 'center',
-    justifyContent: 'center',
-    position: 'relative',
-  },
-  selectedStateEmoji: {
-    fontSize: 48,
-  },
-  selectedStateClearButton: {
-    position: 'absolute',
-    top: -8,
-    right: -8,
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    backgroundColor: colors.surface.tertiary,
-    borderWidth: 2,
-    borderColor: colors.border.default,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  selectedStateClearText: {
-    color: colors.text.primary,
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  stateChipsContainer: {
-    marginBottom: 20,
-  },
-  stateChipsScroll: {
-    paddingHorizontal: 4,
-    gap: 10,
-  },
-  stateChip: {
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderRadius: 20,
-    borderWidth: 2,
-    backgroundColor: colors.surface.tertiary,
-    alignItems: 'center',
-    gap: 6,
-    minWidth: 90,
-  },
-  stateChipEmoji: {
-    fontSize: 28,
-  },
-  stateChipLabel: {
-    fontSize: 12,
-    fontWeight: '700',
+    lineHeight: 26,
     letterSpacing: 0.3,
+    paddingHorizontal: 24,
   },
-  compactSliderSection: {
-    marginBottom: 20,
-  },
-  compactSlider: {
-    width: '100%',
-    height: 40,
-  },
-  quickSaveButton: {
-    paddingVertical: 12,
+  quickCheckInModalSliderWrapper: {
+    flex: 1,
     paddingHorizontal: 32,
-    backgroundColor: colors.surface.secondary,
-    borderRadius: 20,
-    borderWidth: 2,
-    borderColor: colors.accent.primary,
     alignItems: 'center',
+    justifyContent: 'center',
   },
-  quickSaveButtonText: {
-    color: colors.accent.primary,
-    fontSize: 16,
+  quickCheckInModalButtonWrapper: {
+    paddingHorizontal: 32,
+    paddingBottom: 32,
+    paddingTop: 16,
+  },
+  quickCheckInModalSaveButton: {
+    paddingVertical: 16,
+    borderRadius: 24,
+    alignItems: 'center',
+    backgroundColor: colors.accent.primary,
+    shadowColor: colors.accent.primary,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+  },
+  quickCheckInModalSaveButtonText: {
+    fontSize: 17,
     fontWeight: '700',
-    letterSpacing: 0.3,
+    letterSpacing: 0.5,
+    color: colors.text.primary,
   },
   minutesSection: {
     paddingHorizontal: 24,
@@ -828,6 +895,80 @@ const styles = StyleSheet.create({
     fontWeight: '500',
     fontStyle: 'italic',
     textAlign: 'center',
+    letterSpacing: 0.3,
+  },
+  settingsButton: {
+    position: 'absolute',
+    top: 60,
+    left: 24,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: 'rgba(0, 0, 0, 0.3)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 10,
+  },
+  settingsIcon: {
+    fontSize: 24,
+  },
+  timerBellButton: {
+    position: 'absolute',
+    top: 60,
+    right: 24,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: 'rgba(0, 0, 0, 0.3)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 10,
+  },
+  timerBellIcon: {
+    fontSize: 24,
+  },
+  quickRoutineSection: {
+    paddingTop: 32,
+    paddingBottom: 20,
+  },
+  quickRoutineTitle: {
+    color: colors.text.primary,
+    fontSize: 22,
+    fontWeight: '700',
+    paddingHorizontal: 24,
+    marginBottom: 16,
+    letterSpacing: 0.5,
+  },
+  quickRoutineScroll: {
+    paddingHorizontal: 24,
+    gap: 12,
+  },
+  quickRoutineCard: {
+    borderRadius: 20,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: colors.border.subtle,
+    width: 120,
+  },
+  quickRoutineBlur: {
+    paddingVertical: 20,
+    paddingHorizontal: 16,
+    alignItems: 'center',
+    gap: 8,
+  },
+  quickRoutineEmoji: {
+    fontSize: 36,
+  },
+  quickRoutineLabel: {
+    color: colors.text.primary,
+    fontSize: 15,
+    fontWeight: '600',
+    letterSpacing: 0.3,
+  },
+  quickRoutineDuration: {
+    color: colors.text.secondary,
+    fontSize: 13,
+    fontWeight: '500',
     letterSpacing: 0.3,
   },
 })

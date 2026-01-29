@@ -46,7 +46,7 @@ const INTEGRATION_MESSAGES = [
   "notice without\njudging",
 ]
 
-// Polyvagal state emojis and colors (matching SoMeCheckIn)
+// Polyvagal state emojis and colors (matching SoMiCheckIn)
 const STATE_EMOJIS = {
   withdrawn: { emoji: '🌧', color: '#4A5F8C' },
   stirring: { emoji: '🌫', color: '#5B7BB4' },
@@ -63,6 +63,7 @@ export default function SoMiRoutineScreen({ navigation, route }) {
     savedInitialState,
     totalBlocks = 8, // Default to 8 blocks if not specified
     customQueue = null, // Custom queue from preview screen if edited
+    isQuickRoutine = false, // True if started from quick routine (skips initial check-in)
   } = route.params
 
   // Dynamic block count based on user selection
@@ -92,7 +93,7 @@ export default function SoMiRoutineScreen({ navigation, route }) {
   const [allBlocks, setAllBlocks] = useState([])
 
   const { isMusicEnabled, showTime } = useSettings()
-  const { setFlowMusicVolume, updateMusicSetting, stopFlowMusic } = useFlowMusic()
+  const { startFlowMusic, setFlowMusicVolume, updateMusicSetting, stopFlowMusic } = useFlowMusic()
 
   // Video playback tracking
   const [videoProgress, setVideoProgress] = useState(0)
@@ -127,6 +128,12 @@ export default function SoMiRoutineScreen({ navigation, route }) {
   })
 
   // Flow music is already playing from BodyScanCountdown - we just manage its volume
+  // BUT if this is a quick routine, we need to start it ourselves
+  useEffect(() => {
+    if (isQuickRoutine) {
+      startFlowMusic(isMusicEnabled)
+    }
+  }, [])
 
   // Fetch all available videos on mount
   useEffect(() => {
@@ -176,6 +183,17 @@ export default function SoMiRoutineScreen({ navigation, route }) {
   useEffect(() => {
     updateMusicSetting(isMusicEnabled)
   }, [isMusicEnabled])
+
+  // Handle updated queue from edit screen
+  useEffect(() => {
+    if (route.params?.updatedQueue) {
+      console.log('Updating queue from edit screen:', route.params.updatedQueue.map(b => b.name))
+      setHardcodedQueue(route.params.updatedQueue)
+
+      // Clear the param so it doesn't trigger again
+      navigation.setParams({ updatedQueue: undefined })
+    }
+  }, [route.params?.updatedQueue])
 
   const fetchAvailableVideos = async () => {
     try {
@@ -658,14 +676,24 @@ export default function SoMiRoutineScreen({ navigation, route }) {
     // End the active chain to reset state completely
     await somiChainService.endActiveChain()
 
-    // First, reset the CheckIn stack to completely clear it
-    navigation.reset({
-      index: 0,
-      routes: [{ name: 'CheckIn' }],
-    })
+    // Navigate to Home, then reset the entire Flow stack
+    const parent = navigation.getParent()
+    if (parent) {
+      // First go to Home
+      parent.navigate('Home')
 
-    // Then navigate to Home tab (using parent Tab navigator)
-    navigation.getParent()?.navigate('Home')
+      // Then reset the Flow tab's navigation state back to CheckIn
+      // Use setTimeout to ensure Home navigation completes first
+      setTimeout(() => {
+        navigation.dispatch({
+          ...navigation.reset({
+            index: 0,
+            routes: [{ name: 'CheckIn' }],
+          }),
+          target: navigation.getState().key,
+        })
+      }, 100)
+    }
   }
 
   const handleCancelExit = () => {
@@ -684,12 +712,21 @@ export default function SoMiRoutineScreen({ navigation, route }) {
 
   const handleOpenEditModal = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
-    setShowEditModal(true)
+
     // Pause countdown
     if (countdownIntervalRef.current) {
       clearInterval(countdownIntervalRef.current)
     }
     interstitialProgressAnim.stopAnimation()
+
+    // Navigate to RoutineQueuePreview in edit mode
+    navigation.navigate('RoutineQueuePreview', {
+      totalBlocks: TOTAL_CYCLES,
+      routineType: route.params.routineType || 'morning',
+      isEditMode: true,
+      currentCycle: currentCycle,
+      currentQueue: hardcodedQueue,
+    })
   }
 
   const handleCloseEditModal = () => {
@@ -934,91 +971,6 @@ export default function SoMiRoutineScreen({ navigation, route }) {
         </Modal>
 
         <SettingsModal visible={showSettingsModal} onClose={handleCloseSettings} />
-
-        {/* Edit Routine Modal */}
-        <Modal
-          visible={showEditModal}
-          transparent={true}
-          animationType="slide"
-          onRequestClose={handleCloseEditModal}
-        >
-          <View style={styles.editModalOverlay}>
-            <View style={styles.editModalContainer}>
-              <View style={styles.editModalHeader}>
-                <TouchableOpacity onPress={handleCloseEditModal} style={styles.editModalBackButton}>
-                  <Text style={styles.editModalBackButtonText}>←</Text>
-                </TouchableOpacity>
-                <Text style={styles.editModalTitle}>Choose Exercise</Text>
-                <Text style={styles.editModalSubtitle}>
-                  {allBlocks.length} {allBlocks.length === 1 ? 'exercise' : 'exercises'}
-                </Text>
-              </View>
-
-              <ScrollView
-                style={styles.editModalScrollView}
-                contentContainerStyle={styles.editModalListContent}
-                showsVerticalScrollIndicator={false}
-              >
-                {Object.entries(STATE_EMOJIS).map(([stateId, stateInfo], sectionIndex) => {
-                  const blocksForState = allBlocks.filter(b => b.state_target === stateId)
-
-                  if (blocksForState.length === 0) return null
-
-                  return (
-                    <View key={stateId}>
-                      <View style={[styles.editModalStateHeaderContainer, sectionIndex === 0 && { marginTop: 0 }]}>
-                        <View style={styles.editModalStateHeaderLine} />
-                        <View style={styles.editModalStateHeader}>
-                          <Text style={styles.editModalStateHeaderEmoji}>{stateInfo.emoji}</Text>
-                          <Text style={[styles.editModalStateHeaderText, { color: stateInfo.color }]}>
-                            {stateInfo.label}
-                          </Text>
-                        </View>
-                        <View style={styles.editModalStateHeaderLine} />
-                      </View>
-
-                      {blocksForState.map((block) => (
-                        <TouchableOpacity
-                          key={block.id}
-                          onPress={() => handleBlockSelectFromEdit(block)}
-                          style={[
-                            styles.editModalBlockCard,
-                            { borderColor: `${stateInfo.color}50` }
-                          ]}
-                          activeOpacity={0.85}
-                        >
-                          <LinearGradient
-                            colors={[`${stateInfo.color}20`, `${stateInfo.color}10`]}
-                            start={{ x: 0, y: 0 }}
-                            end={{ x: 1, y: 1 }}
-                            style={styles.editModalBlockGradient}
-                          >
-                            <View style={styles.editModalBlockContent}>
-                              <View style={styles.editModalStateIconContainer}>
-                                <Text style={styles.editModalStateIconEmoji}>{stateInfo.emoji}</Text>
-                              </View>
-                              <View style={styles.editModalBlockInfo}>
-                                <Text style={styles.editModalBlockName}>{block.name}</Text>
-                                {block.description && (
-                                  <Text style={styles.editModalBlockDescription} numberOfLines={2}>
-                                    {block.description}
-                                  </Text>
-                                )}
-                              </View>
-                              <View style={styles.editModalSelectIconContainer}>
-                                <Text style={styles.editModalSelectIcon}>+</Text>
-                              </View>
-                            </View>
-                          </LinearGradient>
-                        </TouchableOpacity>
-                      ))}
-                    </View>
-                  )
-                })}
-              </ScrollView>
-            </View>
-          </View>
-        </Modal>
       </LinearGradient>
     )
   }
@@ -1728,6 +1680,19 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 16,
+  },
+  editModalBlockNumberContainer: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  editModalBlockNumber: {
+    fontSize: 16,
+    fontWeight: '700',
+    letterSpacing: 0.3,
   },
   editModalStateIconContainer: {
     width: 44,

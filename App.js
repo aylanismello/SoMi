@@ -1,12 +1,12 @@
 import { StatusBar } from 'expo-status-bar'
-import { Pressable, View } from 'react-native'
+import { Pressable, View, Text } from 'react-native'
 import { NavigationContainer, getFocusedRouteNameFromRoute } from '@react-navigation/native'
 import { createStackNavigator } from '@react-navigation/stack'
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs'
 import { Ionicons } from '@expo/vector-icons'
 import { useEffect } from 'react'
 import HomeScreen from './components/HomeScreen'
-import SoMeCheckIn from './components/SoMeCheckIn'
+import SoMiCheckIn from './components/SoMiCheckIn'
 import PlayerScreen from './components/PlayerScreen'
 import MySomiScreen from './components/MySomiScreen'
 import SoMiTimer from './components/SoMiTimer'
@@ -15,6 +15,9 @@ import RoutineQueuePreview from './components/RoutineQueuePreview'
 import BodyScanCountdown from './components/BodyScanCountdown'
 import ExploreScreen from './components/ExploreScreen'
 import CategoryDetailScreen from './components/CategoryDetailScreen'
+import MeditationTimerSetup from './components/MeditationTimerSetup'
+import MeditationTimerActive from './components/MeditationTimerActive'
+import IntervalTimeSelector from './components/IntervalTimeSelector'
 import { prefetchVideoBlocks } from './constants/media'
 import { colors } from './constants/theme'
 import { SettingsProvider } from './contexts/SettingsContext'
@@ -23,7 +26,7 @@ import { FlowMusicProvider } from './contexts/FlowMusicContext'
 const Stack = createStackNavigator()
 const Tab = createBottomTabNavigator()
 
-// Stack navigator for Home tab (includes Player modal)
+// Stack navigator for Home tab (includes Player modal and Meditation Timer)
 function HomeStack() {
   return (
     <Stack.Navigator
@@ -33,6 +36,28 @@ function HomeStack() {
       }}
     >
       <Stack.Screen name="HomeMain" component={HomeScreen} />
+      <Stack.Screen
+        name="MeditationTimerSetup"
+        component={MeditationTimerSetup}
+        options={{
+          presentation: 'card',
+        }}
+      />
+      <Stack.Screen
+        name="IntervalTimeSelector"
+        component={IntervalTimeSelector}
+        options={{
+          presentation: 'card',
+        }}
+      />
+      <Stack.Screen
+        name="MeditationTimerActive"
+        component={MeditationTimerActive}
+        options={{
+          presentation: 'fullScreenModal',
+          gestureEnabled: false,
+        }}
+      />
       <Stack.Screen
         name="Player"
         component={PlayerScreen}
@@ -54,8 +79,8 @@ function CheckInStack() {
         cardStyle: { backgroundColor: colors.background.primary },
       }}
     >
-      <Stack.Screen name="CheckIn" component={SoMeCheckIn} />
-      <Stack.Screen name="SoMeCheckIn" component={SoMeCheckIn} />
+      <Stack.Screen name="CheckIn" component={SoMiCheckIn} />
+      <Stack.Screen name="SoMiCheckIn" component={SoMiCheckIn} />
       <Stack.Screen
         name="SoMiTimer"
         component={SoMiTimer}
@@ -158,12 +183,19 @@ export default function App() {
         screenOptions={({ route }) => ({
           headerShown: false,
           tabBarIcon: ({ focused }) => {
-            let iconName
+            // Special handling for Flow tab with wave emoji
+            if (route.name === 'Flow') {
+              return (
+                <View style={{ alignItems: 'center', justifyContent: 'center' }}>
+                  <Text style={{ fontSize: 24 }}>🌊</Text>
+                </View>
+              )
+            }
 
+            // Regular Ionicons for other tabs
+            let iconName
             if (route.name === 'Home') {
               iconName = focused ? 'home' : 'home-outline'
-            } else if (route.name === 'Flow') {
-              iconName = focused ? 'heart-circle' : 'heart-circle-outline'
             } else if (route.name === 'Explore') {
               iconName = focused ? 'compass' : 'compass-outline'
             } else if (route.name === 'My SoMi') {
@@ -188,10 +220,11 @@ export default function App() {
                     flex: 1,
                     alignItems: 'center',
                     justifyContent: 'center',
-                    paddingVertical: 8,
+                    paddingVertical: 12,
+                    paddingHorizontal: 8,
                     backgroundColor: isFocused ? colors.accent.primary : 'transparent',
-                    borderRadius: 16,
-                    marginHorizontal: 4,
+                    borderRadius: 20,
+                    marginHorizontal: 6,
                     opacity: pressed ? 0.7 : 1,
                   },
                 ]}
@@ -227,7 +260,8 @@ export default function App() {
             tabBarLabel: 'Home',
             tabBarStyle: (() => {
               const routeName = getFocusedRouteNameFromRoute(route)
-              if (routeName === 'Player') {
+              // Hide tab bar on Player and Meditation Timer screens
+              if (routeName === 'Player' || routeName === 'MeditationTimerSetup' || routeName === 'IntervalTimeSelector' || routeName === 'MeditationTimerActive') {
                 return { display: 'none' }
               }
               return {
@@ -249,8 +283,8 @@ export default function App() {
             tabBarLabel: 'Flow',
             tabBarStyle: (() => {
               const routeName = getFocusedRouteNameFromRoute(route) ?? 'CheckIn'
-              // Hide tab bar when on CheckIn screen, SoMiTimer, SoMiRoutine, BodyScanCountdown, or Player
-              if (routeName === 'Player' || routeName === 'CheckIn' || routeName === 'SoMiTimer' || routeName === 'SoMiRoutine' || routeName === 'BodyScanCountdown' || routeName === 'SoMeCheckIn') {
+              // Hide tab bar when on CheckIn screen, SoMiTimer, SoMiRoutine, BodyScanCountdown, RoutineQueuePreview, or Player
+              if (routeName === 'Player' || routeName === 'CheckIn' || routeName === 'SoMiTimer' || routeName === 'SoMiRoutine' || routeName === 'BodyScanCountdown' || routeName === 'SoMiCheckIn' || routeName === 'RoutineQueuePreview') {
                 return { display: 'none' }
               }
               return {

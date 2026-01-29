@@ -32,7 +32,7 @@ export default function SettingsModal({ visible, onClose }) {
       <View style={styles.modalOverlay}>
         <BlurView intensity={40} tint="dark" style={styles.modalContainer}>
           <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>SoMi Check-In Settings</Text>
+            <Text style={styles.modalTitle}>SoMi Flow Settings</Text>
 
             <View style={styles.settingRow}>
               <View style={styles.settingInfo}>

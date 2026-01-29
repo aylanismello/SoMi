@@ -905,81 +905,84 @@ export default function SoMeCheckIn({ navigation, route }) {
         pointerEvents={currentStep === 2 ? 'auto' : 'none'}
       >
         <View style={styles.step2Container}>
-          {/* Routine Type Selection */}
-          <View style={styles.routineTypeSection}>
-            <Text style={styles.routineTypeQuestion}>What type of flow?</Text>
-            <View style={styles.routineTypeOptions}>
-              <TouchableOpacity
-                onPress={() => handleRoutineTypeSelect(ROUTINE_TYPES.MORNING)}
-                activeOpacity={0.85}
-                style={[
-                  styles.routineTypeTile,
-                  selectedRoutineType === ROUTINE_TYPES.MORNING && styles.routineTypeTileSelected
-                ]}
-              >
-                <Text style={styles.routineTypeEmoji}>{ROUTINE_TYPE_EMOJIS[ROUTINE_TYPES.MORNING]}</Text>
-                <Text style={styles.routineTypeLabel}>{ROUTINE_TYPE_LABELS[ROUTINE_TYPES.MORNING]}</Text>
-              </TouchableOpacity>
+          {/* Top Section - Selections */}
+          <View style={styles.step2SelectionsWrapper}>
+            {/* Routine Type Selection */}
+            <View style={styles.routineTypeSection}>
+              <Text style={styles.routineTypeQuestion}>What type of flow?</Text>
+              <View style={styles.routineTypeOptions}>
+                <TouchableOpacity
+                  onPress={() => handleRoutineTypeSelect(ROUTINE_TYPES.MORNING)}
+                  activeOpacity={0.85}
+                  style={[
+                    styles.routineTypeTile,
+                    selectedRoutineType === ROUTINE_TYPES.MORNING && styles.routineTypeTileSelected
+                  ]}
+                >
+                  <Text style={styles.routineTypeEmoji}>{ROUTINE_TYPE_EMOJIS[ROUTINE_TYPES.MORNING]}</Text>
+                  <Text style={styles.routineTypeLabel}>{ROUTINE_TYPE_LABELS[ROUTINE_TYPES.MORNING]}</Text>
+                </TouchableOpacity>
 
-              <TouchableOpacity
-                onPress={() => handleRoutineTypeSelect(ROUTINE_TYPES.NIGHT)}
-                activeOpacity={0.85}
-                style={[
-                  styles.routineTypeTile,
-                  selectedRoutineType === ROUTINE_TYPES.NIGHT && styles.routineTypeTileSelected
-                ]}
-              >
-                <Text style={styles.routineTypeEmoji}>{ROUTINE_TYPE_EMOJIS[ROUTINE_TYPES.NIGHT]}</Text>
-                <Text style={styles.routineTypeLabel}>{ROUTINE_TYPE_LABELS[ROUTINE_TYPES.NIGHT]}</Text>
-              </TouchableOpacity>
+                <TouchableOpacity
+                  onPress={() => handleRoutineTypeSelect(ROUTINE_TYPES.NIGHT)}
+                  activeOpacity={0.85}
+                  style={[
+                    styles.routineTypeTile,
+                    selectedRoutineType === ROUTINE_TYPES.NIGHT && styles.routineTypeTileSelected
+                  ]}
+                >
+                  <Text style={styles.routineTypeEmoji}>{ROUTINE_TYPE_EMOJIS[ROUTINE_TYPES.NIGHT]}</Text>
+                  <Text style={styles.routineTypeLabel}>{ROUTINE_TYPE_LABELS[ROUTINE_TYPES.NIGHT]}</Text>
+                </TouchableOpacity>
+              </View>
             </View>
-          </View>
 
-          {/* Time Selection */}
-          <View style={styles.timeSelectionSection}>
-            <Text style={styles.timeSelectionQuestion}>How much time?</Text>
-            <View style={styles.timeOptionsContainer}>
-              <TouchableOpacity
-                onPress={() => handleTimeSelection(2)}
-                activeOpacity={0.85}
-                style={[
-                  styles.timeOptionTile,
-                  selectedBlockCount === 2 && styles.timeOptionTileSelected
-                ]}
-              >
-                <BlurView intensity={15} tint="dark" style={styles.timeOptionBlur}>
-                  <Text style={styles.timeOptionMinutes}>5</Text>
-                  <Text style={styles.timeOptionLabel}>min</Text>
-                </BlurView>
-              </TouchableOpacity>
+            {/* Time Selection */}
+            <View style={styles.timeSelectionSection}>
+              <Text style={styles.timeSelectionQuestion}>How long would you like to flow?</Text>
+              <View style={styles.timeOptionsContainer}>
+                <TouchableOpacity
+                  onPress={() => handleTimeSelection(2)}
+                  activeOpacity={0.85}
+                  style={[
+                    styles.timeOptionTile,
+                    selectedBlockCount === 2 && styles.timeOptionTileSelected
+                  ]}
+                >
+                  <BlurView intensity={15} tint="dark" style={styles.timeOptionBlur}>
+                    <Text style={styles.timeOptionMinutes}>5</Text>
+                    <Text style={styles.timeOptionLabel}>min</Text>
+                  </BlurView>
+                </TouchableOpacity>
 
-              <TouchableOpacity
-                onPress={() => handleTimeSelection(6)}
-                activeOpacity={0.85}
-                style={[
-                  styles.timeOptionTile,
-                  selectedBlockCount === 6 && styles.timeOptionTileSelected
-                ]}
-              >
-                <BlurView intensity={15} tint="dark" style={styles.timeOptionBlur}>
-                  <Text style={styles.timeOptionMinutes}>10</Text>
-                  <Text style={styles.timeOptionLabel}>min</Text>
-                </BlurView>
-              </TouchableOpacity>
+                <TouchableOpacity
+                  onPress={() => handleTimeSelection(6)}
+                  activeOpacity={0.85}
+                  style={[
+                    styles.timeOptionTile,
+                    selectedBlockCount === 6 && styles.timeOptionTileSelected
+                  ]}
+                >
+                  <BlurView intensity={15} tint="dark" style={styles.timeOptionBlur}>
+                    <Text style={styles.timeOptionMinutes}>10</Text>
+                    <Text style={styles.timeOptionLabel}>min</Text>
+                  </BlurView>
+                </TouchableOpacity>
 
-              <TouchableOpacity
-                onPress={() => handleTimeSelection(10)}
-                activeOpacity={0.85}
-                style={[
-                  styles.timeOptionTile,
-                  selectedBlockCount === 10 && styles.timeOptionTileSelected
-                ]}
-              >
-                <BlurView intensity={15} tint="dark" style={styles.timeOptionBlur}>
-                  <Text style={styles.timeOptionMinutes}>15</Text>
-                  <Text style={styles.timeOptionLabel}>min</Text>
-                </BlurView>
-              </TouchableOpacity>
+                <TouchableOpacity
+                  onPress={() => handleTimeSelection(10)}
+                  activeOpacity={0.85}
+                  style={[
+                    styles.timeOptionTile,
+                    selectedBlockCount === 10 && styles.timeOptionTileSelected
+                  ]}
+                >
+                  <BlurView intensity={15} tint="dark" style={styles.timeOptionBlur}>
+                    <Text style={styles.timeOptionMinutes}>15</Text>
+                    <Text style={styles.timeOptionLabel}>min</Text>
+                  </BlurView>
+                </TouchableOpacity>
+              </View>
             </View>
           </View>
 
@@ -1028,7 +1031,7 @@ export default function SoMeCheckIn({ navigation, route }) {
               <Text style={styles.journalIconFloating}>📝</Text>
             </TouchableOpacity>
             <Text style={styles.questionTextStep4}>
-              {loopPolyvagalState ? 'how present are those\nfeelings in the body?' : 'after your SoMi check-in,\nhow do you feel?'}
+              {loopPolyvagalState ? 'how present are those\nfeelings in the body?' : 'how do you feel\nright now?'}
             </Text>
           </View>
 
@@ -1053,7 +1056,7 @@ export default function SoMeCheckIn({ navigation, route }) {
           {/* Bottom buttons */}
           {!showConfirmMessage && (
             <View style={styles.bottomButtonsWrapper}>
-              {/* SOS and body scan on first row */}
+              {/* SOS and Help buttons */}
               <View style={styles.sosBodyScanRow}>
                 <TouchableOpacity
                   onPressIn={handleSOSPress}
@@ -1072,18 +1075,6 @@ export default function SoMeCheckIn({ navigation, route }) {
                   >
                     <Text style={styles.sosTextSmall}>SOS</Text>
                   </LinearGradient>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  onPressIn={handleBodyScanPress}
-                  onPressOut={handleBodyScanRelease}
-                  activeOpacity={0.8}
-                  style={[
-                    styles.bodyScanButton,
-                    helpMode && styles.helpModeHighlight
-                  ]}
-                >
-                  <Text style={styles.bodyScanText}>do a body scan</Text>
                 </TouchableOpacity>
 
                 <TouchableOpacity
@@ -1556,11 +1547,15 @@ const styles = StyleSheet.create({
   step2Container: {
     flex: 1,
     paddingHorizontal: 24,
-    paddingTop: 20,
-    gap: 32,
+    paddingTop: 60,
+    paddingBottom: 50,
+    justifyContent: 'space-between',
+  },
+  step2SelectionsWrapper: {
+    gap: 56,
   },
   routineTypeSection: {
-    gap: 16,
+    gap: 20,
   },
   routineTypeQuestion: {
     color: colors.text.primary,
@@ -1598,7 +1593,7 @@ const styles = StyleSheet.create({
     letterSpacing: 0.3,
   },
   timeSelectionSection: {
-    gap: 16,
+    gap: 20,
   },
   timeSelectionQuestion: {
     color: colors.text.primary,

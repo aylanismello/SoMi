@@ -140,7 +140,7 @@ export default function SoMiTimer({ navigation, route }) {
     await somiChainService.saveCompletedBlock(TIMER_BLOCK_ID, seconds, 0, chainId)
 
     // Navigate back to check-in at Step 4
-    navigation.navigate('SoMeCheckIn', {
+    navigation.navigate('SoMiCheckIn', {
       fromPlayer: true,
       savedInitialValue: route?.params?.initialValue || 0,
       savedInitialState: route?.params?.savedInitialState || null,
