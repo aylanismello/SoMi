@@ -49,7 +49,7 @@ const OLD_STATE_INFO = {
   connected: { id: 'connected', label: 'Connected', color: '#90DDF0' },
 }
 
-export default function SoMeCheckIn({ navigation, route }) {
+export default function SoMiCheckIn({ navigation, route }) {
   // Check if we're coming back from player (step 4) or body scan
   const fromPlayer = route?.params?.fromPlayer || false
   const fromBodyScan = route?.params?.fromBodyScan || false

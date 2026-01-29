@@ -27,6 +27,7 @@ export default function RoutineQueuePreview({ navigation, route }) {
     isEditMode = false, // True when editing from interstitial
     currentCycle = 1, // Which block the user is currently on
     currentQueue = null, // The current queue if editing
+    onQueueUpdate = null, // Callback to update queue in parent (for edit mode)
   } = route.params
 
   const [queue, setQueue] = useState([])
@@ -174,14 +175,14 @@ export default function RoutineQueuePreview({ navigation, route }) {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
 
     if (isEditMode) {
-      // Return to SoMiRoutine with updated queue, preserving all original params
-      navigation.navigate('SoMiRoutine', {
-        ...route.params,
-        updatedQueue: enrichedQueue,
-        isEditMode: undefined, // Clear edit mode flag
-        currentCycle: undefined, // Clear edit-specific params
-        currentQueue: undefined,
-      })
+      // CRITICAL: Call the callback to update the queue in parent
+      // This preserves SoMiRoutine's local state (currentCycle, etc.)
+      if (onQueueUpdate) {
+        onQueueUpdate(enrichedQueue)
+      }
+
+      // Simply go back - no navigate, no params, preserves all state
+      navigation.goBack()
     } else {
       // Navigate back to CheckIn and tell it to stay on Step 2
       navigation.navigate('CheckIn', {

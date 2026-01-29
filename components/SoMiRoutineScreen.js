@@ -184,17 +184,6 @@ export default function SoMiRoutineScreen({ navigation, route }) {
     updateMusicSetting(isMusicEnabled)
   }, [isMusicEnabled])
 
-  // Handle updated queue from edit screen
-  useEffect(() => {
-    if (route.params?.updatedQueue) {
-      console.log('Updating queue from edit screen:', route.params.updatedQueue.map(b => b.name))
-      setHardcodedQueue(route.params.updatedQueue)
-
-      // Clear the param so it doesn't trigger again
-      navigation.setParams({ updatedQueue: undefined })
-    }
-  }, [route.params?.updatedQueue])
-
   const fetchAvailableVideos = async () => {
     try {
       setIsLoadingVideos(true)
@@ -220,10 +209,8 @@ export default function SoMiRoutineScreen({ navigation, route }) {
       let queue
       if (customQueue && customQueue.length > 0) {
         queue = customQueue
-        console.log('Using custom queue from preview:', queue.map(b => b.name))
       } else {
         queue = await getBlocksForRoutine(totalBlocks)
-        console.log(`Loaded hardcoded queue for ${totalBlocks} blocks:`, queue.map(b => b.name))
       }
 
       setHardcodedQueue(queue)
@@ -548,7 +535,6 @@ export default function SoMiRoutineScreen({ navigation, route }) {
         currentCycle - 1, // 0-indexed order
         chainId
       )
-      console.log(`Completed block ${currentVideo.id} in cycle ${currentCycle}`)
     }
 
     // Check if we've completed all cycles
@@ -571,14 +557,12 @@ export default function SoMiRoutineScreen({ navigation, route }) {
       if (hardcodedQueue && hardcodedQueue.length >= nextCycle) {
         const nextBlock = hardcodedQueue[nextCycle - 1]
         nextVideo = videoQueue.find(v => v.id === nextBlock.somi_block_id)
-        console.log(`Using hardcoded block ${nextCycle}/${TOTAL_CYCLES}: ${nextVideo?.name}`)
       }
 
       // Fallback to algorithm if hardcoded queue is empty or incomplete
       if (!nextVideo) {
         const stateTarget = STATE_CODE_TO_TARGET[polyvagalState] || 'settling'
         nextVideo = selectRoutineVideo(videoQueue, stateTarget, currentVideo?.id)
-        console.log(`Fallback to algorithm: ${nextVideo?.name}`)
       }
 
       setCurrentVideo(nextVideo)
@@ -597,7 +581,6 @@ export default function SoMiRoutineScreen({ navigation, route }) {
     setCurrentVideo(video)
     setSelectedVideoId(video.id)
     setUserOverrodeBlock(true) // User manually chose a different block
-    console.log(`User overrode block selection: ${video.name}`)
   }
 
   const handleExit = () => {
@@ -646,14 +629,12 @@ export default function SoMiRoutineScreen({ navigation, route }) {
       if (hardcodedQueue && hardcodedQueue.length >= nextCycle) {
         const nextBlock = hardcodedQueue[nextCycle - 1]
         nextVideo = videoQueue.find(v => v.id === nextBlock.somi_block_id)
-        console.log(`Using hardcoded block ${nextCycle}/${TOTAL_CYCLES}: ${nextVideo?.name}`)
       }
 
       // Fallback to algorithm if hardcoded queue is empty or incomplete
       if (!nextVideo) {
         const stateTarget = STATE_CODE_TO_TARGET[polyvagalState] || 'settling'
         nextVideo = selectRoutineVideo(videoQueue, stateTarget, currentVideo?.id)
-        console.log(`Fallback to algorithm: ${nextVideo?.name}`)
       }
 
       setCurrentVideo(nextVideo)
@@ -726,6 +707,10 @@ export default function SoMiRoutineScreen({ navigation, route }) {
       isEditMode: true,
       currentCycle: currentCycle,
       currentQueue: hardcodedQueue,
+      // Callback to update queue without remounting this screen
+      onQueueUpdate: (updatedQueue) => {
+        setHardcodedQueue(updatedQueue)
+      },
     })
   }
 

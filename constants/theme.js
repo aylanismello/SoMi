@@ -23,6 +23,7 @@ export const colors = {
     secondary: '#00B4D8',    // Turquoise - selected states
     tertiary: '#90E0EF',     // Frosted Blue - subtle highlights
     light: '#CAF0F8',        // Light Cyan - very light accents
+    teal: '#4ecdc4',         // Teal - used for time/stats displays
   },
 
   // State colors

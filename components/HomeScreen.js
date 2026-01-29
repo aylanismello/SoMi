@@ -645,11 +645,11 @@ const styles = StyleSheet.create({
     marginTop: 16,
     paddingVertical: 10,
     paddingHorizontal: 20,
-    backgroundColor: 'rgba(78, 205, 196, 0.15)',
+    backgroundColor: `${colors.accent.teal}26`, // 15% opacity
     borderRadius: 16,
   },
   minutesLabel: {
-    color: '#4ecdc4',
+    color: colors.accent.teal,
     fontSize: 16,
     fontWeight: '600',
     textAlign: 'center',
@@ -869,13 +869,13 @@ const styles = StyleSheet.create({
     letterSpacing: 0.5,
   },
   minutesNumber: {
-    color: '#4ecdc4',
+    color: colors.accent.teal,
     fontSize: 64,
     fontWeight: '700',
     letterSpacing: -2,
   },
   minutesUnit: {
-    color: '#4ecdc4',
+    color: colors.accent.teal,
     fontSize: 20,
     fontWeight: '600',
     marginBottom: 12,
