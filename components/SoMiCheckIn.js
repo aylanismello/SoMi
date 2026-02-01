@@ -7,11 +7,14 @@ import * as Haptics from 'expo-haptics'
 import Svg, { Path, Circle } from 'react-native-svg'
 import { getSOSMedia, BODY_SCAN_MEDIA } from '../constants/media'
 import EmbodimentSlider, { POLYVAGAL_STATE_MAP, STATE_DESCRIPTIONS } from './EmbodimentSlider'
-import { supabase, somiChainService } from '../supabase'
+import { somiChainService } from '../supabase'
 import { colors } from '../constants/theme'
-import { useFlowMusic } from '../contexts/FlowMusicContext'
+import { useFlowMusicStore } from '../stores/flowMusicStore'
+import { useSettingsStore } from '../stores/settingsStore'
+import { useRoutineStore } from '../stores/routineStore'
 import SettingsModal from './SettingsModal'
 import { ROUTINE_TYPES, ROUTINE_TYPE_LABELS, ROUTINE_TYPE_EMOJIS, getAutoRoutineType } from '../services/routineConfig'
+import { useSaveEmbodimentCheck } from '../hooks/useSupabaseQueries'
 
 // Polyvagal states for chip selection (new code-based system)
 const POLYVAGAL_STATES = [
@@ -63,15 +66,19 @@ export default function SoMiCheckIn({ navigation, route }) {
 
   // Separate state for loop check-in (Step 4)
   const [loopSliderValue, setLoopSliderValue] = useState(0)
+  const [loopSliderChanged, setLoopSliderChanged] = useState(false)
   const [loopPolyvagalState, setLoopPolyvagalState] = useState(null)
 
   // Store initial values from Step 1 to show transition later
   const [initialSliderValue, setInitialSliderValue] = useState(0)
   const [initialPolyvagalState, setInitialPolyvagalState] = useState(null)
 
-  // Time selection state (Step 2)
-  const [selectedBlockCount, setSelectedBlockCount] = useState(6) // Default to 10 minutes
-  const [selectedRoutineType, setSelectedRoutineType] = useState(getAutoRoutineType())
+  // Get routine settings from store to preserve selections
+  const routineStore = useRoutineStore()
+
+  // Time selection state (Step 2) - initialize from store if available
+  const [selectedBlockCount, setSelectedBlockCount] = useState(routineStore.totalBlocks || 6)
+  const [selectedRoutineType, setSelectedRoutineType] = useState(routineStore.routineType || getAutoRoutineType())
 
   // Transition modal state
   const [showTransitionModal, setShowTransitionModal] = useState(false)
@@ -89,8 +96,8 @@ export default function SoMiCheckIn({ navigation, route }) {
   const [journalForStep, setJournalForStep] = useState(1) // Track which step the journal is for
   const journalInputRef = useRef(null)
 
-  const { stopFlowMusic } = useFlowMusic()
-
+  const { stopFlowMusic, audioPlayer } = useFlowMusicStore()
+  const saveEmbodimentCheckMutation = useSaveEmbodimentCheck()
 
   // Reset key to force carousel to scroll back to start
   const [resetKey, setResetKey] = useState(0)
@@ -109,6 +116,9 @@ export default function SoMiCheckIn({ navigation, route }) {
 
   // Ref to track if we just came from player (prevents race condition with useFocusEffect)
   const justCameFromPlayer = useRef(false)
+
+  // Check if this is a daily flow (check-ins are mandatory)
+  const isDailyFlow = route?.params?.isDailyFlow || false
 
   // Watch for route param changes to handle coming back from Player or Body Scan
   useEffect(() => {
@@ -226,7 +236,8 @@ export default function SoMiCheckIn({ navigation, route }) {
   useFocusEffect(
     React.useCallback(() => {
       if (!justCameFromPlayer.current) {
-        // Reset state completely when coming back to check-in (not from player)
+        // Always reset to beginning when focusing the CheckIn screen
+        // This ensures a fresh start every time user comes to Flow tab
         setSliderValue(0)
         setPolyvagalState(null)
         setLoopSliderValue(0)
@@ -248,14 +259,11 @@ export default function SoMiCheckIn({ navigation, route }) {
   )
 
   const saveEmbodimentCheck = async (value, stateId, journal = null) => {
-    try {
-      const data = await somiChainService.saveEmbodimentCheck(value, stateId, journal)
-      if (data) {
-        console.log('Embodiment check saved to chain:', data)
-      }
-    } catch (err) {
-      console.error('Unexpected error:', err)
-    }
+    await saveEmbodimentCheckMutation.mutateAsync({
+      sliderValue: value,
+      polyvagalStateCode: stateId,
+      journalEntry: journal,
+    })
   }
 
   const handleSOSPress = () => {
@@ -345,6 +353,12 @@ export default function SoMiCheckIn({ navigation, route }) {
       return
     }
 
+    // For daily flow, also require slider interaction
+    if (isDailyFlow && !sliderChanged) {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error)
+      return
+    }
+
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success)
 
     saveEmbodimentCheck(sliderValue, polyvagalState, journalEntry || null)
@@ -413,6 +427,7 @@ export default function SoMiCheckIn({ navigation, route }) {
 
   const handleLoopSliderChange = (value) => {
     setLoopSliderValue(value)
+    setLoopSliderChanged(true)
   }
 
   const handleLoopStateChange = (stateId) => {
@@ -422,6 +437,12 @@ export default function SoMiCheckIn({ navigation, route }) {
   const handleLoopCheckboxPress = () => {
     // Require polyvagal state to be selected before proceeding
     if (!loopPolyvagalState) {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error)
+      return
+    }
+
+    // For daily flow, also require slider interaction
+    if (isDailyFlow && !loopSliderChanged) {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error)
       return
     }
@@ -455,6 +476,12 @@ export default function SoMiCheckIn({ navigation, route }) {
       return
     }
 
+    // For daily flow, also require slider interaction
+    if (isDailyFlow && !loopSliderChanged) {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error)
+      return
+    }
+
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium)
 
     // Save loop check to database before continuing
@@ -483,12 +510,18 @@ export default function SoMiCheckIn({ navigation, route }) {
 
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium)
 
-    // Navigate to queue preview with routine type
-    navigation.navigate('RoutineQueuePreview', {
-      polyvagalState,
-      sliderValue,
+    // Initialize routine in store
+    useRoutineStore.getState().initializeRoutine({
+      totalBlocks: selectedBlockCount,
+      routineType: selectedRoutineType,
       savedInitialValue: sliderValue,
       savedInitialState: polyvagalState,
+      customQueue: null,
+      isQuickRoutine: false,
+    })
+
+    // Navigate to queue preview
+    navigation.navigate('RoutineQueuePreview', {
       totalBlocks: selectedBlockCount,
       routineType: selectedRoutineType,
     })
@@ -521,6 +554,12 @@ export default function SoMiCheckIn({ navigation, route }) {
       return
     }
 
+    // For daily flow, also require slider interaction
+    if (isDailyFlow && !loopSliderChanged) {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error)
+      return
+    }
+
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium)
 
     // Save loop check to database
@@ -544,6 +583,9 @@ export default function SoMiCheckIn({ navigation, route }) {
     // Stop flow music when finishing the flow
     stopFlowMusic()
 
+    // Reset routine store for next session
+    routineStore.resetRoutine()
+
     // Show transition modal before going home
     if (loopPolyvagalState && initialPolyvagalState) {
       setPendingAction('done')
@@ -562,6 +604,9 @@ export default function SoMiCheckIn({ navigation, route }) {
 
     // Stop flow music when skipping final check-in
     stopFlowMusic()
+
+    // Reset routine store for next session
+    routineStore.resetRoutine()
 
     // Go home without saving or showing transition
     navigation.navigate('Home')
@@ -643,6 +688,8 @@ export default function SoMiCheckIn({ navigation, route }) {
     await somiChainService.endActiveChain()
     // Stop flow music when exiting early
     stopFlowMusic()
+    // Reset routine store for next session
+    routineStore.resetRoutine()
     // Go directly to home (no body scan when exiting early from Step 1)
     navigation.navigate('Home')
   }
@@ -751,9 +798,15 @@ export default function SoMiCheckIn({ navigation, route }) {
             <Text style={styles.headerIconText}>⚙️</Text>
           </TouchableOpacity>
 
-          {currentStep !== 2 && (
+          {!isDailyFlow && (
             <TouchableOpacity
-              onPress={handleSkipCheckin}
+              onPress={
+                currentStep === 2
+                  ? handleContinueToPreview
+                  : currentStep === 4
+                    ? handleSkipFinalCheckin
+                    : handleSkipCheckin
+              }
               style={styles.headerSkipButton}
               activeOpacity={0.7}
             >
@@ -1056,53 +1109,46 @@ export default function SoMiCheckIn({ navigation, route }) {
           {/* Bottom buttons */}
           {!showConfirmMessage && (
             <View style={styles.bottomButtonsWrapper}>
-              {/* SOS and Help buttons */}
-              <View style={styles.sosBodyScanRow}>
-                <TouchableOpacity
-                  onPressIn={handleSOSPress}
-                  onPressOut={handleSOSRelease}
-                  activeOpacity={0.85}
-                  style={[
-                    styles.sosButtonSmall,
-                    helpMode && styles.helpModeHighlightSOS
-                  ]}
-                >
-                  <LinearGradient
-                    colors={['#ff6b9d', '#ffa8b3']}
-                    start={{ x: 0, y: 0 }}
-                    end={{ x: 1, y: 1 }}
-                    style={styles.sosButtonSmallGradient}
+              {/* Single row: SOS, Help, and Finish - matching Step 1 layout */}
+              <View style={styles.step1NavigationRow}>
+                {/* Left: SOS and Help buttons */}
+                <View style={styles.step1LeftButtons}>
+                  <TouchableOpacity
+                    onPressIn={handleSOSPress}
+                    onPressOut={handleSOSRelease}
+                    activeOpacity={0.85}
+                    style={[
+                      styles.sosButtonSmall,
+                      helpMode && styles.helpModeHighlightSOS
+                    ]}
                   >
-                    <Text style={styles.sosTextSmall}>SOS</Text>
-                  </LinearGradient>
-                </TouchableOpacity>
+                    <LinearGradient
+                      colors={['#ff6b9d', '#ffa8b3']}
+                      start={{ x: 0, y: 0 }}
+                      end={{ x: 1, y: 1 }}
+                      style={styles.sosButtonSmallGradient}
+                    >
+                      <Text style={styles.sosTextSmall}>SOS</Text>
+                    </LinearGradient>
+                  </TouchableOpacity>
 
-                <TouchableOpacity
-                  onPress={handleHelpModeToggle}
-                  activeOpacity={0.8}
-                  style={[styles.helpButtonSmall, helpMode && styles.helpButtonSmallActive]}
-                >
-                  <Text style={styles.helpButtonSmallIcon}>?</Text>
-                </TouchableOpacity>
-              </View>
+                  <TouchableOpacity
+                    onPress={handleHelpModeToggle}
+                    activeOpacity={0.8}
+                    style={[styles.helpButtonSmall, helpMode && styles.helpButtonSmallActive]}
+                  >
+                    <Text style={styles.helpButtonSmallIcon}>?</Text>
+                  </TouchableOpacity>
+                </View>
 
-              {/* Skip and Finish buttons */}
-              <View style={styles.step4NavigationRow}>
-                <TouchableOpacity
-                  onPress={handleSkipFinalCheckin}
-                  activeOpacity={0.7}
-                  style={styles.step4SkipButton}
-                >
-                  <Text style={styles.step4SkipButtonText}>Skip</Text>
-                </TouchableOpacity>
-
+                {/* Right: Finish button (styled like Continue) */}
                 <TouchableOpacity
                   onPress={handleFinish}
                   activeOpacity={0.7}
-                  style={styles.step4FinishButton}
+                  style={styles.step1ContinueButton}
                 >
-                  <Text style={styles.step4FinishButtonText}>Finish</Text>
-                  <View style={styles.step4FinishCheckmark}>
+                  <Text style={styles.step1ContinueButtonText}>Finish</Text>
+                  <View style={styles.step1ContinueCheckmark}>
                     <Svg width={18} height={18} viewBox="0 0 24 24">
                       <Path
                         d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"
@@ -1547,7 +1593,7 @@ const styles = StyleSheet.create({
   step2Container: {
     flex: 1,
     paddingHorizontal: 24,
-    paddingTop: 60,
+    paddingTop: 0,
     paddingBottom: 50,
     justifyContent: 'space-between',
   },

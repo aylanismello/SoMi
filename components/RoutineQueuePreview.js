@@ -6,6 +6,8 @@ import * as Haptics from 'expo-haptics'
 import { colors } from '../constants/theme'
 import { supabase } from '../supabase'
 import { getRoutineConfig, ROUTINE_TYPES } from '../services/routineConfig'
+import { useRoutineStore } from '../stores/routineStore'
+import { useBlocks } from '../hooks/useSupabaseQueries'
 
 // Polyvagal state emojis and colors
 const STATE_EMOJIS = {
@@ -17,120 +19,91 @@ const STATE_EMOJIS = {
 }
 
 export default function RoutineQueuePreview({ navigation, route }) {
+  // Get routine config from store
   const {
-    polyvagalState,
-    sliderValue,
-    savedInitialValue,
-    savedInitialState,
     totalBlocks,
-    routineType = ROUTINE_TYPES.MORNING, // Default to morning for backwards compatibility
-    isEditMode = false, // True when editing from interstitial
-    currentCycle = 1, // Which block the user is currently on
-    currentQueue = null, // The current queue if editing
-    onQueueUpdate = null, // Callback to update queue in parent (for edit mode)
-  } = route.params
+    routineType,
+    hardcodedQueue: storeQueue,
+    currentCycle,
+    setQueue,
+  } = useRoutineStore()
 
-  const [queue, setQueue] = useState([])
+  // Handle edit mode from route params (optional)
+  const {
+    isEditMode = false, // True when editing from interstitial
+    onQueueUpdate = null, // Callback to update queue in parent (for edit mode)
+  } = route.params || {}
+
+  const [localQueue, setLocalQueue] = useState([])
   const [enrichedQueue, setEnrichedQueue] = useState([])
-  const [isLoading, setIsLoading] = useState(true)
   const [libraryBlocks, setLibraryBlocks] = useState([])
   const [showLibrary, setShowLibrary] = useState(false)
   const [swapIndex, setSwapIndex] = useState(null)
 
+  // Get canonical names for the routine
+  const canonicalNames = getRoutineConfig(routineType, totalBlocks)
+
+  // Fetch blocks using React Query
+  const { data: fetchedBlocks, isLoading } = useBlocks(canonicalNames)
+
+  // Initialize queue when blocks are loaded
   useEffect(() => {
-    loadQueue()
-  }, [])
-
-  const loadQueue = async () => {
-    setIsLoading(true)
-
-    let queueFormat
-
-    // If in edit mode, use the current queue
-    if (isEditMode && currentQueue) {
-      queueFormat = currentQueue
-    } else {
-      // Get canonical names for this routine type and block count
-      const canonicalNames = getRoutineConfig(routineType, totalBlocks)
-      if (!canonicalNames) {
-        console.error('Failed to get routine config')
-        setIsLoading(false)
-        return
+    if (fetchedBlocks && fetchedBlocks.length > 0 && localQueue.length === 0) {
+      // Use store queue if in edit mode, otherwise create new queue from fetched blocks
+      let queueFormat
+      if (isEditMode && storeQueue && storeQueue.length > 0) {
+        queueFormat = storeQueue
+      } else {
+        // Convert fetched blocks to queue format
+        queueFormat = fetchedBlocks.map((block, index) => ({
+          somi_block_id: block.id,
+          name: block.name,
+          canonical_name: block.canonical_name,
+          url: block.media_url,
+          type: 'video',
+          order: index,
+          description: block.description,
+          state_target: block.state_target,
+        }))
       }
 
-      // Fetch blocks from database by canonical names
-      const { data: fetchedBlocks, error } = await supabase
-        .from('somi_blocks')
-        .select('id, canonical_name, name, description, state_target, media_url')
-        .in('canonical_name', canonicalNames)
+      setLocalQueue(queueFormat)
+      setEnrichedQueue(queueFormat)
 
-      if (error) {
-        console.error('Error fetching blocks:', error)
-        setIsLoading(false)
-        return
+      // If not in edit mode, update store with initial queue (only once)
+      if (!isEditMode && queueFormat.length > 0) {
+        setQueue(queueFormat)
       }
-
-      // Sort blocks to match the canonical names order
-      const sortedBlocks = canonicalNames.map(canonicalName =>
-        fetchedBlocks.find(block => block.canonical_name === canonicalName)
-      ).filter(Boolean) // Remove any null/undefined entries
-
-      // Convert to queue format
-      queueFormat = sortedBlocks.map((block, index) => ({
-        somi_block_id: block.id,
-        name: block.name,
-        canonical_name: block.canonical_name,
-        url: block.media_url,
-        type: 'video',
-        order: index,
-      }))
     }
+    // Only depend on fetchedBlocks and isEditMode
+    // Don't include storeQueue or setQueue to avoid infinite loops
+  }, [fetchedBlocks, isEditMode])
 
-    setQueue(queueFormat)
+  // Load library blocks
+  useEffect(() => {
+    const loadLibrary = async () => {
+      const { data: library } = await supabase
+        .from('somi_blocks')
+        .select('id, name, description, state_target, canonical_name, media_url')
+        .eq('media_type', 'video')
+        .eq('active', true)
+        .eq('block_type', 'vagal_toning')
+        .or('is_routine.is.null,is_routine.eq.false')
+        .not('media_url', 'is', null)
 
-    // Enrich queue with full details (get block IDs from queueFormat)
-    const blockIds = queueFormat.map(b => b.somi_block_id)
-    const { data } = await supabase
-      .from('somi_blocks')
-      .select('id, name, description, state_target')
-      .in('id', blockIds)
-
-    // Merge with queue order
-    const enriched = queueFormat.map(block => {
-      const details = data?.find(d => d.id === block.somi_block_id)
-      return {
-        ...block,
-        description: details?.description,
-        state_target: details?.state_target,
-      }
-    })
-
-    setEnrichedQueue(enriched)
-
-    // Load library blocks (excluding routine blocks)
-    const { data: library } = await supabase
-      .from('somi_blocks')
-      .select('id, name, description, state_target, canonical_name, media_url')
-      .eq('media_type', 'video')
-      .eq('active', true)
-      .eq('block_type', 'vagal_toning')
-      .or('is_routine.is.null,is_routine.eq.false')
-      .not('media_url', 'is', null)
-
-    setLibraryBlocks(library || [])
-    setIsLoading(false)
-  }
+      setLibraryBlocks(library || [])
+    }
+    loadLibrary()
+  }, [])
 
   const handleConfirm = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium)
-    navigation.replace('SoMiRoutine', {
-      polyvagalState,
-      sliderValue,
-      savedInitialValue,
-      savedInitialState,
-      totalBlocks,
-      customQueue: enrichedQueue, // Pass custom queue if edited
-    })
+
+    // Update store with the final queue
+    setQueue(enrichedQueue)
+
+    // Navigate to routine (no params needed, uses store)
+    navigation.replace('SoMiRoutine')
   }
 
   const handleSwapPress = (index) => {
@@ -175,21 +148,21 @@ export default function RoutineQueuePreview({ navigation, route }) {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
 
     if (isEditMode) {
-      // CRITICAL: Call the callback to update the queue in parent
-      // This preserves SoMiRoutine's local state (currentCycle, etc.)
+      // Update store with edited queue
+      setQueue(enrichedQueue)
+
+      // Call callback if provided (for compatibility)
       if (onQueueUpdate) {
         onQueueUpdate(enrichedQueue)
       }
 
-      // Simply go back - no navigate, no params, preserves all state
+      // Simply go back
       navigation.goBack()
     } else {
-      // Navigate back to CheckIn and tell it to stay on Step 2
-      navigation.navigate('CheckIn', {
+      // Navigate back to SoMiCheckIn
+      navigation.navigate('SoMiCheckIn', {
         fromBodyScan: true,
         skipToStep2: true,
-        polyvagalState,
-        sliderValue,
       })
     }
   }

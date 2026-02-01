@@ -1,5 +1,5 @@
-import { useState, useCallback } from 'react'
-import { StyleSheet, View, Text, ScrollView, Image, TouchableOpacity, Modal } from 'react-native'
+import { useState, useCallback, useRef } from 'react'
+import { StyleSheet, View, Text, ScrollView, Image, TouchableOpacity, Modal, Animated } from 'react-native'
 import { LinearGradient } from 'expo-linear-gradient'
 import { BlurView } from 'expo-blur'
 import { somiChainService, supabase } from '../supabase'
@@ -9,6 +9,9 @@ import * as Haptics from 'expo-haptics'
 import { getRoutineConfig } from '../services/routineConfig'
 import SettingsModal from './SettingsModal'
 import EmbodimentSlider from './EmbodimentSlider'
+import { useSettingsStore } from '../stores/settingsStore'
+import { useRoutineStore } from '../stores/routineStore'
+import { useLatestChain, useSaveEmbodimentCheck } from '../hooks/useSupabaseQueries'
 
 // Polyvagal states with colors and emojis (new code-based system)
 const POLYVAGAL_STATES = {
@@ -21,22 +24,34 @@ const POLYVAGAL_STATES = {
 }
 
 export default function HomeScreen({ navigation }) {
-  const [latestChain, setLatestChain] = useState(null)
-  const [loading, setLoading] = useState(true)
+  // Animated scroll value for header fade effect
+  const scrollY = useRef(new Animated.Value(0)).current
+
+  // Use React Query for latest chain data
+  const { data: latestChain, isLoading: loading, refetch } = useLatestChain()
+
+  // Mutation for saving quick check-ins
+  const saveEmbodimentCheck = useSaveEmbodimentCheck()
 
   // Fetch data when screen comes into focus
   useFocusEffect(
     useCallback(() => {
-      fetchHomeData()
-    }, [])
+      refetch()
+    }, [refetch])
   )
 
-  const fetchHomeData = async () => {
-    setLoading(true)
-    const chain = await somiChainService.getLatestChain()
-    setLatestChain(chain)
-    setLoading(false)
-  }
+  // Interpolate scroll position to opacity for header fade effect
+  const headerOpacity = scrollY.interpolate({
+    inputRange: [0, 100],
+    outputRange: [1, 0],
+    extrapolate: 'clamp',
+  })
+
+  const backgroundOpacity = scrollY.interpolate({
+    inputRange: [0, 150],
+    outputRange: [1, 0],
+    extrapolate: 'clamp',
+  })
 
   // Calculate stats from latest chain (flexible - works with any chain type)
   const getChainStats = () => {
@@ -136,20 +151,16 @@ export default function HomeScreen({ navigation }) {
 
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success)
 
-    // Save embodiment check
-    try {
-      const chainId = await somiChainService.getOrCreateActiveChain()
-      await somiChainService.saveEmbodimentCheck(quickSliderValue, quickPolyvagalState, null)
+    // Save embodiment check using React Query mutation
+    saveEmbodimentCheck.mutate({
+      sliderValue: quickSliderValue,
+      polyvagalStateCode: quickPolyvagalState,
+      journalEntry: null,
+    })
 
-      // Update last state and close modal
-      setLastQuickCheckInState(quickPolyvagalState)
-      setShowQuickCheckInModal(false)
-
-      // Refresh home data to show the new check-in
-      fetchHomeData()
-    } catch (err) {
-      console.error('Error saving quick check-in:', err)
-    }
+    // Update last state and close modal
+    setLastQuickCheckInState(quickPolyvagalState)
+    setShowQuickCheckInModal(false)
   }
 
   const handleClearQuickCheckIn = () => {
@@ -157,10 +168,11 @@ export default function HomeScreen({ navigation }) {
     setLastQuickCheckInState(null)
   }
 
-  const handleOpenTimer = () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
-    navigation.navigate('MeditationTimerSetup')
-  }
+  // MEDITATION TIMER FEATURE ARCHIVED - see /archived-features/
+  // const handleOpenTimer = () => {
+  //   Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
+  //   navigation.navigate('MeditationTimerSetup')
+  // }
 
   const handleOpenSettings = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
@@ -209,71 +221,71 @@ export default function HomeScreen({ navigation }) {
       state_target: block.state_target,
     }))
 
-    // Navigate directly to routine with default values (no initial check-in)
+    // Initialize routine in store
+    useRoutineStore.getState().initializeRoutine({
+      totalBlocks: blockCount,
+      routineType: routineType,
+      savedInitialValue: 50,
+      savedInitialState: 4,
+      customQueue: customQueue,
+      isQuickRoutine: true,
+    })
+
+    // Navigate directly to routine
     navigation.navigate('Flow', {
       screen: 'SoMiRoutine',
-      params: {
-        polyvagalState: 4, // Default to "Steady"
-        sliderValue: 50,
-        savedInitialValue: 50,
-        savedInitialState: 4,
-        totalBlocks: blockCount,
-        customQueue: customQueue,
-        isQuickRoutine: true,
-      },
     })
   }
 
   return (
     <View style={styles.container}>
       {/* Background Image - Hero Section */}
-      <Image
+      <Animated.Image
         source={{ uri: 'https://qujifwhwntqxziymqdwu.supabase.co/storage/v1/object/public/test/home%20screen%20backgrounds/water_1.jpg' }}
-        style={styles.heroImage}
+        style={[styles.heroImage, { opacity: backgroundOpacity }]}
         resizeMode="cover"
       />
 
       {/* Gradient overlay for better text readability */}
-      <LinearGradient
-        colors={['rgba(0, 0, 0, 0)', 'rgba(0, 0, 0, 0.3)', colors.background.primary]}
-        locations={[0, 0.5, 1]}
-        style={styles.heroGradient}
-      />
+      <Animated.View style={{ opacity: backgroundOpacity }}>
+        <LinearGradient
+          colors={['rgba(0, 0, 0, 0)', 'rgba(0, 0, 0, 0.3)', colors.background.primary]}
+          locations={[0, 0.5, 1]}
+          style={styles.heroGradient}
+        />
+      </Animated.View>
 
-      {/* Settings Icon - Upper Left */}
-      <TouchableOpacity
-        onPress={handleOpenSettings}
-        style={styles.settingsButton}
-        activeOpacity={0.7}
-      >
-        <Text style={styles.settingsIcon}>⚙️</Text>
-      </TouchableOpacity>
+      {/* Header Row - Settings, Logo, (Future: Notifications) */}
+      <Animated.View style={[styles.headerRow, { opacity: headerOpacity }]}>
+        <TouchableOpacity
+          onPress={handleOpenSettings}
+          style={styles.headerIconButton}
+          activeOpacity={0.7}
+        >
+          <Text style={styles.headerIcon}>⚙️</Text>
+        </TouchableOpacity>
 
-      {/* Meditation Timer Bell Icon - Upper Right */}
-      <TouchableOpacity
-        onPress={handleOpenTimer}
-        style={styles.timerBellButton}
-        activeOpacity={0.7}
-      >
-        <Text style={styles.timerBellIcon}>🔔</Text>
-      </TouchableOpacity>
+        <Text style={styles.headerLogoText}>SoMi</Text>
 
-      <ScrollView
+        {/* Placeholder for future notification icon */}
+        <View style={styles.headerIconButton} />
+      </Animated.View>
+
+      <Animated.ScrollView
         style={styles.scrollView}
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
+        onScroll={Animated.event(
+          [{ nativeEvent: { contentOffset: { y: scrollY } } }],
+          { useNativeDriver: true }
+        )}
+        scrollEventThrottle={16}
       >
-        {/* SoMi Logo at top - overlaid on image */}
-        <View style={styles.logoSection}>
-          <Text style={styles.logoText}>SoMi</Text>
-        </View>
 
         {/* Welcome section */}
         <View style={styles.welcomeSection}>
         <View style={styles.welcomeContent}>
-          <Text style={styles.welcomeText}>Hi Aylan.</Text>
-          <Text style={styles.welcomeSubtext}>{getGreeting()}</Text>
-
+          <Text style={styles.greetingText}>Hi Aylan, {getGreeting().toLowerCase()}</Text>
           {chainStats ? (
             <BlurView intensity={20} tint="dark" style={styles.statsCard}>
               <View style={styles.statsContent}>
@@ -550,7 +562,7 @@ export default function HomeScreen({ navigation }) {
             </BlurView>
           </View>
         )}
-      </ScrollView>
+      </Animated.ScrollView>
 
       {/* Settings Modal */}
       <SettingsModal visible={showSettingsModal} onClose={handleCloseSettings} />
@@ -585,41 +597,20 @@ const styles = StyleSheet.create({
   scrollContent: {
     paddingBottom: 100,
   },
-  logoSection: {
-    paddingTop: 100,
-    paddingBottom: 50,
-    alignItems: 'center',
-  },
-  logoText: {
-    color: colors.text.primary,
-    fontSize: 48,
-    fontWeight: '700',
-    letterSpacing: 3,
-    textShadowColor: 'rgba(0, 0, 0, 0.3)',
-    textShadowOffset: { width: 0, height: 2 },
-    textShadowRadius: 4,
-  },
   welcomeSection: {
     paddingHorizontal: 24,
-    paddingVertical: 20,
+    paddingTop: 220,
+    paddingBottom: 20,
   },
   welcomeContent: {
     alignItems: 'center',
     width: '100%',
   },
-  welcomeText: {
+  greetingText: {
     color: colors.text.primary,
-    fontSize: 32,
-    fontWeight: '600',
-    marginBottom: 8,
-    textAlign: 'center',
-    letterSpacing: 0.5,
-  },
-  welcomeSubtext: {
-    color: colors.text.muted,
     fontSize: 18,
-    fontWeight: '400',
-    marginBottom: 32,
+    fontWeight: '500',
+    marginBottom: 20,
     textAlign: 'center',
     letterSpacing: 0.3,
   },
@@ -897,35 +888,33 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     letterSpacing: 0.3,
   },
-  settingsButton: {
+  headerRow: {
     position: 'absolute',
     top: 60,
-    left: 24,
+    left: 0,
+    right: 0,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 24,
+    zIndex: 10,
+  },
+  headerIconButton: {
     width: 44,
     height: 44,
     borderRadius: 22,
     backgroundColor: 'rgba(0, 0, 0, 0.3)',
     alignItems: 'center',
     justifyContent: 'center',
-    zIndex: 10,
   },
-  settingsIcon: {
+  headerIcon: {
     fontSize: 24,
   },
-  timerBellButton: {
-    position: 'absolute',
-    top: 60,
-    right: 24,
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: 'rgba(0, 0, 0, 0.3)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    zIndex: 10,
-  },
-  timerBellIcon: {
-    fontSize: 24,
+  headerLogoText: {
+    fontSize: 36,
+    fontWeight: '700',
+    color: colors.text.primary,
+    letterSpacing: 2,
   },
   quickRoutineSection: {
     paddingTop: 32,

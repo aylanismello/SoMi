@@ -1,6 +1,6 @@
 import { supabase } from '../supabase'
 import { selectNextVideo, selectSOSVideo } from './videoSelectionAlgorithm'
-import { getBlocksForCount } from '../constants/blockAlgorithm'
+import { getRoutineConfig } from './routineConfig'
 
 // Cache for video blocks to avoid redundant fetches
 let videoBlocksCache = null
@@ -119,24 +119,25 @@ export async function prefetchVideoBlocks() {
 }
 
 /**
- * Get blocks for a specific block count using the hardcoded algorithm
+ * Get blocks for a specific routine type and block count
  *
  * @param {number} blockCount - Number of blocks (2, 6, or 10)
+ * @param {string} routineType - Routine type ('morning' or 'night')
  * @returns {Array} Array of media objects ready for the player
  */
-export async function getBlocksForRoutine(blockCount) {
+export async function getBlocksForRoutine(blockCount, routineType) {
   // Get all blocks from database
   const allBlocks = await fetchVideoBlocks()
 
-  // Get the canonical names for this block count from the algorithm
-  const canonicalNames = getBlocksForCount(blockCount)
+  // Get the canonical names for this routine type and block count
+  const canonicalNames = getRoutineConfig(routineType, blockCount)
 
   if (!canonicalNames || canonicalNames.length === 0) {
-    console.error(`No blocks configured for count: ${blockCount}`)
+    console.error(`No blocks configured for ${routineType} routine with ${blockCount} blocks`)
     return []
   }
 
-  console.log(`Building queue for ${blockCount} blocks using algorithm:`, canonicalNames)
+  console.log(`Building queue for ${routineType} routine with ${blockCount} blocks:`, canonicalNames)
 
   // Filter and order blocks based on the algorithm's canonical names
   const selectedBlocks = canonicalNames

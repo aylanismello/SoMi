@@ -2,8 +2,8 @@ import { createAudioPlayer } from 'expo-audio'
 
 // Sound effect URLs
 const SOUND_URLS = {
-  blockStart: 'https://qujifwhwntqxziymqdwu.supabase.co/storage/v1/object/public/test/somi%20sounds/block_start_sound.mp3',
-  blockEnd: 'https://qujifwhwntqxziymqdwu.supabase.co/storage/v1/object/public/test/somi%20sounds/block_end_sound.mp3',
+  blockStart: 'https://qujifwhwntqxziymqdwu.supabase.co/storage/v1/object/public/test/somi%20sounds/start_sound.wav',
+  blockEnd: 'https://qujifwhwntqxziymqdwu.supabase.co/storage/v1/object/public/test/somi%20sounds/end_sound.wav',
 }
 
 class SoundManager {
@@ -49,6 +49,8 @@ class SoundManager {
     }
 
     try {
+      // Set volume to 50%
+      player.volume = 0.5
       // Rewind to start (in case it was played before) and play
       player.seekTo(0)
       player.play()

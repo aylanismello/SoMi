@@ -16,7 +16,8 @@
       "supportsTablet": true,
       "bundleIdentifier": "com.azorean.somi",
       "infoPlist": {
-        "ITSAppUsesNonExemptEncryption": false
+        "ITSAppUsesNonExemptEncryption": false,
+        "UIBackgroundModes": ["audio"]
       }
     },
     "android": {

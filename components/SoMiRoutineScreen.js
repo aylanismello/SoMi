@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import { useEvent } from 'expo'
 import { useVideoPlayer, VideoView } from 'expo-video'
 import { StyleSheet, View, TouchableOpacity, Text, ScrollView, Animated, Pressable, Modal } from 'react-native'
@@ -6,14 +6,17 @@ import { LinearGradient } from 'expo-linear-gradient'
 import { BlurView } from 'expo-blur'
 import Svg, { Circle } from 'react-native-svg'
 import * as Haptics from 'expo-haptics'
+import { useFocusEffect } from '@react-navigation/native'
 import { supabase, somiChainService } from '../supabase'
 import { selectRoutineVideo } from '../services/videoSelectionAlgorithm'
 import { getBlocksForRoutine } from '../services/mediaService'
 import { soundManager } from '../utils/SoundManager'
 import { colors } from '../constants/theme'
-import { useSettings } from '../contexts/SettingsContext'
-import { useFlowMusic } from '../contexts/FlowMusicContext'
+import { useSettingsStore } from '../stores/settingsStore'
+import { useFlowMusicStore } from '../stores/flowMusicStore'
+import { useRoutineStore } from '../stores/routineStore'
 import SettingsModal from './SettingsModal'
+import { useSaveChainEntry } from '../hooks/useSupabaseQueries'
 
 const AnimatedCircle = Animated.createAnimatedComponent(Circle)
 
@@ -55,30 +58,41 @@ const STATE_EMOJIS = {
   connected: { emoji: '☀️', color: '#90DDF0' },
 }
 
-export default function SoMiRoutineScreen({ navigation, route }) {
+export default function SoMiRoutineScreen({ navigation }) {
+  // Get all routine state from store
   const {
-    polyvagalState,
-    sliderValue,
+    currentCycle,
+    totalBlocks,
+    phase,
+    hardcodedQueue,
+    currentVideo,
     savedInitialValue,
     savedInitialState,
-    totalBlocks = 8, // Default to 8 blocks if not specified
-    customQueue = null, // Custom queue from preview screen if edited
-    isQuickRoutine = false, // True if started from quick routine (skips initial check-in)
-  } = route.params
+    routineType,
+    isQuickRoutine,
+    setCurrentCycle,
+    setPhase,
+    setQueue,
+    setCurrentVideo,
+    advanceCycle,
+    resetRoutine,
+  } = useRoutineStore()
 
   // Dynamic block count based on user selection
   const TOTAL_CYCLES = totalBlocks
 
-  // Routine state
-  const [currentCycle, setCurrentCycle] = useState(1)
-  const [phase, setPhase] = useState('interstitial') // 'interstitial' | 'video'
+  // Use stores instead of contexts
+  const { isMusicEnabled, showTime } = useSettingsStore()
+  const flowMusicStore = useFlowMusicStore()
+  const { startFlowMusic, setVolume: setFlowMusicVolume, updateMusicSetting, stopFlowMusic, audioPlayer } = flowMusicStore
+
+  // Mutation for saving completed blocks
+  const saveChainEntryMutation = useSaveChainEntry()
   const [countdown, setCountdown] = useState(INTERSTITIAL_DURATION_SECONDS)
   const [currentMessageIndex, setCurrentMessageIndex] = useState(0)
 
   // Video state
   const [videoQueue, setVideoQueue] = useState([])
-  const [hardcodedQueue, setHardcodedQueue] = useState([])
-  const [currentVideo, setCurrentVideo] = useState(null)
   const [previousVideoId, setPreviousVideoId] = useState(null)
   const [selectedVideoId, setSelectedVideoId] = useState(null)
   const [userOverrodeBlock, setUserOverrodeBlock] = useState(false)
@@ -92,8 +106,13 @@ export default function SoMiRoutineScreen({ navigation, route }) {
   const [showEditModal, setShowEditModal] = useState(false)
   const [allBlocks, setAllBlocks] = useState([])
 
-  const { isMusicEnabled, showTime } = useSettings()
-  const { startFlowMusic, setFlowMusicVolume, updateMusicSetting, stopFlowMusic } = useFlowMusic()
+  // Infinity mode for interstitial
+  const [infinityMode, setInfinityMode] = useState(false)
+  const infinityModeRef = useRef(false)
+  const savedCountdownRef = useRef(INTERSTITIAL_DURATION_SECONDS)
+
+  // Pulsing animation for infinity symbol
+  const infinityPulseAnim = useRef(new Animated.Value(1)).current
 
   // Video playback tracking
   const [videoProgress, setVideoProgress] = useState(0)
@@ -127,18 +146,87 @@ export default function SoMiRoutineScreen({ navigation, route }) {
     player.muted = true
   })
 
-  // Flow music is already playing from BodyScanCountdown - we just manage its volume
-  // BUT if this is a quick routine, we need to start it ourselves
+  // Start flow music for quick routines (body scan flow starts music earlier)
   useEffect(() => {
-    if (isQuickRoutine) {
-      startFlowMusic(isMusicEnabled)
+    if (audioPlayer) {
+      console.log('SoMiRoutineScreen: Using flow music player from App')
+      // Only start music if this is a quick routine (no body scan before)
+      if (isQuickRoutine) {
+        console.log('SoMiRoutineScreen: Starting flow music for quick routine')
+        startFlowMusic(isMusicEnabled)
+      }
     }
-  }, [])
+  }, [audioPlayer, isQuickRoutine])
 
   // Fetch all available videos on mount
   useEffect(() => {
     fetchAvailableVideos()
   }, [])
+
+  // Pause/resume countdown and animation when navigating away/back
+  const wasPausedRef = useRef(false)
+  const pausedCountdownRef = useRef(INTERSTITIAL_DURATION_SECONDS)
+
+  useFocusEffect(
+    React.useCallback(() => {
+      // Resume if we paused when navigating away
+      if (wasPausedRef.current && phase === 'interstitial') {
+        console.log('Resuming interstitial animation from edit, countdown was:', pausedCountdownRef.current)
+
+        // Set countdown back to the paused value
+        setCountdown(pausedCountdownRef.current)
+
+        // Restart countdown interval
+        countdownIntervalRef.current = setInterval(() => {
+          setCountdown(prev => {
+            if (infinityModeRef.current) {
+              // Infinity mode: count up
+              return prev + 1
+            } else {
+              // Normal mode: count down
+              if (prev <= 1) {
+                clearInterval(countdownIntervalRef.current)
+                return 0
+              }
+              return prev - 1
+            }
+          })
+        }, 1000)
+
+        // Resume progress animation from where we left off
+        const elapsedTime = INTERSTITIAL_DURATION_SECONDS - pausedCountdownRef.current
+        const remainingTime = pausedCountdownRef.current * 1000
+        const initialProgress = elapsedTime / INTERSTITIAL_DURATION_SECONDS
+
+        interstitialProgressAnim.setValue(initialProgress)
+
+        Animated.timing(interstitialProgressAnim, {
+          toValue: 1,
+          duration: remainingTime,
+          useNativeDriver: false,
+        }).start(({ finished }) => {
+          if (finished) {
+            transitionToVideoPhase()
+          }
+        })
+
+        wasPausedRef.current = false
+      }
+
+      return () => {
+        // Cleanup when navigating away
+        // Note: We don't capture countdown here because the explicit handlers
+        // (handleOpenEditModal, handleOpenSettings) already do that.
+        // This cleanup just ensures intervals are cleared.
+        if (phase === 'interstitial') {
+          if (countdownIntervalRef.current) {
+            clearInterval(countdownIntervalRef.current)
+          }
+          interstitialProgressAnim.stopAnimation()
+        }
+      }
+    }, [phase])
+  )
 
   // Control video playback based on phase
   useEffect(() => {
@@ -167,17 +255,16 @@ export default function SoMiRoutineScreen({ navigation, route }) {
         player.play()
       }, 100)
 
-      // soundManager.playBlockStart() // Temporarily disabled
+      // Play start sound when video begins
+      soundManager.playBlockStart()
     }
   }, [phase])
 
   // Flow music is already playing - just manage volume
   useEffect(() => {
-    // Keep flow music playing at normal volume during interstitials
-    if (phase === 'interstitial') {
-      setFlowMusicVolume(isMusicEnabled ? 1 : 0)
-    }
-  }, [phase, isMusicEnabled])
+    // Keep flow music playing at full volume
+    setFlowMusicVolume(isMusicEnabled ? 1 : 0)
+  }, [isMusicEnabled])
 
   // Handle music setting changes
   useEffect(() => {
@@ -205,15 +292,12 @@ export default function SoMiRoutineScreen({ navigation, route }) {
       setVideoQueue(data || [])
       setAllBlocks(data || []) // Store all blocks for edit modal
 
-      // Use custom queue if provided, otherwise fetch hardcoded queue
-      let queue
-      if (customQueue && customQueue.length > 0) {
-        queue = customQueue
-      } else {
-        queue = await getBlocksForRoutine(totalBlocks)
+      // Use queue from store (already set by RoutineQueuePreview or quick routine)
+      let queue = hardcodedQueue
+      if (!queue || queue.length === 0) {
+        queue = await getBlocksForRoutine(totalBlocks, routineType)
+        setQueue(queue)
       }
-
-      setHardcodedQueue(queue)
 
       // Set initial video from queue
       if (queue && queue.length > 0) {
@@ -232,44 +316,87 @@ export default function SoMiRoutineScreen({ navigation, route }) {
     }
   }
 
+  // Recalculate currentVideo when queue is edited
+  useEffect(() => {
+    // Only update if we're in interstitial phase and have a valid queue
+    if (phase === 'interstitial' && hardcodedQueue && hardcodedQueue.length > 0 && videoQueue.length > 0) {
+      // Get the block for the current cycle from the updated queue
+      const nextBlock = hardcodedQueue[currentCycle - 1]
+      if (nextBlock) {
+        // Find the corresponding video from videoQueue
+        const nextVideo = videoQueue.find(v => v.id === nextBlock.somi_block_id)
+        // Only update if it's different from the current video
+        if (nextVideo && nextVideo.id !== currentVideo?.id) {
+          setCurrentVideo(nextVideo)
+          setSelectedVideoId(nextVideo.id)
+        }
+      }
+    }
+  }, [hardcodedQueue, phase, currentCycle, videoQueue])
+
   // Smooth animation for interstitial progress circle
   useEffect(() => {
-    if (phase === 'interstitial') {
+    if (phase === 'interstitial' && !wasPausedRef.current) {
+      // Only start fresh animation if we're not resuming from a pause
       // Reset and start animation
       interstitialProgressAnim.setValue(0)
 
-      Animated.timing(interstitialProgressAnim, {
-        toValue: 1,
-        duration: INTERSTITIAL_DURATION_SECONDS * 1000,
-        useNativeDriver: false,
-      }).start(({ finished }) => {
-        if (finished) {
-          // Transition to video phase (no final interstitial exists anymore)
-          transitionToVideoPhase()
-        }
-      })
+      const runAnimation = () => {
+        Animated.timing(interstitialProgressAnim, {
+          toValue: 1,
+          duration: INTERSTITIAL_DURATION_SECONDS * 1000,
+          useNativeDriver: false,
+        }).start(({ finished }) => {
+          if (finished) {
+            if (infinityModeRef.current) {
+              // In infinity mode, reset and loop
+              interstitialProgressAnim.setValue(0)
+              runAnimation()
+            } else {
+              // Normal mode, transition to video phase
+              transitionToVideoPhase()
+            }
+          }
+        })
+      }
+
+      runAnimation()
 
       return () => {
-        interstitialProgressAnim.stopAnimation()
+        // Don't stop animation here if we're about to pause (useFocusEffect will handle it)
+        if (!wasPausedRef.current) {
+          interstitialProgressAnim.stopAnimation()
+        }
       }
     }
   }, [phase, currentCycle])
 
   // Interstitial countdown timer (for display only)
   useEffect(() => {
-    if (phase === 'interstitial') {
+    if (phase === 'interstitial' && !wasPausedRef.current) {
+      // Only start fresh countdown if we're not resuming from a pause
+      // Reset countdown to full duration when entering interstitial
+      setCountdown(INTERSTITIAL_DURATION_SECONDS)
+
       countdownIntervalRef.current = setInterval(() => {
         setCountdown(prev => {
-          if (prev <= 1) {
-            clearInterval(countdownIntervalRef.current)
-            return 0
+          if (infinityModeRef.current) {
+            // Infinity mode: count up
+            return prev + 1
+          } else {
+            // Normal mode: count down
+            if (prev <= 1) {
+              clearInterval(countdownIntervalRef.current)
+              return 0
+            }
+            return prev - 1
           }
-          return prev - 1
         })
       }, 1000)
 
       return () => {
-        if (countdownIntervalRef.current) {
+        // Don't clear interval here if we're about to pause (useFocusEffect will handle it)
+        if (countdownIntervalRef.current && !wasPausedRef.current) {
           clearInterval(countdownIntervalRef.current)
         }
       }
@@ -388,6 +515,11 @@ export default function SoMiRoutineScreen({ navigation, route }) {
 
   const transitionToVideoPhase = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium)
+
+    // Reset infinity mode for next interstitial
+    setInfinityMode(false)
+    infinityModeRef.current = false
+
     setPhase('video')
     setVideoProgress(0)
     setVideoCurrentTime(0)
@@ -529,12 +661,14 @@ export default function SoMiRoutineScreen({ navigation, route }) {
         VIDEO_DURATION_CAP_SECONDS
       )
       const chainId = await somiChainService.getOrCreateActiveChain()
-      await somiChainService.saveCompletedBlock(
-        currentVideo.id,
-        elapsedSeconds,
-        currentCycle - 1, // 0-indexed order
-        chainId
-      )
+
+      // Use React Query mutation for saving
+      saveChainEntryMutation.mutate({
+        somiBlockId: currentVideo.id,
+        secondsElapsed: elapsedSeconds,
+        orderIndex: currentCycle - 1, // 0-indexed order
+        chainId: chainId,
+      })
     }
 
     // Check if we've completed all cycles
@@ -549,8 +683,8 @@ export default function SoMiRoutineScreen({ navigation, route }) {
       })
     } else {
       // Move to next cycle
+      advanceCycle()
       const nextCycle = currentCycle + 1
-      setCurrentCycle(nextCycle)
 
       // Get next video from hardcoded queue (if not overridden by user)
       let nextVideo = null
@@ -561,7 +695,7 @@ export default function SoMiRoutineScreen({ navigation, route }) {
 
       // Fallback to algorithm if hardcoded queue is empty or incomplete
       if (!nextVideo) {
-        const stateTarget = STATE_CODE_TO_TARGET[polyvagalState] || 'settling'
+        const stateTarget = STATE_CODE_TO_TARGET[savedInitialState] || 'settling'
         nextVideo = selectRoutineVideo(videoQueue, stateTarget, currentVideo?.id)
       }
 
@@ -601,12 +735,14 @@ export default function SoMiRoutineScreen({ navigation, route }) {
         VIDEO_DURATION_CAP_SECONDS
       )
       const chainId = await somiChainService.getOrCreateActiveChain()
-      await somiChainService.saveCompletedBlock(
-        currentVideo.id,
-        elapsedSeconds,
-        currentCycle - 1,
-        chainId
-      )
+
+      // Use React Query mutation for saving
+      saveChainEntryMutation.mutate({
+        somiBlockId: currentVideo.id,
+        secondsElapsed: elapsedSeconds,
+        orderIndex: currentCycle - 1,
+        chainId: chainId,
+      })
     }
 
     // Go to next interstitial (same logic as handleVideoComplete)
@@ -621,8 +757,8 @@ export default function SoMiRoutineScreen({ navigation, route }) {
       })
     } else {
       // Move to next cycle
+      advanceCycle()
       const nextCycle = currentCycle + 1
-      setCurrentCycle(nextCycle)
 
       // Get next video from hardcoded queue (if not overridden by user)
       let nextVideo = null
@@ -633,7 +769,7 @@ export default function SoMiRoutineScreen({ navigation, route }) {
 
       // Fallback to algorithm if hardcoded queue is empty or incomplete
       if (!nextVideo) {
-        const stateTarget = STATE_CODE_TO_TARGET[polyvagalState] || 'settling'
+        const stateTarget = STATE_CODE_TO_TARGET[savedInitialState] || 'settling'
         nextVideo = selectRoutineVideo(videoQueue, stateTarget, currentVideo?.id)
       }
 
@@ -657,23 +793,16 @@ export default function SoMiRoutineScreen({ navigation, route }) {
     // End the active chain to reset state completely
     await somiChainService.endActiveChain()
 
-    // Navigate to Home, then reset the entire Flow stack
-    const parent = navigation.getParent()
-    if (parent) {
-      // First go to Home
-      parent.navigate('Home')
+    // Reset routine store
+    resetRoutine()
 
-      // Then reset the Flow tab's navigation state back to CheckIn
-      // Use setTimeout to ensure Home navigation completes first
-      setTimeout(() => {
-        navigation.dispatch({
-          ...navigation.reset({
-            index: 0,
-            routes: [{ name: 'CheckIn' }],
-          }),
-          target: navigation.getState().key,
-        })
-      }, 100)
+    // Navigate to Home tab
+    // Get the tab navigator (parent of the stack navigator)
+    const tabNavigator = navigation.getParent()
+    if (tabNavigator) {
+      // Navigate to Home tab - this is enough, no need to reset the Flow stack
+      // The stack will reset naturally when user returns to Flow tab
+      tabNavigator.navigate('Home')
     }
   }
 
@@ -684,62 +813,157 @@ export default function SoMiRoutineScreen({ navigation, route }) {
 
   const handleOpenSettings = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
+
+    // Pause countdown and animation when opening settings during interstitial
+    if (phase === 'interstitial') {
+      wasPausedRef.current = true
+      pausedCountdownRef.current = countdown
+
+      if (countdownIntervalRef.current) {
+        clearInterval(countdownIntervalRef.current)
+      }
+      interstitialProgressAnim.stopAnimation()
+    }
+
+    // Pause video when opening settings during video phase
+    if (phase === 'video' && player) {
+      player.pause()
+      wasPausedRef.current = true
+    }
+
     setShowSettingsModal(true)
   }
 
   const handleCloseSettings = () => {
     setShowSettingsModal(false)
+
+    // Resume countdown and animation when closing settings during interstitial
+    if (phase === 'interstitial' && wasPausedRef.current) {
+      console.log('Resuming from settings, countdown was:', pausedCountdownRef.current)
+
+      // Set countdown back to the paused value
+      setCountdown(pausedCountdownRef.current)
+
+      // Restart countdown interval
+      countdownIntervalRef.current = setInterval(() => {
+        setCountdown(prev => {
+          if (infinityModeRef.current) {
+            // Infinity mode: count up
+            return prev + 1
+          } else {
+            // Normal mode: count down
+            if (prev <= 1) {
+              clearInterval(countdownIntervalRef.current)
+              return 0
+            }
+            return prev - 1
+          }
+        })
+      }, 1000)
+
+      // Resume progress animation from where we left off
+      const elapsedTime = INTERSTITIAL_DURATION_SECONDS - pausedCountdownRef.current
+      const remainingTime = pausedCountdownRef.current * 1000
+      const initialProgress = elapsedTime / INTERSTITIAL_DURATION_SECONDS
+
+      interstitialProgressAnim.setValue(initialProgress)
+
+      Animated.timing(interstitialProgressAnim, {
+        toValue: 1,
+        duration: remainingTime,
+        useNativeDriver: false,
+      }).start(({ finished }) => {
+        if (finished) {
+          transitionToVideoPhase()
+        }
+      })
+
+      wasPausedRef.current = false
+    }
+
+    // Resume video when closing settings during video phase
+    if (phase === 'video' && wasPausedRef.current && player) {
+      player.play()
+      wasPausedRef.current = false
+    }
+  }
+
+  const handleToggleInfinity = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium)
+    const newMode = !infinityMode
+    setInfinityMode(newMode)
+    infinityModeRef.current = newMode
+
+    if (newMode) {
+      // Toggling to infinity mode - save current countdown value and stop the animation
+      savedCountdownRef.current = countdown
+      interstitialProgressAnim.stopAnimation()
+
+      // Start pulsing animation for infinity symbol
+      Animated.loop(
+        Animated.sequence([
+          Animated.timing(infinityPulseAnim, {
+            toValue: 1.15,
+            duration: 1500,
+            useNativeDriver: true,
+          }),
+          Animated.timing(infinityPulseAnim, {
+            toValue: 1,
+            duration: 1500,
+            useNativeDriver: true,
+          }),
+        ])
+      ).start()
+    } else {
+      // Toggling back to normal mode from infinity
+      // Restore countdown to saved value (where it was when infinity was enabled)
+      const resumeCountdown = savedCountdownRef.current
+      setCountdown(resumeCountdown)
+
+      // Stop pulsing animation
+      infinityPulseAnim.stopAnimation()
+      infinityPulseAnim.setValue(1)
+
+      // Calculate how much time has elapsed and resume animation from there
+      const elapsedTime = INTERSTITIAL_DURATION_SECONDS - resumeCountdown
+      const remainingTime = resumeCountdown * 1000
+      const initialProgress = elapsedTime / INTERSTITIAL_DURATION_SECONDS
+
+      // Stop and restart the animation from where we left off
+      interstitialProgressAnim.stopAnimation()
+      interstitialProgressAnim.setValue(initialProgress)
+
+      Animated.timing(interstitialProgressAnim, {
+        toValue: 1,
+        duration: remainingTime,
+        useNativeDriver: false,
+      }).start(({ finished }) => {
+        if (finished && !infinityModeRef.current) {
+          transitionToVideoPhase()
+        }
+      })
+    }
   }
 
   const handleOpenEditModal = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
 
-    // Pause countdown
-    if (countdownIntervalRef.current) {
-      clearInterval(countdownIntervalRef.current)
+    // Pause countdown and animation when opening edit modal
+    if (phase === 'interstitial') {
+      wasPausedRef.current = true
+      pausedCountdownRef.current = countdown
+
+      if (countdownIntervalRef.current) {
+        clearInterval(countdownIntervalRef.current)
+      }
+      interstitialProgressAnim.stopAnimation()
     }
-    interstitialProgressAnim.stopAnimation()
 
     // Navigate to RoutineQueuePreview in edit mode
+    // Queue is already in store, preview will read from there
+    // The countdown will resume via useFocusEffect when we return
     navigation.navigate('RoutineQueuePreview', {
-      totalBlocks: TOTAL_CYCLES,
-      routineType: route.params.routineType || 'morning',
       isEditMode: true,
-      currentCycle: currentCycle,
-      currentQueue: hardcodedQueue,
-      // Callback to update queue without remounting this screen
-      onQueueUpdate: (updatedQueue) => {
-        setHardcodedQueue(updatedQueue)
-      },
-    })
-  }
-
-  const handleCloseEditModal = () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
-    setShowEditModal(false)
-
-    // Resume countdown and animation
-    // Restart the countdown interval
-    countdownIntervalRef.current = setInterval(() => {
-      setCountdown(prev => {
-        if (prev <= 1) {
-          clearInterval(countdownIntervalRef.current)
-          return 0
-        }
-        return prev - 1
-      })
-    }, 1000)
-
-    // Resume the progress animation from where it left off
-    const remainingTime = countdown * 1000
-    Animated.timing(interstitialProgressAnim, {
-      toValue: 1,
-      duration: remainingTime,
-      useNativeDriver: false,
-    }).start(({ finished }) => {
-      if (finished) {
-        transitionToVideoPhase()
-      }
     })
   }
 
@@ -750,8 +974,7 @@ export default function SoMiRoutineScreen({ navigation, route }) {
     setCurrentVideo(selectedBlock)
     setSelectedVideoId(selectedBlock.id)
 
-    // Update the hardcoded queue at current position
-    const newQueue = [...hardcodedQueue]
+    // Update queue in store using the action
     const blockData = {
       somi_block_id: selectedBlock.id,
       name: selectedBlock.name,
@@ -759,8 +982,9 @@ export default function SoMiRoutineScreen({ navigation, route }) {
       url: selectedBlock.media_url,
       type: 'video',
     }
-    newQueue[currentCycle - 1] = blockData
-    setHardcodedQueue(newQueue)
+
+    // Update the block at the current position in the queue
+    useRoutineStore.getState().updateBlockInQueue(currentCycle - 1, blockData)
 
     setShowEditModal(false)
   }
@@ -851,7 +1075,7 @@ export default function SoMiRoutineScreen({ navigation, route }) {
                 cx={radius + strokeWidth}
                 cy={radius + strokeWidth}
                 r={radius}
-                stroke={colors.accent.primary}
+                stroke={infinityMode ? '#9D7CFF' : colors.accent.primary}
                 strokeWidth={strokeWidth}
                 fill="none"
                 strokeDasharray={circumference}
@@ -860,14 +1084,32 @@ export default function SoMiRoutineScreen({ navigation, route }) {
                 transform={`rotate(-90 ${radius + strokeWidth} ${radius + strokeWidth})`}
               />
             </Svg>
-            <View style={styles.circleCenter}>
-              <Text style={styles.circleText}>SoMi</Text>
-              {showTime && (
-                <Text style={styles.countdownText}>
-                  {Math.floor(countdown / 60)}:{String(countdown % 60).padStart(2, '0')}
-                </Text>
+            <TouchableOpacity
+              style={styles.circleCenter}
+              onPress={handleToggleInfinity}
+              activeOpacity={0.8}
+            >
+              {infinityMode ? (
+                <Animated.Text
+                  style={[
+                    styles.infinitySymbol,
+                    { transform: [{ scale: infinityPulseAnim }] }
+                  ]}
+                >
+                  ∞
+                </Animated.Text>
+              ) : (
+                <>
+                  <Text style={styles.circleText}>SoMi</Text>
+                  {showTime && (
+                    <Text style={styles.countdownText}>
+                      {Math.floor(countdown / 60)}:{String(countdown % 60).padStart(2, '0')}
+                    </Text>
+                  )}
+                  <Text style={styles.infinityHint}>tap for ∞</Text>
+                </>
               )}
-            </View>
+            </TouchableOpacity>
           </View>
 
           {/* Next Video Preview */}
@@ -1219,6 +1461,19 @@ const styles = StyleSheet.create({
     letterSpacing: 0.5,
     opacity: 0.5,
     marginTop: 4,
+  },
+  infinitySymbol: {
+    color: '#9D7CFF',
+    fontSize: 72,
+    fontWeight: '300',
+  },
+  infinityHint: {
+    color: colors.text.muted,
+    fontSize: 11,
+    fontWeight: '500',
+    letterSpacing: 0.5,
+    opacity: 0.6,
+    marginTop: 8,
   },
   nextVideoSection: {
     marginBottom: 24,

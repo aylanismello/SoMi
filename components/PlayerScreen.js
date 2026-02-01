@@ -7,7 +7,7 @@ import * as Haptics from 'expo-haptics'
 import { BACKGROUND_VIDEO } from '../constants/media'
 import { somiChainService } from '../supabase'
 import { soundManager } from '../utils/SoundManager'
-import { useSettings } from '../contexts/SettingsContext'
+import { useSettingsStore } from '../stores/settingsStore'
 import SettingsModal from './SettingsModal'
 
 export default function PlayerScreen({ navigation, route }) {
@@ -32,7 +32,7 @@ export default function PlayerScreen({ navigation, route }) {
   const [showSettingsModal, setShowSettingsModal] = useState(false)
   const controlsOpacity = useRef(new Animated.Value(0)).current
 
-  const { isMusicEnabled } = useSettings()
+  const { isMusicEnabled } = useSettingsStore()
   const progressBarRef = useRef(null)
   const hideTimeoutRef = useRef(null)
   const thumbScale = useRef(new Animated.Value(1)).current
@@ -149,7 +149,7 @@ export default function PlayerScreen({ navigation, route }) {
         navigation.goBack()
       } else {
         // From Check In flow: navigate to Step 4 (post-session check-in)
-        navigation.replace('CheckIn', {
+        navigation.replace('SoMiCheckIn', {
           fromPlayer: true,
           savedInitialValue,
           savedInitialState,
@@ -262,7 +262,7 @@ export default function PlayerScreen({ navigation, route }) {
       navigation.goBack()
     } else {
       // From Check In flow: navigate to Step 4 (post-session check-in)
-      navigation.replace('CheckIn', {
+      navigation.replace('SoMiCheckIn', {
         fromPlayer: true,
         savedInitialValue,
         savedInitialState,

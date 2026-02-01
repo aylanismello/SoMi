@@ -1,18 +1,20 @@
 import { useState, useEffect, useRef } from 'react'
-import { StyleSheet, View, TouchableOpacity, Text, Animated, Modal } from 'react-native'
+import { StyleSheet, View, TouchableOpacity, Text, Animated, Modal, AppState } from 'react-native'
 import { LinearGradient } from 'expo-linear-gradient'
 import { BlurView } from 'expo-blur'
-import { useAudioPlayer, AudioPlayer } from 'expo-audio'
 import { Audio } from 'expo-av'
 import Svg, { Circle } from 'react-native-svg'
 import * as Haptics from 'expo-haptics'
 import { colors } from '../constants/theme'
-import { useSettings } from '../contexts/SettingsContext'
+import { useSettingsStore } from '../stores/settingsStore'
 import SettingsModal from './SettingsModal'
 
 const AnimatedCircle = Animated.createAnimatedComponent(Circle)
 
 const BELL_SOUND_URL = 'https://qujifwhwntqxziymqdwu.supabase.co/storage/v1/object/public/test/somi%20sounds/meditation_bell_1.wav'
+
+// Very short silent audio (1 second) - keeps audio session active in background
+const SILENT_AUDIO_DATA_URI = 'data:audio/mp3;base64,SUQzBAAAAAAAI1RTU0UAAAAPAAADTGF2ZjU4Ljc2LjEwMAAAAAAAAAAAAAAA//tQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWGluZwAAAA8AAAACAAADhADExMTExMTExMTExMTExMTExMTExMTExMTExMTExMTExMTExMTExMTExMTExMTExMTExP////////////////////////////////////////////////////////////8AAAAATGF2YzU4LjEzAAAAAAAAAAAAAAAAJAAAAAAAAAAAA4RoWEEuAAAAAAAAAAAAAAAAAAAA//MUZAAAAAGkAAAAAAAAA0gAAAAATEFN//MUZAMAAAGkAAAAAAAAA0gAAAAARTMu//MUZAYAAAGkAAAAAAAAA0gAAAAAOTku//MUZAkAAAGkAAAAAAAAA0gAAAAANVVV'
 
 export default function MeditationTimerActive({ route, navigation }) {
   const { totalMinutes, intervalSetting } = route.params
@@ -22,23 +24,30 @@ export default function MeditationTimerActive({ route, navigation }) {
   const [isPaused, setIsPaused] = useState(false)
   const [showExitModal, setShowExitModal] = useState(false)
   const [showSettingsModal, setShowSettingsModal] = useState(false)
+  const [soundLoaded, setSoundLoaded] = useState(false)
 
   const intervalRef = useRef(null)
   const isPausedRef = useRef(false)
   const elapsedRef = useRef(0)
   const lastBellTimeRef = useRef(0)
+  const startTimeRef = useRef(null)
+  const pausedAtRef = useRef(null)
 
-  const { isMusicEnabled, showTime } = useSettings()
-  const bellPlayer = useAudioPlayer(BELL_SOUND_URL)
+  const { isMusicEnabled, showTime } = useSettingsStore()
+  const bellSoundRef = useRef(null)
+  const silentTrackRef = useRef(null)
 
   // Animated value for smooth progress
   const progressAnim = useRef(new Animated.Value(0)).current
   const animationRef = useRef(null)
 
-  // Configure audio session for background playback
+  // Configure audio session and load sounds
   useEffect(() => {
-    const configureAudio = async () => {
+    const setupAudio = async () => {
       try {
+        console.log('Setting up audio...')
+
+        // Configure audio mode for background playback
         await Audio.setAudioModeAsync({
           allowsRecordingIOS: false,
           playsInSilentModeIOS: true,
@@ -46,22 +55,85 @@ export default function MeditationTimerActive({ route, navigation }) {
           shouldDuckAndroid: true,
           playThroughEarpieceAndroid: false,
         })
+
+        console.log('Loading silent track to keep audio session active...')
+
+        // Load silent track that loops to keep audio session active
+        const { sound: silentSound } = await Audio.Sound.createAsync(
+          { uri: SILENT_AUDIO_DATA_URI },
+          {
+            shouldPlay: true,
+            isLooping: true,
+            volume: 0,
+          }
+        )
+        silentTrackRef.current = silentSound
+
+        console.log('Loading bell sound from:', BELL_SOUND_URL)
+
+        // Load bell sound
+        const { sound: bellSound } = await Audio.Sound.createAsync(
+          { uri: BELL_SOUND_URL },
+          { shouldPlay: false, volume: 0.5 }
+        )
+
+        bellSoundRef.current = bellSound
+        setSoundLoaded(true)
+
+        console.log('Background audio configured - silent track playing, bell sound loaded')
       } catch (error) {
-        console.error('Error configuring audio:', error)
+        console.error('Error setting up audio:', error)
       }
     }
-    configureAudio()
+
+    setupAudio()
+
+    // Cleanup on unmount
+    return () => {
+      if (silentTrackRef.current) {
+        silentTrackRef.current.stopAsync().catch(() => {})
+        silentTrackRef.current.unloadAsync().catch(() => {})
+      }
+      if (bellSoundRef.current) {
+        bellSoundRef.current.unloadAsync().catch(() => {})
+      }
+    }
   }, [])
 
-  // Set bell volume to 50%
-  useEffect(() => {
-    if (bellPlayer) {
-      bellPlayer.volume = 0.5
-    }
-  }, [bellPlayer])
 
-  // Start timer on mount
+  // Handle app state changes (background/foreground)
   useEffect(() => {
+    const subscription = AppState.addEventListener('change', (nextAppState) => {
+      if (nextAppState === 'active') {
+        // App came to foreground - recalculate elapsed time
+        if (startTimeRef.current && !isPausedRef.current) {
+          const now = Date.now()
+          const totalElapsed = Math.floor((now - startTimeRef.current) / 1000)
+          elapsedRef.current = totalElapsed
+          setElapsedSeconds(totalElapsed)
+
+          // Check if we need to complete the timer
+          if (totalElapsed >= totalSeconds) {
+            handleComplete()
+          }
+        }
+      }
+    })
+
+    return () => {
+      subscription.remove()
+    }
+  }, [])
+
+  // Start timer only after sound is loaded
+  useEffect(() => {
+    if (!soundLoaded) {
+      console.log('Waiting for sound to load before starting timer...')
+      return
+    }
+
+    console.log('Sound loaded, starting timer now')
+
     // Play bell on start
     playBell()
     startTimer()
@@ -74,9 +146,12 @@ export default function MeditationTimerActive({ route, navigation }) {
         progressAnim.stopAnimation()
       }
     }
-  }, [])
+  }, [soundLoaded])
 
   const startTimer = () => {
+    // Record start time for accurate background timing
+    startTimeRef.current = Date.now()
+
     // Start progress animation
     progressAnim.setValue(0)
     animationRef.current = Animated.timing(progressAnim, {
@@ -91,15 +166,19 @@ export default function MeditationTimerActive({ route, navigation }) {
 
     // Start interval timer
     intervalRef.current = setInterval(() => {
-      if (!isPausedRef.current) {
-        elapsedRef.current += 1
-        setElapsedSeconds(elapsedRef.current)
+      if (!isPausedRef.current && startTimeRef.current) {
+        // Calculate elapsed time from actual start time
+        const now = Date.now()
+        const totalElapsed = Math.floor((now - startTimeRef.current) / 1000)
+        elapsedRef.current = totalElapsed
+        setElapsedSeconds(totalElapsed)
+
 
         // Check if we should play bell
-        checkAndPlayBell(elapsedRef.current)
+        checkAndPlayBell(totalElapsed)
 
         // Check if timer is complete
-        if (elapsedRef.current >= totalSeconds) {
+        if (totalElapsed >= totalSeconds) {
           handleComplete()
         }
       }
@@ -129,10 +208,22 @@ export default function MeditationTimerActive({ route, navigation }) {
 
   const playBell = async () => {
     try {
-      if (bellPlayer) {
-        await bellPlayer.seekTo(0)
-        await bellPlayer.play()
+      console.log('playBell called, bellSoundRef.current:', bellSoundRef.current ? 'exists' : 'null')
+
+      if (bellSoundRef.current) {
+        // Get current status
+        const status = await bellSoundRef.current.getStatusAsync()
+        console.log('Bell sound status before play:', status)
+
+        // Reset to beginning and play
+        await bellSoundRef.current.setPositionAsync(0)
+        await bellSoundRef.current.playAsync()
+
+        console.log('Bell played successfully')
+      } else {
+        console.warn('bellSoundRef.current is null, cannot play bell')
       }
+
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success)
     } catch (error) {
       console.error('Error playing bell:', error)
@@ -165,11 +256,19 @@ export default function MeditationTimerActive({ route, navigation }) {
     isPausedRef.current = newPausedState
 
     if (newPausedState) {
+      // Pause: store when we paused
+      pausedAtRef.current = elapsedRef.current
+
       // Pause animation
       progressAnim.stopAnimation((value) => {
         progressAnim.setValue(value)
       })
     } else {
+      // Resume: adjust start time to account for paused duration
+      const now = Date.now()
+      startTimeRef.current = now - (pausedAtRef.current * 1000)
+      pausedAtRef.current = null
+
       // Resume animation
       const remainingTime = (totalSeconds - elapsedRef.current) * 1000
       Animated.timing(progressAnim, {
@@ -202,8 +301,8 @@ export default function MeditationTimerActive({ route, navigation }) {
     progressAnim.stopAnimation()
 
     // Stop bell if playing
-    if (bellPlayer) {
-      bellPlayer.pause()
+    if (bellSoundRef.current) {
+      bellSoundRef.current.stopAsync().catch(() => {})
     }
 
     // Navigate back to home

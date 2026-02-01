@@ -2,13 +2,12 @@ import { useState, useEffect, useRef } from 'react'
 import { StyleSheet, View, TouchableOpacity, Text, Animated, Modal } from 'react-native'
 import { LinearGradient } from 'expo-linear-gradient'
 import { BlurView } from 'expo-blur'
-import { useAudioPlayer } from 'expo-audio'
 import Svg, { Circle } from 'react-native-svg'
 import * as Haptics from 'expo-haptics'
 import { colors } from '../constants/theme'
 import { somiChainService } from '../supabase'
-import { useSettings } from '../contexts/SettingsContext'
-import { useFlowMusic } from '../contexts/FlowMusicContext'
+import { useSettingsStore } from '../stores/settingsStore'
+import { useFlowMusicStore } from '../stores/flowMusicStore'
 import SettingsModal from './SettingsModal'
 
 const COUNTDOWN_DURATION_SECONDS = 60
@@ -30,29 +29,34 @@ export default function BodyScanCountdown({ route, navigation }) {
   const [showSettingsModal, setShowSettingsModal] = useState(false)
   const [infinityMode, setInfinityMode] = useState(false)
   const infinityModeRef = useRef(false)
+  const savedCountdownRef = useRef(COUNTDOWN_DURATION_SECONDS)
   const startTimeRef = useRef(null)
 
-  const { isMusicEnabled, showTime } = useSettings()
-  const { startFlowMusic, stopFlowMusic, updateMusicSetting } = useFlowMusic()
+  // Pulsing animation for infinity symbol
+  const infinityPulseAnim = useRef(new Animated.Value(1)).current
+
+  const { isMusicEnabled, showTime } = useSettingsStore()
+  const { startFlowMusic, stopFlowMusic, updateMusicSetting, audioPlayer } = useFlowMusicStore()
 
   // Animated value for smooth progress
   const progressAnim = useRef(new Animated.Value(0)).current
 
-  // Initialize start time and start flow music on mount (runs once)
+  // Initialize start time and start flow music on mount
   useEffect(() => {
     // Reset start time
     startTimeRef.current = Date.now()
 
     // Start the flow music at the VERY FIRST body scan (if this is initial)
-    if (isInitial) {
+    if (isInitial && audioPlayer) {
+      console.log('BodyScanCountdown: Starting flow music for initial body scan')
       startFlowMusic(isMusicEnabled)
     }
 
     return () => {
       // Don't stop music on unmount - it should continue through the flow
-      // Music will only stop when flow is completely done
+      console.log('BodyScanCountdown: Unmounting but keeping audio player alive')
     }
-  }, [])
+  }, [isInitial, audioPlayer])
 
   // Handle music toggle
   useEffect(() => {
@@ -131,18 +135,18 @@ export default function BodyScanCountdown({ route, navigation }) {
 
     if (skipToRoutine) {
       // Skip check-in, go directly to Step 2 (selection)
-      navigation.replace('CheckIn', {
+      navigation.replace('SoMiCheckIn', {
         fromBodyScan: true,
         skipToStep2: true,
       })
     } else if (isInitial) {
       // After initial body scan, go to first check-in
-      navigation.replace('CheckIn', {
+      navigation.replace('SoMiCheckIn', {
         fromBodyScan: true,
       })
     } else {
       // After final body scan, go to final check-in
-      navigation.replace('CheckIn', {
+      navigation.replace('SoMiCheckIn', {
         fromPlayer: true,
         savedInitialValue,
         savedInitialState,
@@ -220,20 +224,47 @@ export default function BodyScanCountdown({ route, navigation }) {
     infinityModeRef.current = newMode
 
     if (newMode) {
-      // Toggling to infinity mode - stop the countdown animation
+      // Toggling to infinity mode - save current countdown value and stop the animation
+      savedCountdownRef.current = countdown
       progressAnim.stopAnimation()
+
+      // Start pulsing animation for infinity symbol
+      Animated.loop(
+        Animated.sequence([
+          Animated.timing(infinityPulseAnim, {
+            toValue: 1.15,
+            duration: 1500,
+            useNativeDriver: true,
+          }),
+          Animated.timing(infinityPulseAnim, {
+            toValue: 1,
+            duration: 1500,
+            useNativeDriver: true,
+          }),
+        ])
+      ).start()
     } else {
       // Toggling back to normal mode from infinity
-      // Reset countdown to 60 seconds
-      setCountdown(COUNTDOWN_DURATION_SECONDS)
+      // Restore countdown to saved value (where it was when infinity was enabled)
+      const resumeCountdown = savedCountdownRef.current
+      setCountdown(resumeCountdown)
 
-      // Stop and restart the animation from the beginning
+      // Stop pulsing animation
+      infinityPulseAnim.stopAnimation()
+      infinityPulseAnim.setValue(1)
+
+      // Calculate how much time has elapsed and resume animation from there
+      const elapsedTime = COUNTDOWN_DURATION_SECONDS - resumeCountdown
+      const remainingTime = resumeCountdown * 1000
+      const initialProgress = elapsedTime / COUNTDOWN_DURATION_SECONDS
+
+      // Stop and restart the animation from where we left off
       progressAnim.stopAnimation()
-      progressAnim.setValue(0)
+      progressAnim.setValue(initialProgress)
 
       Animated.timing(progressAnim, {
         toValue: 1,
-        duration: COUNTDOWN_DURATION_SECONDS * 1000,
+        duration: remainingTime,
         useNativeDriver: false,
       }).start(({ finished }) => {
         if (finished && !infinityModeRef.current) {
@@ -334,7 +365,7 @@ export default function BodyScanCountdown({ route, navigation }) {
               cx={radius + strokeWidth}
               cy={radius + strokeWidth}
               r={radius}
-              stroke={colors.accent.primary}
+              stroke={infinityMode ? '#9D7CFF' : colors.accent.primary}
               strokeWidth={strokeWidth}
               fill="none"
               strokeDasharray={circumference}
@@ -349,7 +380,14 @@ export default function BodyScanCountdown({ route, navigation }) {
             activeOpacity={0.8}
           >
             {infinityMode ? (
-              <Text style={styles.infinitySymbol}>∞</Text>
+              <Animated.Text
+                style={[
+                  styles.infinitySymbol,
+                  { transform: [{ scale: infinityPulseAnim }] }
+                ]}
+              >
+                ∞
+              </Animated.Text>
             ) : (
               <>
                 <Text style={styles.circleText}>SoMi</Text>
@@ -523,7 +561,7 @@ const styles = StyleSheet.create({
     opacity: 0.6,
   },
   infinitySymbol: {
-    color: colors.accent.primary,
+    color: '#9D7CFF',
     fontSize: 48,
     fontWeight: '300',
   },

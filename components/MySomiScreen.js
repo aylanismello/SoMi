@@ -5,9 +5,11 @@ import { LinearGradient } from 'expo-linear-gradient'
 import { BlurView } from 'expo-blur'
 import Svg, { Circle, Line } from 'react-native-svg'
 import * as Haptics from 'expo-haptics'
-import { supabase, somiChainService } from '../supabase'
+import { Ionicons } from '@expo/vector-icons'
+import { somiChainService } from '../supabase'
 import { POLYVAGAL_STATE_MAP, STATE_DESCRIPTIONS } from './EmbodimentSlider'
 import { colors } from '../constants/theme'
+import { useChains, useDeleteChain } from '../hooks/useSupabaseQueries'
 
 // Match polyvagal states from SoMeCheckIn (new code-based system)
 const POLYVAGAL_STATES = [
@@ -187,8 +189,10 @@ function FloatingOrb({ check, index, onPress, isSelected, formatDate }) {
 }
 
 export default function MySomiScreen({ navigation }) {
-  const [loading, setLoading] = useState(true)
-  const [somiChains, setSomiChains] = useState([])
+  // Use React Query for chains data
+  const { data: somiChains = [], isLoading: loading, refetch } = useChains(30)
+  const deleteChainMutation = useDeleteChain()
+
   const [selectedOrb, setSelectedOrb] = useState(null)
   const [expandedChains, setExpandedChains] = useState({}) // Track which chains are expanded
   const [deleteModalVisible, setDeleteModalVisible] = useState(false)
@@ -200,41 +204,38 @@ export default function MySomiScreen({ navigation }) {
     totalCheckIns: 0,
     mostCommonState: null,
     recentTrend: null,
+    totalSessions: 0,
+    totalMinutes: 0,
+    daysActive: 0,
+    currentStreak: 0,
   })
 
   // Fetch fresh data whenever the screen comes into focus
   useFocusEffect(
     useCallback(() => {
-      fetchSomiChains()
-    }, [])
+      refetch()
+    }, [refetch])
   )
 
-  const fetchSomiChains = async () => {
-    try {
-      setLoading(true)
-
-      // Fetch all chains with their data
-      const chainsData = await somiChainService.fetchChainsWithData(30)
-
-      setSomiChains(chainsData)
-
-      // Calculate stats from all embodiment checks across all chains
-      const allChecks = chainsData.flatMap(chain => chain.embodiment_checks)
-      calculateStats(allChecks)
-    } catch (err) {
-      console.error('Unexpected error:', err)
-    } finally {
-      setLoading(false)
+  // Calculate stats whenever chains data changes
+  React.useEffect(() => {
+    if (somiChains.length > 0) {
+      const allChecks = somiChains.flatMap(chain => chain.embodiment_checks)
+      calculateStats(allChecks, somiChains)
     }
-  }
+  }, [somiChains])
 
-  const calculateStats = (data) => {
+  const calculateStats = (data, chains) => {
     if (data.length === 0) {
       setStats({
         averageScore: 0,
         totalCheckIns: 0,
         mostCommonState: null,
         recentTrend: null,
+        totalSessions: 0,
+        totalMinutes: 0,
+        daysActive: 0,
+        currentStreak: 0,
       })
       return
     }
@@ -267,11 +268,74 @@ export default function MySomiScreen({ navigation }) {
       }
     }
 
+    // Calculate total sessions
+    const totalSessions = chains.length
+
+    // Calculate total minutes
+    const totalSeconds = chains.reduce((sum, chain) => {
+      return sum + chain.somi_chain_entries.reduce((chainSum, entry) => {
+        return chainSum + (entry.seconds_elapsed || 0)
+      }, 0)
+    }, 0)
+    const totalMinutes = Math.round(totalSeconds / 60)
+
+    // Calculate days active (unique days with sessions)
+    const uniqueDays = new Set()
+    chains.forEach(chain => {
+      const date = new Date(chain.created_at)
+      const dateKey = `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`
+      uniqueDays.add(dateKey)
+    })
+    const daysActive = uniqueDays.size
+
+    // Calculate current streak (consecutive days with sessions)
+    const sortedChains = [...chains].sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
+    let currentStreak = 0
+    let lastDate = null
+
+    for (const chain of sortedChains) {
+      const chainDate = new Date(chain.created_at)
+      chainDate.setHours(0, 0, 0, 0)
+
+      if (!lastDate) {
+        // First chain - check if it's today or yesterday
+        const today = new Date()
+        today.setHours(0, 0, 0, 0)
+        const yesterday = new Date(today)
+        yesterday.setDate(yesterday.getDate() - 1)
+
+        if (chainDate.getTime() === today.getTime() || chainDate.getTime() === yesterday.getTime()) {
+          currentStreak = 1
+          lastDate = chainDate
+        } else {
+          break // Streak is broken
+        }
+      } else {
+        // Check if this chain is from the day before lastDate
+        const expectedDate = new Date(lastDate)
+        expectedDate.setDate(expectedDate.getDate() - 1)
+
+        if (chainDate.getTime() === expectedDate.getTime()) {
+          currentStreak++
+          lastDate = chainDate
+        } else if (chainDate.getTime() === lastDate.getTime()) {
+          // Same day, don't increment streak but continue
+          continue
+        } else {
+          break // Streak is broken
+        }
+      }
+    }
+
     setStats({
       averageScore: Math.round(avgScore),
       totalCheckIns: data.length,
       mostCommonState,
       recentTrend,
+      totalSessions,
+      totalMinutes,
+      daysActive,
+      currentStreak,
     })
   }
 
@@ -378,19 +442,15 @@ export default function MySomiScreen({ navigation }) {
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning)
     setDeleteModalVisible(false)
 
-    // Optimistic UI update - remove the chain immediately
-    setSomiChains(prev => prev.filter(chain => chain.id !== chainToDelete))
-
-    // Then delete from database
-    const success = await somiChainService.deleteChain(chainToDelete)
-
-    if (success) {
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success)
-    } else {
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error)
-      // Reload data to restore if deletion failed
-      loadData()
-    }
+    // Delete using React Query mutation (handles optimistic updates and refetching)
+    deleteChainMutation.mutate(chainToDelete, {
+      onSuccess: () => {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success)
+      },
+      onError: () => {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error)
+      },
+    })
 
     setChainToDelete(null)
   }
@@ -432,6 +492,11 @@ export default function MySomiScreen({ navigation }) {
     })
   }
 
+  const handleOpenSettings = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
+    navigation.navigate('AccountSettings')
+  }
+
   const renderEmptyState = () => (
     <View style={styles.emptyContainer}>
       <Text style={styles.emptyEmoji}>🌱</Text>
@@ -462,7 +527,15 @@ export default function MySomiScreen({ navigation }) {
         style={styles.container}
       >
         <View style={styles.header}>
+          <TouchableOpacity
+            onPress={handleOpenSettings}
+            style={styles.settingsButton}
+            activeOpacity={0.7}
+          >
+            <Ionicons name="settings-outline" size={24} color={colors.text.primary} />
+          </TouchableOpacity>
           <Text style={styles.headerTitle}>My SoMi</Text>
+          <View style={styles.headerSpacer} />
         </View>
         {renderEmptyState()}
       </LinearGradient>
@@ -478,8 +551,18 @@ export default function MySomiScreen({ navigation }) {
       style={styles.container}
     >
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>My SoMi</Text>
-        <Text style={styles.headerSubtitle}>{stats.totalCheckIns} check-ins</Text>
+        <TouchableOpacity
+          onPress={handleOpenSettings}
+          style={styles.settingsButton}
+          activeOpacity={0.7}
+        >
+          <Ionicons name="settings-outline" size={24} color={colors.text.primary} />
+        </TouchableOpacity>
+        <View style={styles.headerTextContainer}>
+          <Text style={styles.headerTitle}>My SoMi</Text>
+          <Text style={styles.headerSubtitle}>{stats.totalCheckIns} check-ins</Text>
+        </View>
+        <View style={styles.headerSpacer} />
       </View>
 
       <ScrollView
@@ -554,38 +637,48 @@ export default function MySomiScreen({ navigation }) {
         </BlurView>
         */}
 
-        {/* Stats Overview */}
-        {stats.mostCommonState && (
-          <BlurView intensity={20} tint="dark" style={styles.statsCard}>
-            <View style={styles.statsGrid}>
-              {/* Most Common State */}
-              <View style={styles.statItem}>
-                <View style={styles.stateChipSmall}>
-                  <Text style={styles.stateEmoji}>
-                    {STATE_EMOJIS[stats.mostCommonState]}
-                  </Text>
-                  <Text style={[styles.statValue, { fontSize: 16, marginTop: 4 }]}>
-                    {getStateInfo(stats.mostCommonState)?.label}
-                  </Text>
-                </View>
-                <Text style={styles.statLabel}>most common</Text>
-              </View>
-
-              {/* Recent Trend */}
-              {stats.recentTrend && (
-                <View style={styles.statItem}>
-                  <Text style={styles.statValue}>
-                    {stats.recentTrend === 'improving' ? '↗' :
-                     stats.recentTrend === 'stable' ? '→' : '↻'}
-                  </Text>
-                  <Text style={styles.statLabel}>
-                    {stats.recentTrend}
-                  </Text>
-                </View>
-              )}
+        {/* My Stats - Featured Dashboard */}
+        <Text style={styles.myStatsTitle}>my stats</Text>
+        <BlurView intensity={20} tint="dark" style={styles.myStatsCard}>
+          {/* Featured Stat - Days Active */}
+          <View style={styles.featuredStat}>
+            <View style={styles.featuredStatBadge}>
+              <Text style={styles.featuredStatNumber}>{stats.daysActive}</Text>
             </View>
-          </BlurView>
-        )}
+            <Text style={styles.featuredStatLabel}>days present</Text>
+          </View>
+
+          {/* Bottom Stats Grid */}
+          <View style={styles.bottomStatsGrid}>
+            <View style={styles.bottomStatItem}>
+              <Text style={styles.bottomStatIcon}>🔗</Text>
+              <Text style={styles.bottomStatValue}>{stats.totalSessions}</Text>
+              <Text style={styles.bottomStatLabel}>sessions</Text>
+            </View>
+
+            <View style={styles.bottomStatDivider} />
+
+            <View style={styles.bottomStatItem}>
+              <Text style={styles.bottomStatIcon}>⏱</Text>
+              <Text style={styles.bottomStatValue}>
+                {Math.floor(stats.totalMinutes / 60) > 0
+                  ? `${Math.floor(stats.totalMinutes / 60)}h ${stats.totalMinutes % 60}m`
+                  : `${stats.totalMinutes}m`}
+              </Text>
+              <Text style={styles.bottomStatLabel}>total time</Text>
+            </View>
+
+            <View style={styles.bottomStatDivider} />
+
+            <View style={styles.bottomStatItem}>
+              <Text style={styles.bottomStatIcon}>🔥</Text>
+              <Text style={styles.bottomStatValue}>
+                {stats.currentStreak} {stats.currentStreak === 1 ? 'day' : 'days'}
+              </Text>
+              <Text style={styles.bottomStatLabel}>streak</Text>
+            </View>
+          </View>
+        </BlurView>
 
         {/* SoMi Chains Timeline */}
         <Text style={styles.sectionTitle}>somi chains</Text>
@@ -843,9 +936,25 @@ const styles = StyleSheet.create({
     paddingTop: 60,
   },
   header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
     paddingHorizontal: 24,
     paddingBottom: 20,
     paddingTop: 10,
+  },
+  settingsButton: {
+    width: 44,
+    height: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  headerTextContainer: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  headerSpacer: {
+    width: 44,
   },
   headerTitle: {
     color: colors.text.primary,
@@ -1048,6 +1157,86 @@ const styles = StyleSheet.create({
   stateEmoji: {
     fontSize: 32,
     marginBottom: 4,
+  },
+  myStatsTitle: {
+    color: colors.text.primary,
+    fontSize: 22,
+    fontWeight: '700',
+    letterSpacing: 0.5,
+    marginBottom: 16,
+  },
+  myStatsCard: {
+    borderRadius: 24,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: colors.border.subtle,
+    padding: 32,
+    marginBottom: 40,
+    alignItems: 'center',
+  },
+  featuredStat: {
+    alignItems: 'center',
+    marginBottom: 32,
+  },
+  featuredStatBadge: {
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    backgroundColor: colors.accent.primary + '20',
+    borderWidth: 3,
+    borderColor: colors.accent.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 16,
+  },
+  featuredStatNumber: {
+    color: colors.accent.primary,
+    fontSize: 52,
+    fontWeight: '700',
+    letterSpacing: -1,
+  },
+  featuredStatLabel: {
+    color: colors.text.secondary,
+    fontSize: 16,
+    fontWeight: '600',
+    letterSpacing: 0.5,
+    textTransform: 'lowercase',
+  },
+  bottomStatsGrid: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-around',
+    width: '100%',
+    paddingTop: 24,
+    borderTopWidth: 1,
+    borderTopColor: colors.border.subtle,
+  },
+  bottomStatItem: {
+    alignItems: 'center',
+    flex: 1,
+  },
+  bottomStatIcon: {
+    fontSize: 24,
+    marginBottom: 8,
+  },
+  bottomStatValue: {
+    color: colors.text.primary,
+    fontSize: 18,
+    fontWeight: '700',
+    letterSpacing: 0.3,
+    marginBottom: 4,
+  },
+  bottomStatLabel: {
+    color: colors.text.muted,
+    fontSize: 11,
+    fontWeight: '500',
+    letterSpacing: 0.5,
+    textTransform: 'lowercase',
+  },
+  bottomStatDivider: {
+    width: 1,
+    height: 40,
+    backgroundColor: colors.border.subtle,
   },
   sectionTitle: {
     color: colors.text.secondary,

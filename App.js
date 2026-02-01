@@ -4,7 +4,9 @@ import { NavigationContainer, getFocusedRouteNameFromRoute } from '@react-naviga
 import { createStackNavigator } from '@react-navigation/stack'
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs'
 import { Ionicons } from '@expo/vector-icons'
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
+import { useAudioPlayer } from 'expo-audio'
+import React from 'react'
 import HomeScreen from './components/HomeScreen'
 import SoMiCheckIn from './components/SoMiCheckIn'
 import PlayerScreen from './components/PlayerScreen'
@@ -15,13 +17,30 @@ import RoutineQueuePreview from './components/RoutineQueuePreview'
 import BodyScanCountdown from './components/BodyScanCountdown'
 import ExploreScreen from './components/ExploreScreen'
 import CategoryDetailScreen from './components/CategoryDetailScreen'
-import MeditationTimerSetup from './components/MeditationTimerSetup'
-import MeditationTimerActive from './components/MeditationTimerActive'
-import IntervalTimeSelector from './components/IntervalTimeSelector'
+import AccountSettingsScreen from './components/AccountSettingsScreen'
+import WelcomeScreen from './components/WelcomeScreen'
+import SignInModal from './components/SignInModal'
+import CreateAccountScreen from './components/CreateAccountScreen'
+import FlowMenuScreen from './components/FlowMenuScreen'
+import { useAuthStore } from './stores/authStore'
 import { prefetchVideoBlocks } from './constants/media'
 import { colors } from './constants/theme'
-import { SettingsProvider } from './contexts/SettingsContext'
-import { FlowMusicProvider } from './contexts/FlowMusicContext'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { useFlowMusicStore } from './stores/flowMusicStore'
+
+// The fluids v2.mp3 music that plays throughout the entire SoMi flow
+const FLOW_MUSIC_URL = 'https://qujifwhwntqxziymqdwu.supabase.co/storage/v1/object/public/test/somi%20og%20music/fluids%20v2.mp3'
+
+// Create React Query client
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 5 * 60 * 1000, // 5 minutes
+      cacheTime: 10 * 60 * 1000, // 10 minutes
+      retry: 2,
+    },
+  },
+})
 
 const Stack = createStackNavigator()
 const Tab = createBottomTabNavigator()
@@ -37,28 +56,6 @@ function HomeStack() {
     >
       <Stack.Screen name="HomeMain" component={HomeScreen} />
       <Stack.Screen
-        name="MeditationTimerSetup"
-        component={MeditationTimerSetup}
-        options={{
-          presentation: 'card',
-        }}
-      />
-      <Stack.Screen
-        name="IntervalTimeSelector"
-        component={IntervalTimeSelector}
-        options={{
-          presentation: 'card',
-        }}
-      />
-      <Stack.Screen
-        name="MeditationTimerActive"
-        component={MeditationTimerActive}
-        options={{
-          presentation: 'fullScreenModal',
-          gestureEnabled: false,
-        }}
-      />
-      <Stack.Screen
         name="Player"
         component={PlayerScreen}
         options={{
@@ -70,7 +67,7 @@ function HomeStack() {
   )
 }
 
-// Stack navigator for Check In tab (includes Player modal and SoMi Timer)
+// Stack navigator for Flow tab (includes all flow screens)
 function CheckInStack() {
   return (
     <Stack.Navigator
@@ -79,13 +76,26 @@ function CheckInStack() {
         cardStyle: { backgroundColor: colors.background.primary },
       }}
     >
-      <Stack.Screen name="CheckIn" component={SoMiCheckIn} />
-      <Stack.Screen name="SoMiCheckIn" component={SoMiCheckIn} />
+      <Stack.Screen
+        name="FlowMenu"
+        component={FlowMenuScreen}
+        options={{
+          gestureEnabled: false,
+        }}
+      />
+      <Stack.Screen
+        name="SoMiCheckIn"
+        component={SoMiCheckIn}
+        options={{
+          gestureEnabled: false,
+        }}
+      />
       <Stack.Screen
         name="SoMiTimer"
         component={SoMiTimer}
         options={{
           presentation: 'card',
+          gestureEnabled: false,
         }}
       />
       <Stack.Screen
@@ -146,7 +156,7 @@ function ExploreStack() {
   )
 }
 
-// Stack navigator for My SoMi tab (includes Player modal)
+// Stack navigator for My SoMi tab (includes Player modal and Account Settings)
 function MySomiStack() {
   return (
     <Stack.Navigator
@@ -156,6 +166,13 @@ function MySomiStack() {
       }}
     >
       <Stack.Screen name="MySomiMain" component={MySomiScreen} />
+      <Stack.Screen
+        name="AccountSettings"
+        component={AccountSettingsScreen}
+        options={{
+          presentation: 'card',
+        }}
+      />
       <Stack.Screen
         name="Player"
         component={PlayerScreen}
@@ -168,18 +185,90 @@ function MySomiStack() {
   )
 }
 
+// Auth stack navigator for welcome and sign in screens
+function AuthStack() {
+  const [showSignInModal, setShowSignInModal] = React.useState(false)
+  const navigationRef = React.useRef(null)
+
+  return (
+    <>
+      <Stack.Navigator
+        ref={navigationRef}
+        screenOptions={{
+          headerShown: false,
+          cardStyle: { backgroundColor: colors.background.primary },
+        }}
+      >
+        <Stack.Screen name="Welcome">
+          {(props) => (
+            <WelcomeScreen
+              {...props}
+              navigation={{
+                ...props.navigation,
+                navigate: (screen) => {
+                  if (screen === 'SignIn') {
+                    setShowSignInModal(true)
+                  } else {
+                    props.navigation.navigate(screen)
+                  }
+                },
+              }}
+            />
+          )}
+        </Stack.Screen>
+        <Stack.Screen name="CreateAccount" component={CreateAccountScreen} />
+      </Stack.Navigator>
+
+      <SignInModal
+        visible={showSignInModal}
+        onClose={() => setShowSignInModal(false)}
+        navigation={{
+          navigate: (screen) => {
+            setShowSignInModal(false)
+            if (screen === 'CreateAccount' && navigationRef.current) {
+              setTimeout(() => {
+                navigationRef.current.navigate('CreateAccount')
+              }, 300)
+            }
+          },
+        }}
+      />
+    </>
+  )
+}
+
 export default function App() {
+  // Get auth state
+  const isAuthenticated = useAuthStore((state) => state.isAuthenticated)
+
+  // Create flow music audio player at app level so it persists
+  const flowAudioPlayer = useAudioPlayer(FLOW_MUSIC_URL, (player) => {
+    player.loop = true
+  })
+
+  const { setAudioPlayer } = useFlowMusicStore()
+
+  // Set the audio player in the store once on mount
+  useEffect(() => {
+    if (flowAudioPlayer) {
+      setAudioPlayer(flowAudioPlayer)
+      console.log('App: Flow music player initialized')
+    }
+  }, [flowAudioPlayer])
+
   // Prefetch video blocks on app startup for better UX
   useEffect(() => {
     prefetchVideoBlocks()
   }, [])
 
   return (
-    <SettingsProvider>
-      <FlowMusicProvider>
-        <NavigationContainer>
-          <StatusBar style="light" />
-          <Tab.Navigator
+    <QueryClientProvider client={queryClient}>
+      <NavigationContainer>
+        <StatusBar style="light" />
+        {!isAuthenticated ? (
+          <AuthStack />
+        ) : (
+        <Tab.Navigator
         screenOptions={({ route }) => ({
           headerShown: false,
           tabBarIcon: ({ focused }) => {
@@ -198,8 +287,8 @@ export default function App() {
               iconName = focused ? 'home' : 'home-outline'
             } else if (route.name === 'Explore') {
               iconName = focused ? 'compass' : 'compass-outline'
-            } else if (route.name === 'My SoMi') {
-              iconName = focused ? 'leaf' : 'leaf-outline'
+            } else if (route.name === 'Profile') {
+              iconName = focused ? 'person' : 'person-outline'
             }
 
             return (
@@ -260,8 +349,8 @@ export default function App() {
             tabBarLabel: 'Home',
             tabBarStyle: (() => {
               const routeName = getFocusedRouteNameFromRoute(route)
-              // Hide tab bar on Player and Meditation Timer screens
-              if (routeName === 'Player' || routeName === 'MeditationTimerSetup' || routeName === 'IntervalTimeSelector' || routeName === 'MeditationTimerActive') {
+              // Hide tab bar on Player screen
+              if (routeName === 'Player') {
                 return { display: 'none' }
               }
               return {
@@ -282,9 +371,9 @@ export default function App() {
           options={({ route }) => ({
             tabBarLabel: 'Flow',
             tabBarStyle: (() => {
-              const routeName = getFocusedRouteNameFromRoute(route) ?? 'CheckIn'
-              // Hide tab bar when on CheckIn screen, SoMiTimer, SoMiRoutine, BodyScanCountdown, RoutineQueuePreview, or Player
-              if (routeName === 'Player' || routeName === 'CheckIn' || routeName === 'SoMiTimer' || routeName === 'SoMiRoutine' || routeName === 'BodyScanCountdown' || routeName === 'SoMiCheckIn' || routeName === 'RoutineQueuePreview') {
+              const routeName = getFocusedRouteNameFromRoute(route) ?? 'FlowMenu'
+              // Hide tab bar when on flow screens (except FlowMenu)
+              if (routeName === 'Player' || routeName === 'SoMiTimer' || routeName === 'SoMiRoutine' || routeName === 'BodyScanCountdown' || routeName === 'SoMiCheckIn' || routeName === 'RoutineQueuePreview') {
                 return { display: 'none' }
               }
               return {
@@ -325,14 +414,14 @@ export default function App() {
         />
         */}
         <Tab.Screen
-          name="My SoMi"
+          name="Profile"
           component={MySomiStack}
           options={({ route }) => ({
-            tabBarLabel: 'My SoMi',
+            tabBarLabel: 'Profile',
             tabBarStyle: (() => {
               const routeName = getFocusedRouteNameFromRoute(route) ?? 'MySomiMain'
-              // Hide tab bar when on Player
-              if (routeName === 'Player') {
+              // Hide tab bar when on Player or AccountSettings
+              if (routeName === 'Player' || routeName === 'AccountSettings') {
                 return { display: 'none' }
               }
               return {
@@ -348,8 +437,8 @@ export default function App() {
           })}
         />
         </Tab.Navigator>
+        )}
       </NavigationContainer>
-      </FlowMusicProvider>
-    </SettingsProvider>
+    </QueryClientProvider>
   )
 }

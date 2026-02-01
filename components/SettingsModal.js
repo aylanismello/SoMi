@@ -2,10 +2,10 @@ import { StyleSheet, View, Text, TouchableOpacity, Modal, Switch } from 'react-n
 import { BlurView } from 'expo-blur'
 import * as Haptics from 'expo-haptics'
 import { colors } from '../constants/theme'
-import { useSettings } from '../contexts/SettingsContext'
+import { useSettingsStore } from '../stores/settingsStore'
 
 export default function SettingsModal({ visible, onClose }) {
-  const { isMusicEnabled, toggleMusic, showTime, toggleShowTime } = useSettings()
+  const { isMusicEnabled, toggleMusic, showTime, toggleShowTime } = useSettingsStore()
 
   const handleToggleMusic = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)

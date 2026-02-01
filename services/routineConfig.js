@@ -9,9 +9,9 @@ export const ROUTINE_TYPES = {
 // Routine configurations: canonical_name arrays for each type and duration
 export const ROUTINE_CONFIGS = {
   [ROUTINE_TYPES.MORNING]: {
-    2: ['vagus_reset', 'self_hug_swaying'],
-    6: ['vagus_reset', 'heart_opener', 'self_havening', 'body_tapping', 'freeze_roll', 'self_hug_swaying'],
-    10: ['vagus_reset', 'heart_opener', 'upward_gaze', 'self_havening', 'humming', 'ear_stretch', 'body_tapping', 'shaking', 'freeze_roll', 'self_hug_swaying'],
+    2: ['vagus_reset', 'arm_shoulder_hand_circles'],
+    6: ['vagus_reset', 'heart_opener', 'self_havening', 'body_tapping', 'freeze_roll', 'arm_shoulder_hand_circles'],
+    10: ['vagus_reset', 'heart_opener', 'upward_gaze', 'self_havening', 'humming', 'ear_stretch', 'body_tapping', 'shaking', 'freeze_roll', 'arm_shoulder_hand_circles'],
   },
   [ROUTINE_TYPES.NIGHT]: {
     2: ['eye_covering', 'self_hug_swaying'],
