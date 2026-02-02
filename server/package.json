@@ -1,0 +1,22 @@
+{
+  "name": "somi-server",
+  "version": "1.0.0",
+  "description": "SoMi Next.js API Server",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint"
+  },
+  "dependencies": {
+    "next": "15.5.11",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "@supabase/supabase-js": "^2.47.10"
+  },
+  "devDependencies": {
+    "eslint": "^9",
+    "eslint-config-next": "^15.1.6"
+  }
+}

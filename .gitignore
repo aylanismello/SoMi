@@ -31,11 +31,19 @@ yarn-error.*
 *.pem
 
 # local env files
+.env
 .env*.local
+mobile/.env
 
 # typescript
 *.tsbuildinfo
 
-# generated native folders
-/ios
-/android
+# Next.js (server)
+server/.next/
+server/out/
+server/.env*.local
+server/.vercel
+
+# generated native folders (if using bare workflow)
+# /ios
+# /android
