@@ -133,7 +133,10 @@ export default function RoutineQueuePreview({ navigation, route }) {
       state_target: libraryBlock.state_target,
     }
 
+    // Update both local state and store immediately
     setEnrichedQueue(newQueue)
+    setQueue(newQueue)
+
     setShowLibrary(false)
     setSwapIndex(null)
   }

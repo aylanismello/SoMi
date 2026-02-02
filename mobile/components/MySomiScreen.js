@@ -687,30 +687,62 @@ export default function MySomiScreen({ navigation }) {
         {/* Recent Check-Ins */}
         <Text style={styles.sectionTitle}>recent check-ins</Text>
         <BlurView intensity={20} tint="dark" style={styles.checkInsListCard}>
-          {allChecksForRiver.slice(0, 8).map((check, index) => {
-            const stateInfo = POLYVAGAL_STATES.find(s => s.id === check.polyvagal_state_code)
-            const emoji = STATE_EMOJIS[check.polyvagal_state_code] || '❓'
+          {allChecksForRiver
+            .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
+            .slice(0, 8)
+            .map((check, index) => {
+              const stateInfo = POLYVAGAL_STATES.find(s => s.id === check.polyvagal_state_code)
+              const emoji = STATE_EMOJIS[check.polyvagal_state_code] || '❓'
+              const fillLevel = check.embodiment_level / 100
 
-            return (
-              <View key={check.id} style={[
-                styles.checkInListItem,
-                index < allChecksForRiver.slice(0, 8).length - 1 && styles.checkInListItemBorder
-              ]}>
-                <View style={styles.checkInListLeft}>
-                  <View style={[styles.checkInStateCircle, { backgroundColor: stateInfo?.color + '40', borderColor: stateInfo?.color }]}>
-                    <Text style={styles.checkInStateEmoji}>{emoji}</Text>
-                  </View>
-                  <View style={styles.checkInListInfo}>
-                    <Text style={styles.checkInStateLabel}>{stateInfo?.label || 'Unknown'}</Text>
-                    <Text style={styles.checkInListTime}>{formatDate(check.created_at)}</Text>
+              // SVG progress ring calculations
+              const circleSize = 48
+              const strokeWidth = 3
+              const radius = (circleSize - strokeWidth) / 2
+              const circumference = 2 * Math.PI * radius
+              const strokeDashoffset = circumference * (1 - fillLevel)
+
+              return (
+                <View key={check.id} style={[
+                  styles.checkInListItem,
+                  index < 7 && styles.checkInListItemBorder
+                ]}>
+                  <View style={styles.checkInListLeft}>
+                    <View style={styles.checkInStateCircle}>
+                      <Svg width={circleSize} height={circleSize}>
+                        {/* Background ring */}
+                        <Circle
+                          cx={circleSize / 2}
+                          cy={circleSize / 2}
+                          r={radius}
+                          stroke={stateInfo?.color + '30'}
+                          strokeWidth={strokeWidth}
+                          fill="none"
+                        />
+                        {/* Progress ring */}
+                        <Circle
+                          cx={circleSize / 2}
+                          cy={circleSize / 2}
+                          r={radius}
+                          stroke={stateInfo?.color}
+                          strokeWidth={strokeWidth}
+                          fill="none"
+                          strokeDasharray={circumference}
+                          strokeDashoffset={strokeDashoffset}
+                          strokeLinecap="round"
+                          transform={`rotate(-90 ${circleSize / 2} ${circleSize / 2})`}
+                        />
+                      </Svg>
+                      <Text style={styles.checkInStateEmojiAbsolute}>{emoji}</Text>
+                    </View>
+                    <View style={styles.checkInListInfo}>
+                      <Text style={styles.checkInStateLabel}>{stateInfo?.label || 'Unknown'}</Text>
+                      <Text style={styles.checkInListTime}>{formatDate(check.created_at)}</Text>
+                    </View>
                   </View>
                 </View>
-                <View style={styles.checkInListRight}>
-                  <Text style={styles.checkInSliderValue}>{check.embodiment_level}%</Text>
-                </View>
-              </View>
-            )
-          })}
+              )
+            })}
         </BlurView>
 
         {/* SoMi Chains Timeline */}
@@ -1306,13 +1338,19 @@ const styles = StyleSheet.create({
   checkInStateCircle: {
     width: 48,
     height: 48,
-    borderRadius: 24,
+    position: 'relative',
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 2,
   },
   checkInStateEmoji: {
     fontSize: 24,
+  },
+  checkInStateEmojiAbsolute: {
+    position: 'absolute',
+    fontSize: 22,
+    top: '50%',
+    left: '50%',
+    transform: [{ translateX: -11 }, { translateY: -11 }],
   },
   checkInListInfo: {
     flex: 1,

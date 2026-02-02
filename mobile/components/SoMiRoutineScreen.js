@@ -312,20 +312,26 @@ export default function SoMiRoutineScreen({ navigation }) {
   // Recalculate currentVideo when queue is edited
   useEffect(() => {
     // Only update if we're in interstitial phase and have a valid queue
-    if (phase === 'interstitial' && hardcodedQueue && hardcodedQueue.length > 0 && videoQueue.length > 0) {
+    if (phase === 'interstitial' && hardcodedQueue && hardcodedQueue.length > 0) {
       // Get the block for the current cycle from the updated queue
       const nextBlock = hardcodedQueue[currentCycle - 1]
-      if (nextBlock) {
-        // Find the corresponding video from videoQueue
-        const nextVideo = videoQueue.find(v => v.id === nextBlock.somi_block_id)
-        // Only update if it's different from the current video
-        if (nextVideo && nextVideo.id !== currentVideo?.id) {
-          setCurrentVideo(nextVideo)
-          setSelectedVideoId(nextVideo.id)
+      if (nextBlock && nextBlock.somi_block_id !== currentVideo?.id) {
+        // Use the block data directly from hardcodedQueue - it already has everything we need
+        // Transform it to match the currentVideo format
+        const blockAsVideo = {
+          id: nextBlock.somi_block_id,
+          name: nextBlock.name,
+          description: nextBlock.description,
+          state_target: nextBlock.state_target,
+          media_url: nextBlock.url,
+          canonical_name: nextBlock.canonical_name,
         }
+
+        setCurrentVideo(blockAsVideo)
+        setSelectedVideoId(nextBlock.somi_block_id)
       }
     }
-  }, [hardcodedQueue, phase, currentCycle, videoQueue])
+  }, [hardcodedQueue, phase, currentCycle, currentVideo])
 
   // Smooth animation for interstitial progress circle
   useEffect(() => {

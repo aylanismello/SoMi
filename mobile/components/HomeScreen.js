@@ -360,10 +360,7 @@ export default function HomeScreen({ navigation }) {
                       <Text style={styles.quickCheckInSelectedEmoji}>
                         {POLYVAGAL_STATES[lastQuickCheckInState]?.emoji}
                       </Text>
-                      <Text style={[
-                        styles.quickCheckInSelectedText,
-                        { color: POLYVAGAL_STATES[lastQuickCheckInState]?.color }
-                      ]}>
+                      <Text style={styles.quickCheckInSelectedText}>
                         {POLYVAGAL_STATES[lastQuickCheckInState]?.label}
                       </Text>
                       <TouchableOpacity
@@ -684,6 +681,7 @@ const styles = StyleSheet.create({
     fontSize: 24,
   },
   quickCheckInSelectedText: {
+    color: colors.text.primary,
     fontSize: 16,
     fontWeight: '700',
     letterSpacing: 0.3,
@@ -824,7 +822,7 @@ const styles = StyleSheet.create({
   },
   headerRow: {
     position: 'absolute',
-    top: 60,
+    top: 75,
     left: 0,
     right: 0,
     flexDirection: 'row',
