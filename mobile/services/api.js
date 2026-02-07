@@ -1,11 +1,25 @@
 // API client for SoMi backend
 // All backend communication goes through this service
+import Constants from 'expo-constants'
 
-// For development: Check env var first (for physical device), fallback to localhost (for simulator)
-// For production: your deployed server URL
-const API_BASE_URL = __DEV__
-  ? (process.env.EXPO_PUBLIC_API_URL || 'http://localhost:3000/api')
-  : 'https://your-vercel-app.vercel.app/api'
+// Determine API URL based on environment:
+// 1. If running from EAS update (preview/production channel) → use Vercel
+// 2. If in dev mode locally → use local server (from .env or localhost)
+// 3. If production build → use Vercel
+const isRunningFromEASUpdate = Constants.executionEnvironment === 'storeClient'
+
+let API_BASE_URL
+
+// if (isRunningFromEASUpdate) {
+  // Running from EAS update in Expo Go (away from computer)
+  // API_BASE_URL = 'https://so-mi-server.vercel.app/api'
+// } else if (__DEV__) {
+  // Local development
+  // API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:3000/api'
+// } else {
+  // Production build
+  API_BASE_URL = 'https://so-mi-server.vercel.app/api'
+// }
 
 async function apiRequest(endpoint, options = {}) {
   const url = `${API_BASE_URL}${endpoint}`
