@@ -1,19 +1,15 @@
 {
   "name": "somi-monorepo",
   "version": "1.0.0",
-  "description": "SoMi monorepo - iOS app and Next.js backend",
+  "description": "SoMi - iOS app and Next.js backend",
   "private": true,
-  "workspaces": [
-    "mobile",
-    "server"
-  ],
   "scripts": {
     "dev": "concurrently --raw \"npm run mobile:dev\" \"npm run server:dev\"",
     "mobile:dev": "cd mobile && npx expo start",
     "server:dev": "cd server && npm run dev",
     "server:build": "cd server && npm run build",
     "server:start": "cd server && npm start",
-    "install:all": "npm install && cd mobile && npm install && cd ../server && npm install"
+    "install:all": "cd mobile && npm install && cd ../server && npm install"
   },
   "devDependencies": {
     "concurrently": "^9.1.2"

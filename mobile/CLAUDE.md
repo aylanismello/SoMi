@@ -98,6 +98,11 @@ eas submit --platform ios
 
 <CRITICAL_INSTRUCTION>
 
+NEVER EVER DO GIT COMMITS FOR ME
+NEVER PUSH CODE TO GIT
+NEVER NEVER NEVER
+
+
 ## BACKLOG WORKFLOW INSTRUCTIONS
 
 This project uses Backlog.md MCP for all task and project management activities.

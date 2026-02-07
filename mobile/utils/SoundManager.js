@@ -1,4 +1,5 @@
 import { createAudioPlayer } from 'expo-audio'
+import { useSettingsStore } from '../stores/settingsStore'
 
 // Sound effect URLs
 const SOUND_URLS = {
@@ -46,25 +47,36 @@ class SoundManager {
 
   // Play a sound effect instantly (game-like)
   async playSound(soundKey) {
+    // Check if SFX is enabled
+    const { isSfxEnabled } = useSettingsStore.getState()
+    if (!isSfxEnabled) {
+      console.log(`SFX disabled, skipping ${soundKey}`)
+      return
+    }
+
     // Lazy load if not already loaded
     if (!this.isLoaded && !this.isLoading) {
+      console.log(`Sounds not loaded, preloading now for ${soundKey}`)
       await this.preloadSounds()
     }
 
     const player = this.players[soundKey]
     if (!player) {
-      console.warn(`Sound "${soundKey}" not found`)
+      console.warn(`❌ Sound "${soundKey}" not found`)
       return
     }
 
     try {
+      console.log(`▶️ Playing sound: ${soundKey}`)
       // Set volume to 50%
       player.volume = 0.5
       // Rewind to start (in case it was played before) and play
       player.seekTo(0)
       player.play()
+      console.log(`✅ Sound ${soundKey} play() called successfully`)
     } catch (error) {
-      console.error(`Failed to play sound "${soundKey}":`, error)
+      console.error(`❌ Failed to play sound "${soundKey}":`, error)
+      throw error
     }
   }
 

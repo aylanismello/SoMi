@@ -5,7 +5,7 @@ import { colors } from '../constants/theme'
 import { useSettingsStore } from '../stores/settingsStore'
 
 export default function SettingsModal({ visible, onClose }) {
-  const { isMusicEnabled, toggleMusic, showTime, toggleShowTime } = useSettingsStore()
+  const { isMusicEnabled, toggleMusic, showTime, toggleShowTime, isSfxEnabled, toggleSfx } = useSettingsStore()
 
   const handleToggleMusic = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
@@ -15,6 +15,11 @@ export default function SettingsModal({ visible, onClose }) {
   const handleToggleShowTime = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
     toggleShowTime()
+  }
+
+  const handleToggleSfx = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
+    toggleSfx()
   }
 
   const handleClose = () => {
@@ -44,6 +49,21 @@ export default function SettingsModal({ visible, onClose }) {
               <Switch
                 value={isMusicEnabled}
                 onValueChange={handleToggleMusic}
+                trackColor={{ false: colors.surface.tertiary, true: colors.accent.primary }}
+                thumbColor={colors.text.primary}
+              />
+            </View>
+
+            <View style={styles.settingRow}>
+              <View style={styles.settingInfo}>
+                <Text style={styles.settingLabel}>SFX</Text>
+                <Text style={styles.settingDescription}>
+                  Play sound effects
+                </Text>
+              </View>
+              <Switch
+                value={isSfxEnabled}
+                onValueChange={handleToggleSfx}
                 trackColor={{ false: colors.surface.tertiary, true: colors.accent.primary }}
                 thumbColor={colors.text.primary}
               />

@@ -19,7 +19,17 @@ async function apiRequest(endpoint, options = {}) {
   }
 
   try {
-    const response = await fetch(url, config)
+    // Add timeout to prevent hanging requests
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => controller.abort(), 15000) // 15 second timeout
+
+    const response = await fetch(url, {
+      ...config,
+      signal: controller.signal,
+    })
+
+    clearTimeout(timeoutId)
+
     const data = await response.json()
 
     if (!response.ok) {

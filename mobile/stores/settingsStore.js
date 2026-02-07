@@ -12,6 +12,7 @@ export const useSettingsStore = create(
       // Settings
       isMusicEnabled: true,
       showTime: true,
+      isSfxEnabled: true,
 
       // Actions
       toggleMusic: () => set((state) => ({
@@ -22,8 +23,13 @@ export const useSettingsStore = create(
         showTime: !state.showTime,
       })),
 
+      toggleSfx: () => set((state) => ({
+        isSfxEnabled: !state.isSfxEnabled,
+      })),
+
       setMusicEnabled: (enabled) => set({ isMusicEnabled: enabled }),
       setShowTime: (show) => set({ showTime: show }),
+      setSfxEnabled: (enabled) => set({ isSfxEnabled: enabled }),
     }),
     {
       name: 'somi-settings',

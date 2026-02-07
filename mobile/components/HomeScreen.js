@@ -132,8 +132,8 @@ export default function HomeScreen({ navigation }) {
   const getGreeting = () => {
     const hour = new Date().getHours()
     if (hour >= 0 && hour < 5) return 'Hey there, night owl'
-    if (hour >= 5 && hour < 12) return 'Good morning'
-    if (hour >= 12 && hour < 18) return 'Good afternoon'
+    if (hour >= 5 && hour < 12) return 'Good mornings'
+    if (hour >= 12 && hour < 18) return 'Good afternoons'
     return 'Good evening'
   }
 

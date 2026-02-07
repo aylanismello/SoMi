@@ -14,18 +14,35 @@ export const chainService = {
       if (storedChainId) {
         const chainId = parseInt(storedChainId, 10)
 
-        // Verify the chain still exists
-        const { chain } = await api.getLatestChain()
+        // Verify the chain still exists (with error handling for timeout)
+        try {
+          const { chain } = await api.getLatestChain()
 
-        if (chain && chain.id === chainId) {
-          return chainId
+          if (chain && chain.id === chainId) {
+            return chainId
+          }
+        } catch (verifyError) {
+          console.warn('Could not verify existing chain, creating new one:', verifyError)
+          // Continue to create new chain
         }
       }
 
-      // Create new chain via API
-      const { chain } = await api.createChain()
-      await AsyncStorage.setItem(ACTIVE_CHAIN_KEY, String(chain.id))
-      return chain.id
+      // Create new chain via API (with retry logic)
+      let retries = 2
+      while (retries > 0) {
+        try {
+          const { chain } = await api.createChain()
+          await AsyncStorage.setItem(ACTIVE_CHAIN_KEY, String(chain.id))
+          return chain.id
+        } catch (createError) {
+          retries--
+          if (retries === 0) {
+            throw createError
+          }
+          // Wait 1 second before retry
+          await new Promise(resolve => setTimeout(resolve, 1000))
+        }
+      }
     } catch (error) {
       console.error('Error getting/creating active chain:', error)
       return null

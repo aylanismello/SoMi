@@ -147,6 +147,11 @@ export default function SoMiRoutineScreen({ navigation }) {
     player.muted = true
   })
 
+  // Preload sound effects on mount for instant playback
+  useEffect(() => {
+    soundManager.preloadSounds()
+  }, [])
+
   // Start flow music for quick routines (body scan flow starts music earlier)
   useEffect(() => {
     if (audioPlayer) {
@@ -257,7 +262,10 @@ export default function SoMiRoutineScreen({ navigation }) {
       }, 100)
 
       // Play start sound when video begins
-      soundManager.playBlockStart()
+      console.log('🔊 Playing block start sound')
+      soundManager.playBlockStart().catch(err => {
+        console.error('Failed to play start sound:', err)
+      })
     }
   }, [phase])
 
@@ -650,7 +658,10 @@ export default function SoMiRoutineScreen({ navigation }) {
 
   const handleVideoComplete = async () => {
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success)
-    soundManager.playBlockEnd()
+    console.log('🔊 Playing block end sound (video complete)')
+    soundManager.playBlockEnd().catch(err => {
+      console.error('Failed to play end sound:', err)
+    })
 
     // Save the completed block (prevent duplicate saves)
     if (currentVideo && !hasSavedCurrentBlockRef.current) {
@@ -745,7 +756,10 @@ export default function SoMiRoutineScreen({ navigation }) {
 
   const handleCloseVideo = async () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium)
-    soundManager.playBlockEnd()
+    console.log('🔊 Playing block end sound (video closed)')
+    soundManager.playBlockEnd().catch(err => {
+      console.error('Failed to play end sound:', err)
+    })
 
     // Save current video progress (prevent duplicate saves)
     if (currentVideo && startTimeRef.current && !hasSavedCurrentBlockRef.current) {
