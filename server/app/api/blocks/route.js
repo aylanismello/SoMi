@@ -1,7 +1,10 @@
 import { NextResponse } from 'next/server'
-import { supabase } from '../../../lib/supabase'
+import { getAuthenticatedUser, unauthorizedResponse } from '../../../lib/auth'
 
 export async function GET(request) {
+  const { supabase, user, error } = await getAuthenticatedUser(request)
+  if (error) return unauthorizedResponse(error)
+
   try {
     const { searchParams } = new URL(request.url)
     const canonicalNames = searchParams.get('canonical_names')
@@ -15,13 +18,14 @@ export async function GET(request) {
 
     const namesArray = canonicalNames.split(',')
 
-    const { data, error } = await supabase
+    // Blocks are global content - RLS allows all authenticated users to read
+    const { data, error: dbError } = await supabase
       .from('somi_blocks')
       .select('*')
       .in('canonical_name', namesArray)
 
-    if (error) {
-      console.error('Error fetching blocks:', error)
+    if (dbError) {
+      console.error('Error fetching blocks:', dbError)
       return NextResponse.json(
         { error: 'Failed to fetch blocks' },
         { status: 500 }

@@ -1,28 +1,54 @@
-import { View, Text, TouchableOpacity, StyleSheet, Modal } from 'react-native'
+import { View, Text, TouchableOpacity, StyleSheet, Modal, Image, TextInput, Alert } from 'react-native'
 import { BlurView } from 'expo-blur'
 import { colors } from '../constants/theme'
 import * as Haptics from 'expo-haptics'
 import { useAuthStore } from '../stores/authStore'
+import { useState } from 'react'
+
+const APPLE_SIGN_IN_IMAGE = 'https://qujifwhwntqxziymqdwu.supabase.co/storage/v1/object/public/test/somi%20images/sign_in_with_apple.png'
 
 export default function SignInModal({ visible, onClose, navigation }) {
-  const login = useAuthStore((state) => state.login)
+  const signInWithEmail = useAuthStore((state) => state.signInWithEmail)
+  const signInWithApple = useAuthStore((state) => state.signInWithApple)
 
-  const handleGoogleSignIn = () => {
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
+  const [loading, setLoading] = useState(false)
+
+  const handleEmailSignIn = async () => {
+    if (!email || !password) {
+      Alert.alert('Missing Info', 'Please enter both email and password')
+      return
+    }
+
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium)
-    login('google')
-    onClose()
+    setLoading(true)
+
+    const result = await signInWithEmail(email, password)
+
+    setLoading(false)
+
+    if (result.success) {
+      onClose()
+    } else {
+      Alert.alert('Sign In Failed', result.error || 'Please check your credentials and try again')
+    }
   }
 
-  const handleAppleSignIn = () => {
+  const handleAppleSignIn = async () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium)
-    login('apple')
-    onClose()
+    const result = await signInWithApple()
+    if (result.success) {
+      onClose()
+    }
   }
 
   const handleCreateAccount = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
     onClose()
-    navigation.navigate('CreateAccount')
+    setTimeout(() => {
+      navigation.navigate('CreateAccount')
+    }, 300)
   }
 
   const handleClose = () => {
@@ -54,17 +80,51 @@ export default function SignInModal({ visible, onClose, navigation }) {
             </TouchableOpacity>
           </View>
 
-          {/* Sign-in buttons */}
+          {/* Sign-in content */}
           <View style={styles.content}>
-            {/* Google Sign In */}
-            <TouchableOpacity
-              onPress={handleGoogleSignIn}
-              style={styles.googleButton}
-              activeOpacity={0.8}
-            >
-              <Text style={styles.googleIcon}>G</Text>
-              <Text style={styles.googleButtonText}>Sign In With Google</Text>
-            </TouchableOpacity>
+            {/* Email/Password Form */}
+            <View style={styles.form}>
+              <TextInput
+                style={styles.input}
+                placeholder="Email"
+                placeholderTextColor={colors.text.muted}
+                value={email}
+                onChangeText={setEmail}
+                autoCapitalize="none"
+                keyboardType="email-address"
+                autoComplete="email"
+                autoCorrect={false}
+              />
+
+              <TextInput
+                style={styles.input}
+                placeholder="Password"
+                placeholderTextColor={colors.text.muted}
+                value={password}
+                onChangeText={setPassword}
+                secureTextEntry
+                autoCapitalize="none"
+                autoComplete="password"
+              />
+
+              <TouchableOpacity
+                onPress={handleEmailSignIn}
+                style={[styles.signInButton, loading && styles.signInButtonDisabled]}
+                activeOpacity={0.8}
+                disabled={loading}
+              >
+                <Text style={styles.signInButtonText}>
+                  {loading ? 'Signing in...' : 'Sign in'}
+                </Text>
+              </TouchableOpacity>
+            </View>
+
+            {/* Divider */}
+            <View style={styles.divider}>
+              <View style={styles.dividerLine} />
+              <Text style={styles.dividerText}>or</Text>
+              <View style={styles.dividerLine} />
+            </View>
 
             {/* Apple Sign In */}
             <TouchableOpacity
@@ -72,8 +132,11 @@ export default function SignInModal({ visible, onClose, navigation }) {
               style={styles.appleButton}
               activeOpacity={0.8}
             >
-              <Text style={styles.appleIcon}></Text>
-              <Text style={styles.appleButtonText}>Sign In With Apple</Text>
+              <Image
+                source={{ uri: APPLE_SIGN_IN_IMAGE }}
+                style={styles.appleButtonImage}
+                resizeMode="contain"
+              />
             </TouchableOpacity>
 
             {/* Create Account Link */}
@@ -145,7 +208,53 @@ const styles = StyleSheet.create({
   },
   content: {
     paddingHorizontal: 32,
+  },
+  form: {
     gap: 16,
+    marginBottom: 24,
+  },
+  input: {
+    backgroundColor: colors.surface.secondary,
+    borderWidth: 1,
+    borderColor: colors.border.subtle,
+    borderRadius: 12,
+    paddingVertical: 14,
+    paddingHorizontal: 18,
+    fontSize: 16,
+    color: colors.text.primary,
+    fontWeight: '500',
+  },
+  signInButton: {
+    backgroundColor: colors.accent.primary,
+    paddingVertical: 16,
+    borderRadius: 12,
+    alignItems: 'center',
+    marginTop: 8,
+  },
+  signInButtonDisabled: {
+    opacity: 0.6,
+  },
+  signInButtonText: {
+    fontSize: 17,
+    fontWeight: '700',
+    color: colors.text.primary,
+    letterSpacing: 0.5,
+  },
+  divider: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 24,
+  },
+  dividerLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: colors.border.subtle,
+  },
+  dividerText: {
+    marginHorizontal: 16,
+    fontSize: 14,
+    fontWeight: '500',
+    color: colors.text.muted,
   },
   googleButton: {
     flexDirection: 'row',
@@ -170,25 +279,19 @@ const styles = StyleSheet.create({
     letterSpacing: 0.3,
   },
   appleButton: {
-    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: colors.background.primary,
-    paddingVertical: 16,
-    borderRadius: 28,
-    gap: 12,
+    backgroundColor: colors.text.primary,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 8,
     borderWidth: 1,
-    borderColor: colors.text.primary,
+    borderColor: colors.border.default,
+    height: 56,
   },
-  appleIcon: {
-    fontSize: 24,
-    color: colors.text.primary,
-  },
-  appleButtonText: {
-    fontSize: 17,
-    fontWeight: '600',
-    color: colors.text.primary,
-    letterSpacing: 0.3,
+  appleButtonImage: {
+    width: '100%',
+    height: '100%',
   },
   createAccountText: {
     fontSize: 15,

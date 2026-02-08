@@ -197,59 +197,32 @@ function MySomiStack() {
 
 // Auth stack navigator for welcome and sign in screens
 function AuthStack() {
-  const [showSignInModal, setShowSignInModal] = React.useState(false)
-  const navigationRef = React.useRef(null)
-
   return (
-    <>
-      <Stack.Navigator
-        ref={navigationRef}
-        screenOptions={{
-          headerShown: false,
-          cardStyle: { backgroundColor: colors.background.primary },
-        }}
-      >
-        <Stack.Screen name="Welcome">
-          {(props) => (
-            <WelcomeScreen
-              {...props}
-              navigation={{
-                ...props.navigation,
-                navigate: (screen) => {
-                  if (screen === 'SignIn') {
-                    setShowSignInModal(true)
-                  } else {
-                    props.navigation.navigate(screen)
-                  }
-                },
-              }}
-            />
-          )}
-        </Stack.Screen>
-        <Stack.Screen name="CreateAccount" component={CreateAccountScreen} />
-      </Stack.Navigator>
-
-      <SignInModal
-        visible={showSignInModal}
-        onClose={() => setShowSignInModal(false)}
-        navigation={{
-          navigate: (screen) => {
-            setShowSignInModal(false)
-            if (screen === 'CreateAccount' && navigationRef.current) {
-              setTimeout(() => {
-                navigationRef.current.navigate('CreateAccount')
-              }, 300)
-            }
-          },
-        }}
-      />
-    </>
+    <Stack.Navigator
+      screenOptions={{
+        headerShown: false,
+        cardStyle: { backgroundColor: colors.background.primary },
+      }}
+    >
+      <Stack.Screen name="Welcome" component={WelcomeScreen} />
+      <Stack.Screen name="CreateAccount" component={CreateAccountScreen} />
+    </Stack.Navigator>
   )
 }
 
 export default function App() {
   // Get auth state
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated)
+  const isLoading = useAuthStore((state) => state.isLoading)
+  const initialize = useAuthStore((state) => state.initialize)
+
+  // Initialize auth listener
+  useEffect(() => {
+    const subscription = initialize()
+    return () => {
+      subscription?.unsubscribe()
+    }
+  }, [])
 
   // Create flow music audio player at app level so it persists
   const flowAudioPlayer = useAudioPlayer(FLOW_MUSIC_URL, (player) => {
@@ -276,7 +249,9 @@ export default function App() {
     <QueryClientProvider client={queryClient}>
       <NavigationContainer>
         <StatusBar style="light" />
-        {!isAuthenticated ? (
+        {isLoading ? (
+          <View style={{ flex: 1, backgroundColor: colors.background.primary }} />
+        ) : !isAuthenticated ? (
           <AuthStack />
         ) : (
         <Tab.Navigator
@@ -428,7 +403,7 @@ export default function App() {
           name="Profile"
           component={MySomiStack}
           options={({ route }) => ({
-            tabBarLabel: 'Profile',
+            tabBarLabel: 'My SoMi',
             tabBarStyle: (() => {
               const routeName = getFocusedRouteNameFromRoute(route) ?? 'MySomiMain'
               // Hide tab bar when on Player or AccountSettings

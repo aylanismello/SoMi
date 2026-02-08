@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from '../services/api'
 import { chainService } from '../services/chainService'
+import { useRoutineStore } from '../stores/routineStore'
 
 /**
  * React Query hooks for server state management
@@ -12,6 +13,7 @@ export const QUERY_KEYS = {
   blocks: (canonicalNames) => ['blocks', ...(canonicalNames || [])],
   chains: ['chains'],
   latestChain: ['latestChain'],
+  latestDailyFlow: ['latestChain', 'daily_flow'],
 }
 
 /**
@@ -73,6 +75,22 @@ export function useLatestChain() {
 }
 
 /**
+ * Fetch the latest daily flow chain with checks and entries
+ * Only returns chains where flow_type = 'daily_flow'
+ * @returns {UseQueryResult} Query result with latest daily flow chain data
+ */
+export function useLatestDailyFlow() {
+  return useQuery({
+    queryKey: QUERY_KEYS.latestDailyFlow,
+    queryFn: async () => {
+      const { chain } = await api.getLatestChain('daily_flow')
+      return chain
+    },
+    staleTime: 30 * 1000, // 30 seconds - fresh data for completion checks
+  })
+}
+
+/**
  * Mutation for saving embodiment checks
  * @returns {UseMutationResult} Mutation result
  */
@@ -80,17 +98,21 @@ export function useSaveEmbodimentCheck() {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: async ({ sliderValue, polyvagalStateCode, journalEntry = null }) => {
+    mutationFn: async ({ sliderValue, polyvagalStateCode, journalEntry = null, flowType = null }) => {
+      // Get flowType from routine store if not provided
+      const finalFlowType = flowType || useRoutineStore.getState().flowType
       return await chainService.saveEmbodimentCheck(
         sliderValue,
         polyvagalStateCode,
-        journalEntry
+        journalEntry,
+        finalFlowType
       )
     },
     onSuccess: () => {
       // Invalidate and refetch chains to show the new check
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.chains })
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.latestChain })
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.latestDailyFlow })
     },
   })
 }
@@ -103,18 +125,22 @@ export function useSaveChainEntry() {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: async ({ somiBlockId, secondsElapsed, orderIndex = 0, chainId = null }) => {
+    mutationFn: async ({ somiBlockId, secondsElapsed, orderIndex = 0, chainId = null, flowType = null }) => {
+      // Get flowType from routine store if not provided
+      const finalFlowType = flowType || useRoutineStore.getState().flowType
       return await chainService.saveCompletedBlock(
         somiBlockId,
         secondsElapsed,
         orderIndex,
-        chainId
+        chainId,
+        finalFlowType
       )
     },
     onSuccess: () => {
       // Invalidate and refetch chains to show the new entry
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.chains })
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.latestChain })
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.latestDailyFlow })
     },
   })
 }
@@ -134,6 +160,7 @@ export function useDeleteChain() {
       // Invalidate and refetch chains after deletion
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.chains })
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.latestChain })
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.latestDailyFlow })
     },
   })
 }

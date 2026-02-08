@@ -1,8 +1,11 @@
 import { NextResponse } from 'next/server'
-import { supabase } from '../../../../lib/supabase'
+import { getAuthenticatedUser, unauthorizedResponse } from '../../../../lib/auth'
 import { getRoutineConfig } from '../../../../lib/routines'
 
 export async function POST(request) {
+  const { supabase, user, error } = await getAuthenticatedUser(request)
+  if (error) return unauthorizedResponse(error)
+
   try {
     const { routineType, blockCount } = await request.json()
 
@@ -16,14 +19,14 @@ export async function POST(request) {
       )
     }
 
-    // Fetch blocks from database
-    const { data: blocks, error } = await supabase
+    // Fetch blocks from database - blocks are global content
+    const { data: blocks, error: dbError } = await supabase
       .from('somi_blocks')
       .select('id, canonical_name, name, description, state_target, media_url')
       .in('canonical_name', canonicalNames)
 
-    if (error) {
-      console.error('Error fetching blocks:', error)
+    if (dbError) {
+      console.error('Error fetching blocks:', dbError)
       return NextResponse.json(
         { error: 'Failed to fetch blocks' },
         { status: 500 }

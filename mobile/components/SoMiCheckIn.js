@@ -497,6 +497,7 @@ export default function SoMiCheckIn({ navigation, route }) {
       savedInitialState: polyvagalState,
       customQueue: null,
       isQuickRoutine: false,
+      flowType: 'daily_flow',
     })
 
     // Navigate to queue preview

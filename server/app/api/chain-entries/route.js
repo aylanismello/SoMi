@@ -1,7 +1,10 @@
 import { NextResponse } from 'next/server'
-import { supabase } from '../../../lib/supabase'
+import { getAuthenticatedUser, unauthorizedResponse } from '../../../lib/auth'
 
 export async function POST(request) {
+  const { supabase, user, error } = await getAuthenticatedUser(request)
+  if (error) return unauthorizedResponse(error)
+
   try {
     const { chainId, blockId, secondsElapsed, sessionOrder } = await request.json()
 
@@ -12,19 +15,20 @@ export async function POST(request) {
       )
     }
 
-    const { data, error } = await supabase
+    const { data, error: dbError } = await supabase
       .from('somi_chain_entries')
       .insert({
         somi_chain_id: chainId,
         somi_block_id: blockId,
         seconds_elapsed: secondsElapsed || 0,
         order_index: sessionOrder || 0,
+        user_id: user.id,
       })
       .select()
       .single()
 
-    if (error) {
-      console.error('Error saving chain entry:', error)
+    if (dbError) {
+      console.error('Error saving chain entry:', dbError)
       return NextResponse.json(
         { error: 'Failed to save entry' },
         { status: 500 }

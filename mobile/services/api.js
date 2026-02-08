@@ -1,6 +1,7 @@
 // API client for SoMi backend
 // All backend communication goes through this service
 import Constants from 'expo-constants'
+import { supabase } from '../supabase'
 
 // Determine API URL based on environment:
 // 1. If running from EAS update (preview/production channel) → use Vercel
@@ -10,23 +11,31 @@ const isRunningFromEASUpdate = Constants.executionEnvironment === 'storeClient'
 
 let API_BASE_URL
 
-// if (isRunningFromEASUpdate) {
+if (isRunningFromEASUpdate) {
   // Running from EAS update in Expo Go (away from computer)
-  // API_BASE_URL = 'https://so-mi-server.vercel.app/api'
-// } else if (__DEV__) {
-  // Local development
-  // API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:3000/api'
-// } else {
+  API_BASE_URL = 'https://so-mi-server.vercel.app/api'
+} else if (__DEV__) {
+  // Local development - uses .env file (your local IP for phone)
+  API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:3000/api'
+} else {
   // Production build
   API_BASE_URL = 'https://so-mi-server.vercel.app/api'
-// }
+}
+
+console.log('🌐 API URL:', API_BASE_URL)
+
 
 async function apiRequest(endpoint, options = {}) {
   const url = `${API_BASE_URL}${endpoint}`
 
+  // Get current session token
+  const { data: { session } } = await supabase.auth.getSession()
+  const accessToken = session?.access_token
+
   const config = {
     headers: {
       'Content-Type': 'application/json',
+      ...(accessToken && { 'Authorization': `Bearer ${accessToken}` }),
       ...options.headers,
     },
     ...options,
@@ -71,13 +80,15 @@ export const api = {
     return apiRequest(`/chains?limit=${limit}`)
   },
 
-  getLatestChain: async () => {
-    return apiRequest('/chains/latest')
+  getLatestChain: async (flowType = null) => {
+    const params = flowType ? `?flow_type=${flowType}` : ''
+    return apiRequest(`/chains/latest${params}`)
   },
 
-  createChain: async () => {
+  createChain: async (flowType = 'daily_flow') => {
     return apiRequest('/chains', {
       method: 'POST',
+      body: JSON.stringify({ flow_type: flowType }),
     })
   },
 

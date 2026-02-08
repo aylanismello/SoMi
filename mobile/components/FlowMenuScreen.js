@@ -7,13 +7,13 @@ import { useCallback, useRef } from 'react'
 import { useFocusEffect } from '@react-navigation/native'
 import { api } from '../services/api'
 import { useRoutineStore } from '../stores/routineStore'
-import { useLatestChain } from '../hooks/useSupabaseQueries'
+import { useLatestDailyFlow } from '../hooks/useSupabaseQueries'
 
 export default function FlowMenuScreen({ navigation }) {
   const scrollViewRef = useRef(null)
 
   // Check if daily flow was completed today
-  const { data: latestChain, refetch } = useLatestChain()
+  const { data: latestChain, refetch } = useLatestDailyFlow()
 
   // Refresh and scroll to top when screen comes into focus
   useFocusEffect(
@@ -72,6 +72,7 @@ export default function FlowMenuScreen({ navigation }) {
         savedInitialState: 4,
         customQueue: queue,
         isQuickRoutine: true,
+        flowType: 'quick_routine',
       })
 
       // Navigate directly to routine
@@ -108,7 +109,7 @@ export default function FlowMenuScreen({ navigation }) {
               <View style={styles.dailyFlowTextContainer}>
                 <Text style={styles.dailyFlowTitle}>Daily SoMi Flow</Text>
                 <Text style={styles.dailyFlowSubtitle}>
-                  complete practice with check-ins
+                  complete practice with check-ins and body scan
                 </Text>
               </View>
 
@@ -228,6 +229,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 24,
     paddingBottom: 20,
     paddingTop: 10,
+    alignItems: 'center',
   },
   headerTitle: {
     color: colors.text.primary,
@@ -235,12 +237,14 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     letterSpacing: 0.5,
     marginBottom: 4,
+    textAlign: 'center',
   },
   headerSubtitle: {
     color: colors.text.muted,
     fontSize: 15,
     fontWeight: '500',
     letterSpacing: 0.3,
+    textAlign: 'center',
   },
   scrollView: {
     flex: 1,

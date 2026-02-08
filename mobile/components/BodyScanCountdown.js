@@ -8,6 +8,7 @@ import { colors } from '../constants/theme'
 import { chainService } from '../services/chainService'
 import { useSettingsStore } from '../stores/settingsStore'
 import { useFlowMusicStore } from '../stores/flowMusicStore'
+import { useRoutineStore } from '../stores/routineStore'
 import SettingsModal from './SettingsModal'
 
 const COUNTDOWN_DURATION_SECONDS = 60
@@ -15,6 +16,7 @@ const COUNTDOWN_DURATION_SECONDS = 60
 const AnimatedCircle = Animated.createAnimatedComponent(Circle)
 
 export default function BodyScanCountdown({ route, navigation }) {
+  const flowType = useRoutineStore(state => state.flowType)
   const {
     isInitial, // true = before first check-in, false = after last block
     savedInitialValue,
@@ -133,8 +135,8 @@ export default function BodyScanCountdown({ route, navigation }) {
     const elapsedMs = Date.now() - startTimeRef.current
     const elapsedSeconds = Math.round(elapsedMs / 1000)
     const BODY_SCAN_BLOCK_ID = 20 // From somi_blocks table
-    const chainId = await chainService.getOrCreateActiveChain()
-    await chainService.saveCompletedBlock(BODY_SCAN_BLOCK_ID, elapsedSeconds, 0, chainId)
+    const chainId = await chainService.getOrCreateActiveChain(flowType)
+    await chainService.saveCompletedBlock(BODY_SCAN_BLOCK_ID, elapsedSeconds, 0, chainId, flowType)
     console.log(`Body scan completed and saved: ${elapsedSeconds}s, chain: ${chainId}`)
 
     if (skipToRoutine) {

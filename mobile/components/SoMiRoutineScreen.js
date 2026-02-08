@@ -71,6 +71,7 @@ export default function SoMiRoutineScreen({ navigation }) {
     savedInitialState,
     routineType,
     isQuickRoutine,
+    flowType,
     setCurrentCycle,
     setPhase,
     setQueue,
@@ -670,7 +671,7 @@ export default function SoMiRoutineScreen({ navigation }) {
         Math.round((Date.now() - startTimeRef.current) / 1000),
         VIDEO_DURATION_CAP_SECONDS
       )
-      const chainId = await chainService.getOrCreateActiveChain()
+      const chainId = await chainService.getOrCreateActiveChain(flowType)
 
       // Use React Query mutation for saving
       saveChainEntryMutation.mutate({
@@ -678,6 +679,7 @@ export default function SoMiRoutineScreen({ navigation }) {
         secondsElapsed: elapsedSeconds,
         orderIndex: currentCycle - 1, // 0-indexed order
         chainId: chainId,
+        flowType: flowType,
       })
     }
 
@@ -768,7 +770,7 @@ export default function SoMiRoutineScreen({ navigation }) {
         Math.round((Date.now() - startTimeRef.current) / 1000),
         VIDEO_DURATION_CAP_SECONDS
       )
-      const chainId = await chainService.getOrCreateActiveChain()
+      const chainId = await chainService.getOrCreateActiveChain(flowType)
 
       // Use React Query mutation for saving
       saveChainEntryMutation.mutate({
@@ -776,6 +778,7 @@ export default function SoMiRoutineScreen({ navigation }) {
         secondsElapsed: elapsedSeconds,
         orderIndex: currentCycle - 1,
         chainId: chainId,
+        flowType: flowType,
       })
     }
 

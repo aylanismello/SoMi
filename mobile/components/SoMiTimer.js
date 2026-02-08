@@ -6,8 +6,10 @@ import * as Haptics from 'expo-haptics'
 import Svg, { Circle } from 'react-native-svg'
 import { chainService } from '../services/chainService'
 import { soundManager } from '../utils/SoundManager'
+import { useRoutineStore } from '../stores/routineStore'
 
 export default function SoMiTimer({ navigation, route }) {
+  const flowType = useRoutineStore(state => state.flowType)
   const [seconds, setSeconds] = useState(0)
   const [isPaused, setIsPaused] = useState(false)
   const intervalRef = useRef(null)
@@ -136,8 +138,8 @@ export default function SoMiTimer({ navigation, route }) {
 
     // Save timer session as a completed block associated with active chain (check-in flow)
     const TIMER_BLOCK_ID = 15 // Timer block from somi_blocks table
-    const chainId = await chainService.getOrCreateActiveChain()
-    await chainService.saveCompletedBlock(TIMER_BLOCK_ID, seconds, 0, chainId)
+    const chainId = await chainService.getOrCreateActiveChain(flowType)
+    await chainService.saveCompletedBlock(TIMER_BLOCK_ID, seconds, 0, chainId, flowType)
 
     // Navigate back to check-in at Step 4
     navigation.navigate('SoMiCheckIn', {

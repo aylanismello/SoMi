@@ -4,6 +4,7 @@
     "slug": "somi",
     "version": "1.0.0",
     "orientation": "portrait",
+    "scheme": "somi",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
     "newArchEnabled": true,
@@ -15,9 +16,12 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.azorean.somi",
+      "usesAppleSignIn": true,
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
-        "UIBackgroundModes": ["audio"]
+        "UIBackgroundModes": [
+          "audio"
+        ]
       }
     },
     "android": {
@@ -38,7 +42,11 @@
     },
     "plugins": [
       "expo-video",
-      "expo-audio"
+      "expo-audio",
+      "expo-apple-authentication",
+      ["@react-native-google-signin/google-signin", {
+        "iosUrlScheme": "com.googleusercontent.apps.142962859647-9lnhsgdi79vs57b2guh87kbrob3dab8k.apps.googleusercontent.com"
+      }]
     ],
     "extra": {
       "eas": {

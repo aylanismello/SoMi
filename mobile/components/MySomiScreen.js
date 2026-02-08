@@ -10,6 +10,7 @@ import { chainService } from '../services/chainService'
 import { POLYVAGAL_STATE_MAP, STATE_DESCRIPTIONS } from './EmbodimentSlider'
 import { colors } from '../constants/theme'
 import { useChains, useDeleteChain } from '../hooks/useSupabaseQueries'
+import { useAuthStore } from '../stores/authStore'
 
 // Match polyvagal states from SoMeCheckIn (new code-based system)
 const POLYVAGAL_STATES = [
@@ -28,6 +29,154 @@ const STATE_EMOJIS = {
   3: '🌪',
   4: '🌤',
   5: '☀️',
+}
+
+// Calendar/Streak View Component
+function CalendarStreakView({ chains }) {
+  const today = new Date()
+  const currentMonth = today.getMonth()
+  const currentYear = today.getFullYear()
+
+  // Get first day of month and number of days
+  const firstDayOfMonth = new Date(currentYear, currentMonth, 1)
+  const lastDayOfMonth = new Date(currentYear, currentMonth + 1, 0)
+  const daysInMonth = lastDayOfMonth.getDate()
+  const startingDayOfWeek = firstDayOfMonth.getDay() // 0 = Sunday
+
+  // Create map of days with sessions
+  const daysWithSessions = new Set()
+  const sessionsByDay = {}
+
+  chains.forEach(chain => {
+    const date = new Date(chain.created_at)
+    if (date.getMonth() === currentMonth && date.getFullYear() === currentYear) {
+      const day = date.getDate()
+      daysWithSessions.add(day)
+      sessionsByDay[day] = (sessionsByDay[day] || 0) + 1
+    }
+  })
+
+  // Calculate streak days
+  const streakDays = new Set()
+  const sortedChains = [...chains].sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
+  let lastDate = null
+
+  for (const chain of sortedChains) {
+    const chainDate = new Date(chain.created_at)
+    chainDate.setHours(0, 0, 0, 0)
+
+    if (!lastDate) {
+      const todayDate = new Date()
+      todayDate.setHours(0, 0, 0, 0)
+      const yesterday = new Date(todayDate)
+      yesterday.setDate(yesterday.getDate() - 1)
+
+      if (chainDate.getTime() === todayDate.getTime() || chainDate.getTime() === yesterday.getTime()) {
+        lastDate = chainDate
+        if (chainDate.getMonth() === currentMonth && chainDate.getFullYear() === currentYear) {
+          streakDays.add(chainDate.getDate())
+        }
+      } else {
+        break
+      }
+    } else {
+      const expectedDate = new Date(lastDate)
+      expectedDate.setDate(expectedDate.getDate() - 1)
+
+      if (chainDate.getTime() === expectedDate.getTime()) {
+        lastDate = chainDate
+        if (chainDate.getMonth() === currentMonth && chainDate.getFullYear() === currentYear) {
+          streakDays.add(chainDate.getDate())
+        }
+      } else if (chainDate.getTime() === lastDate.getTime()) {
+        continue
+      } else {
+        break
+      }
+    }
+  }
+
+  // Generate calendar grid
+  const weeks = []
+  let currentWeek = []
+
+  // Add empty cells for days before month starts
+  for (let i = 0; i < startingDayOfWeek; i++) {
+    currentWeek.push(null)
+  }
+
+  // Add days of month
+  for (let day = 1; day <= daysInMonth; day++) {
+    currentWeek.push(day)
+
+    if (currentWeek.length === 7) {
+      weeks.push(currentWeek)
+      currentWeek = []
+    }
+  }
+
+  // Add remaining empty cells
+  if (currentWeek.length > 0) {
+    while (currentWeek.length < 7) {
+      currentWeek.push(null)
+    }
+    weeks.push(currentWeek)
+  }
+
+  const monthNames = ['January', 'February', 'March', 'April', 'May', 'June',
+                      'July', 'August', 'September', 'October', 'November', 'December']
+  const dayNames = ['S', 'M', 'T', 'W', 'T', 'F', 'S']
+
+  return (
+    <View style={styles.calendarContainer}>
+      <Text style={styles.calendarMonthTitle}>{monthNames[currentMonth]}</Text>
+
+      {/* Day names header */}
+      <View style={styles.calendarHeader}>
+        {dayNames.map((dayName, index) => (
+          <Text key={index} style={styles.calendarDayName}>{dayName}</Text>
+        ))}
+      </View>
+
+      {/* Calendar grid */}
+      {weeks.map((week, weekIndex) => (
+        <View key={weekIndex} style={styles.calendarWeek}>
+          {week.map((day, dayIndex) => {
+            const isToday = day === today.getDate()
+            const hasSession = day && daysWithSessions.has(day)
+            const isStreakDay = day && streakDays.has(day)
+            const sessionCount = day ? sessionsByDay[day] || 0 : 0
+
+            return (
+              <View key={dayIndex} style={styles.calendarDayCell}>
+                {day && (
+                  <View style={[
+                    styles.calendarDay,
+                    hasSession && styles.calendarDayWithSession,
+                    isStreakDay && styles.calendarDayStreak,
+                    isToday && styles.calendarDayToday,
+                  ]}>
+                    <Text style={[
+                      styles.calendarDayText,
+                      hasSession && styles.calendarDayTextActive,
+                      isToday && styles.calendarDayTextToday,
+                    ]}>
+                      {day}
+                    </Text>
+                    {sessionCount > 1 && (
+                      <View style={styles.sessionCountDot}>
+                        <Text style={styles.sessionCountText}>{sessionCount}</Text>
+                      </View>
+                    )}
+                  </View>
+                )}
+              </View>
+            )
+          })}
+        </View>
+      ))}
+    </View>
+  )
 }
 
 // Floating Orb Component with physics
@@ -194,6 +343,9 @@ export default function MySomiScreen({ navigation }) {
   // Use React Query for chains data
   const { data: somiChains = [], isLoading: loading, refetch } = useChains(30)
   const deleteChainMutation = useDeleteChain()
+
+  // Get user for personalization
+  const user = useAuthStore((state) => state.user)
 
   const [selectedOrb, setSelectedOrb] = useState(null)
   const [expandedChains, setExpandedChains] = useState({}) // Track which chains are expanded
@@ -537,7 +689,7 @@ export default function MySomiScreen({ navigation }) {
           >
             <Ionicons name="settings-outline" size={24} color={colors.text.primary} />
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>My SoMi</Text>
+          <Text style={styles.headerTitle}>my somi</Text>
           <View style={styles.headerSpacer} />
         </View>
         {renderEmptyState()}
@@ -562,7 +714,7 @@ export default function MySomiScreen({ navigation }) {
           <Ionicons name="settings-outline" size={24} color={colors.text.primary} />
         </TouchableOpacity>
         <View style={styles.headerTextContainer}>
-          <Text style={styles.headerTitle}>My SoMi</Text>
+          <Text style={styles.headerTitle}>my somi</Text>
           <Text style={styles.headerSubtitle}>{stats.totalCheckIns} check-ins</Text>
         </View>
         <View style={styles.headerSpacer} />
@@ -680,6 +832,26 @@ export default function MySomiScreen({ navigation }) {
                 {stats.currentStreak} {stats.currentStreak === 1 ? 'day' : 'days'}
               </Text>
               <Text style={styles.bottomStatLabel}>streak</Text>
+            </View>
+          </View>
+        </BlurView>
+
+        {/* Calendar/Streak View */}
+        <Text style={styles.sectionTitle}>activity calendar</Text>
+        <BlurView intensity={20} tint="dark" style={styles.calendarCard}>
+          <CalendarStreakView chains={somiChains} />
+          <View style={styles.calendarLegend}>
+            <View style={styles.calendarLegendItem}>
+              <View style={[styles.calendarLegendDot, styles.calendarLegendDotSession]} />
+              <Text style={styles.calendarLegendText}>Session</Text>
+            </View>
+            <View style={styles.calendarLegendItem}>
+              <View style={[styles.calendarLegendDot, styles.calendarLegendDotStreak]} />
+              <Text style={styles.calendarLegendText}>Streak</Text>
+            </View>
+            <View style={styles.calendarLegendItem}>
+              <View style={[styles.calendarLegendDot, styles.calendarLegendDotToday]} />
+              <Text style={styles.calendarLegendText}>Today</Text>
             </View>
           </View>
         </BlurView>
@@ -1712,5 +1884,140 @@ const styles = StyleSheet.create({
     fontWeight: '400',
     lineHeight: 28,
     letterSpacing: 0.2,
+  },
+  calendarCard: {
+    borderRadius: 20,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: colors.border.subtle,
+    padding: 20,
+    marginBottom: 32,
+  },
+  calendarContainer: {
+    width: '100%',
+  },
+  calendarMonthTitle: {
+    color: colors.text.primary,
+    fontSize: 18,
+    fontWeight: '700',
+    letterSpacing: 0.5,
+    textAlign: 'center',
+    marginBottom: 16,
+  },
+  calendarHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    marginBottom: 12,
+    paddingBottom: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border.subtle,
+  },
+  calendarDayName: {
+    color: colors.text.muted,
+    fontSize: 12,
+    fontWeight: '600',
+    letterSpacing: 0.5,
+    textAlign: 'center',
+    width: '14.28%',
+  },
+  calendarWeek: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    marginBottom: 8,
+  },
+  calendarDayCell: {
+    width: '14.28%',
+    aspectRatio: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  calendarDay: {
+    width: '90%',
+    height: '90%',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 8,
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    position: 'relative',
+  },
+  calendarDayWithSession: {
+    backgroundColor: colors.accent.primary + '30',
+    borderWidth: 1,
+    borderColor: colors.accent.primary,
+  },
+  calendarDayStreak: {
+    backgroundColor: colors.accent.primary,
+  },
+  calendarDayToday: {
+    borderWidth: 2,
+    borderColor: colors.text.primary,
+  },
+  calendarDayText: {
+    color: colors.text.muted,
+    fontSize: 14,
+    fontWeight: '500',
+    letterSpacing: 0.3,
+  },
+  calendarDayTextActive: {
+    color: colors.text.primary,
+    fontWeight: '700',
+  },
+  calendarDayTextToday: {
+    color: colors.text.primary,
+    fontWeight: '700',
+  },
+  sessionCountDot: {
+    position: 'absolute',
+    top: 2,
+    right: 2,
+    backgroundColor: colors.accent.teal,
+    borderRadius: 6,
+    width: 12,
+    height: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  sessionCountText: {
+    color: colors.background.primary,
+    fontSize: 8,
+    fontWeight: '700',
+  },
+  calendarLegend: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: 16,
+    marginTop: 16,
+    paddingTop: 16,
+    borderTopWidth: 1,
+    borderTopColor: colors.border.subtle,
+  },
+  calendarLegendItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  calendarLegendDot: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+  },
+  calendarLegendDotSession: {
+    backgroundColor: colors.accent.primary + '30',
+    borderWidth: 1,
+    borderColor: colors.accent.primary,
+  },
+  calendarLegendDotStreak: {
+    backgroundColor: colors.accent.primary,
+  },
+  calendarLegendDotToday: {
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    borderWidth: 2,
+    borderColor: colors.text.primary,
+  },
+  calendarLegendText: {
+    color: colors.text.muted,
+    fontSize: 11,
+    fontWeight: '500',
+    letterSpacing: 0.3,
   },
 })

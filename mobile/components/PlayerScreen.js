@@ -8,9 +8,11 @@ import { BACKGROUND_VIDEO } from '../constants/media'
 import { chainService } from '../services/chainService'
 import { soundManager } from '../utils/SoundManager'
 import { useSettingsStore } from '../stores/settingsStore'
+import { useRoutineStore } from '../stores/routineStore'
 import SettingsModal from './SettingsModal'
 
 export default function PlayerScreen({ navigation, route }) {
+  const flowType = useRoutineStore(state => state.flowType)
   const {
     media,
     savedInitialValue,
@@ -86,8 +88,8 @@ export default function PlayerScreen({ navigation, route }) {
       console.log(`Completed block ${somiBlockId} saved (à la carte): ${elapsedSeconds}s`)
     } else {
       // Check-in flow - associate with active chain
-      const chainId = await chainService.getOrCreateActiveChain()
-      await chainService.saveCompletedBlock(somiBlockId, elapsedSeconds, 0, chainId)
+      const chainId = await chainService.getOrCreateActiveChain(flowType)
+      await chainService.saveCompletedBlock(somiBlockId, elapsedSeconds, 0, chainId, flowType)
       console.log(`Completed block ${somiBlockId} saved (chain ${chainId}): ${elapsedSeconds}s`)
     }
   }

@@ -22,6 +22,7 @@ export const useRoutineStore = create((set, get) => ({
   // Routine config
   routineType: 'morning',
   isQuickRoutine: false,
+  flowType: 'daily_flow', // 'daily_flow' | 'quick_routine' | 'single_block'
 
   // Actions
   setCurrentCycle: (cycle) => set({ currentCycle: cycle }),
@@ -48,12 +49,14 @@ export const useRoutineStore = create((set, get) => ({
     savedInitialState,
     customQueue = null,
     isQuickRoutine = false,
+    flowType = null, // Optional: let caller specify, otherwise infer from isQuickRoutine
   }) => set({
     totalBlocks,
     routineType,
     savedInitialValue,
     savedInitialState,
     isQuickRoutine,
+    flowType: flowType || (isQuickRoutine ? 'quick_routine' : 'daily_flow'),
     currentCycle: 1,
     phase: 'interstitial', // Always start at interstitial
     hardcodedQueue: customQueue || [],
@@ -76,5 +79,6 @@ export const useRoutineStore = create((set, get) => ({
     savedInitialState: null,
     routineType: 'morning',
     isQuickRoutine: false,
+    flowType: 'daily_flow',
   }),
 }))

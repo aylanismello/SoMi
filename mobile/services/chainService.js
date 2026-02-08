@@ -6,7 +6,7 @@ const ACTIVE_CHAIN_KEY = 'active_somi_chain_id'
 
 export const chainService = {
   // Get or create active chain
-  async getOrCreateActiveChain() {
+  async getOrCreateActiveChain(flowType = 'daily_flow') {
     try {
       // Check if there's an active chain in storage
       const storedChainId = await AsyncStorage.getItem(ACTIVE_CHAIN_KEY)
@@ -31,7 +31,7 @@ export const chainService = {
       let retries = 2
       while (retries > 0) {
         try {
-          const { chain } = await api.createChain()
+          const { chain } = await api.createChain(flowType)
           await AsyncStorage.setItem(ACTIVE_CHAIN_KEY, String(chain.id))
           return chain.id
         } catch (createError) {
@@ -50,9 +50,9 @@ export const chainService = {
   },
 
   // Save completed block to chain
-  async saveCompletedBlock(somiBlockId, secondsElapsed, orderIndex = 0, chainId = null) {
+  async saveCompletedBlock(somiBlockId, secondsElapsed, orderIndex = 0, chainId = null, flowType = 'daily_flow') {
     try {
-      const activeChainId = chainId || await this.getOrCreateActiveChain()
+      const activeChainId = chainId || await this.getOrCreateActiveChain(flowType)
 
       if (!activeChainId) {
         console.error('No active chain available')
@@ -74,9 +74,9 @@ export const chainService = {
   },
 
   // Save embodiment check
-  async saveEmbodimentCheck(sliderValue, polyvagalStateCode, journalEntry = null) {
+  async saveEmbodimentCheck(sliderValue, polyvagalStateCode, journalEntry = null, flowType = 'daily_flow') {
     try {
-      const chainId = await this.getOrCreateActiveChain()
+      const chainId = await this.getOrCreateActiveChain(flowType)
 
       if (!chainId) {
         console.error('No active chain available')

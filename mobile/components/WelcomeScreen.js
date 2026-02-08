@@ -1,43 +1,55 @@
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native'
 import { colors } from '../constants/theme'
 import * as Haptics from 'expo-haptics'
+import { useState } from 'react'
+import SignInModal from './SignInModal'
 
 export default function WelcomeScreen({ navigation }) {
+  const [showSignInModal, setShowSignInModal] = useState(false)
+
   const handleGetStarted = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium)
-    navigation.navigate('SignIn')
+    setShowSignInModal(true)
   }
 
   const handleSignIn = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
-    navigation.navigate('SignIn')
+    setShowSignInModal(true)
   }
 
   return (
-    <View style={styles.container}>
-      {/* Logo/Branding Area */}
-      <View style={styles.logoContainer}>
-        <Text style={styles.logo}>SoMi</Text>
-        <Text style={styles.tagline}>your embodiment practice partner</Text>
+    <>
+      <View style={styles.container}>
+        {/* Logo/Branding Area */}
+        <View style={styles.logoContainer}>
+          <Text style={styles.logo}>SoMi</Text>
+          <Text style={styles.tagline}>your embodiment practice parts</Text>
+        </View>
+
+        {/* Bottom Actions */}
+        <View style={styles.actionsContainer}>
+          <TouchableOpacity
+            onPress={handleGetStarted}
+            style={styles.getStartedButton}
+            activeOpacity={0.8}
+          >
+            <Text style={styles.getStartedButtonText}>Get Started</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity onPress={handleSignIn} activeOpacity={0.7}>
+            <Text style={styles.signInText}>
+              Already have an account? <Text style={styles.signInLink}>Sign In</Text>
+            </Text>
+          </TouchableOpacity>
+        </View>
       </View>
 
-      {/* Bottom Actions */}
-      <View style={styles.actionsContainer}>
-        <TouchableOpacity
-          onPress={handleGetStarted}
-          style={styles.getStartedButton}
-          activeOpacity={0.8}
-        >
-          <Text style={styles.getStartedButtonText}>Get Started</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity onPress={handleSignIn} activeOpacity={0.7}>
-          <Text style={styles.signInText}>
-            Already have an account? <Text style={styles.signInLink}>Sign In</Text>
-          </Text>
-        </TouchableOpacity>
-      </View>
-    </View>
+      <SignInModal
+        visible={showSignInModal}
+        onClose={() => setShowSignInModal(false)}
+        navigation={navigation}
+      />
+    </>
   )
 }
 

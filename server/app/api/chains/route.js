@@ -1,12 +1,16 @@
 import { NextResponse } from 'next/server'
-import { supabase } from '../../../lib/supabase'
+import { getAuthenticatedUser, unauthorizedResponse } from '../../../lib/auth'
 
 export async function GET(request) {
+  const { supabase, user, error } = await getAuthenticatedUser(request)
+  if (error) return unauthorizedResponse(error)
+
   try {
     const { searchParams } = new URL(request.url)
     const limit = parseInt(searchParams.get('limit') || '30')
 
-    const { data, error } = await supabase
+    // RLS automatically filters to this user's chains
+    const { data, error: dbError } = await supabase
       .from('somi_chains')
       .select(`
         *,
@@ -16,8 +20,8 @@ export async function GET(request) {
       .order('created_at', { ascending: false })
       .limit(limit)
 
-    if (error) {
-      console.error('Error fetching chains:', error)
+    if (dbError) {
+      console.error('Error fetching chains:', dbError)
       return NextResponse.json(
         { error: 'Failed to fetch chains' },
         { status: 500 }
@@ -34,16 +38,25 @@ export async function GET(request) {
   }
 }
 
-export async function POST() {
+export async function POST(request) {
+  const { supabase, user, error } = await getAuthenticatedUser(request)
+  if (error) return unauthorizedResponse(error)
+
   try {
-    const { data, error } = await supabase
+    const body = await request.json()
+    const flowType = body.flow_type || 'daily_flow' // Default to daily_flow
+
+    const { data, error: dbError } = await supabase
       .from('somi_chains')
-      .insert({})
+      .insert({
+        user_id: user.id,
+        flow_type: flowType
+      })
       .select()
       .single()
 
-    if (error) {
-      console.error('Error creating chain:', error)
+    if (dbError) {
+      console.error('Error creating chain:', dbError)
       return NextResponse.json(
         { error: 'Failed to create chain' },
         { status: 500 }

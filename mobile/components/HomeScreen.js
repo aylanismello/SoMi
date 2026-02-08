@@ -11,7 +11,7 @@ import SettingsModal from './SettingsModal'
 import EmbodimentSlider from './EmbodimentSlider'
 import { useSettingsStore } from '../stores/settingsStore'
 import { useRoutineStore } from '../stores/routineStore'
-import { useLatestChain, useSaveEmbodimentCheck } from '../hooks/useSupabaseQueries'
+import { useLatestChain, useLatestDailyFlow, useSaveEmbodimentCheck } from '../hooks/useSupabaseQueries'
 
 // Polyvagal states with colors and emojis (new code-based system)
 const POLYVAGAL_STATES = {
@@ -31,6 +31,9 @@ export default function HomeScreen({ navigation }) {
   // Use React Query for latest chain data
   const { data: latestChain, isLoading: loading, refetch } = useLatestChain()
 
+  // Use React Query for latest daily flow (for completion check)
+  const { data: latestDailyFlow, refetch: refetchDailyFlow } = useLatestDailyFlow()
+
   // Mutation for saving quick check-ins
   const saveEmbodimentCheck = useSaveEmbodimentCheck()
 
@@ -38,9 +41,10 @@ export default function HomeScreen({ navigation }) {
   useFocusEffect(
     useCallback(() => {
       refetch()
+      refetchDailyFlow()
       // Scroll to top when tab is focused
       scrollViewRef.current?.scrollTo({ y: 0, animated: false })
-    }, [refetch])
+    }, [refetch, refetchDailyFlow])
   )
 
   // Interpolate scroll position to opacity for header fade effect
@@ -110,9 +114,9 @@ export default function HomeScreen({ navigation }) {
 
   // Check if daily flow was completed today
   const isDailyFlowComplete = () => {
-    if (!latestChain) return false
+    if (!latestDailyFlow) return false
 
-    const chainDate = new Date(latestChain.created_at)
+    const chainDate = new Date(latestDailyFlow.created_at)
     const today = new Date()
 
     // Check if chain is from today
@@ -123,7 +127,7 @@ export default function HomeScreen({ navigation }) {
     if (!isToday) return false
 
     // Check if it has at least 2 check-ins (start and end)
-    const hasCheckIns = latestChain.embodiment_checks && latestChain.embodiment_checks.length >= 2
+    const hasCheckIns = latestDailyFlow.embodiment_checks && latestDailyFlow.embodiment_checks.length >= 2
 
     return hasCheckIns
   }
@@ -132,8 +136,8 @@ export default function HomeScreen({ navigation }) {
   const getGreeting = () => {
     const hour = new Date().getHours()
     if (hour >= 0 && hour < 5) return 'Hey there, night owl'
-    if (hour >= 5 && hour < 12) return 'Good mornings'
-    if (hour >= 12 && hour < 18) return 'Good afternoons'
+    if (hour >= 5 && hour < 12) return 'Good morning'
+    if (hour >= 12 && hour < 18) return 'Good afternoon'
     return 'Good evening'
   }
 
@@ -238,6 +242,7 @@ export default function HomeScreen({ navigation }) {
         savedInitialState: 4,
         customQueue: queue,
         isQuickRoutine: true,
+        flowType: 'quick_routine',
       })
 
       // Navigate directly to routine
@@ -274,7 +279,7 @@ export default function HomeScreen({ navigation }) {
           style={styles.headerIconButton}
           activeOpacity={0.7}
         >
-          <Text style={styles.headerIcon}>⚙️</Text>
+          <Text style={styles.headerIcon}>🎵</Text>
         </TouchableOpacity>
 
         <Text style={styles.headerLogoText}>SoMi</Text>
@@ -318,7 +323,7 @@ export default function HomeScreen({ navigation }) {
                 <View style={styles.dailyFlowTextContainer}>
                   <Text style={styles.dailyFlowTitle}>My Daily Flow</Text>
                   <Text style={styles.dailyFlowSubtitle}>
-                    complete practice with check-ins
+                    complete practice with check-ins and body scan
                   </Text>
                 </View>
 
