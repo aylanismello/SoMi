@@ -128,6 +128,7 @@ export default function SoMiRoutineScreen({ navigation }) {
 
   const startTimeRef = useRef(null)
   const hasSavedCurrentBlockRef = useRef(false)
+  const hasCompletedCurrentBlockRef = useRef(false) // Prevent double-completion bug
   const controlsOpacity = useRef(new Animated.Value(0)).current
   const progressBarRef = useRef(null)
   const thumbScale = useRef(new Animated.Value(1)).current
@@ -236,28 +237,16 @@ export default function SoMiRoutineScreen({ navigation }) {
   )
 
   // Control video playback based on phase
+  // Auto-play when entering video phase
   useEffect(() => {
     if (!player) return
 
     if (phase === 'video' && currentVideo) {
-      // Start playing when entering video phase
-      // Add a small delay to ensure video is loaded
-      setTimeout(() => {
-        player.play()
-      }, 100)
-    } else {
-      // Pause when in interstitial phase
-      player.pause()
-    }
-  }, [phase, currentVideo, player])
-
-  // Auto-play when entering video phase
-  useEffect(() => {
-    if (phase === 'video' && player && currentVideo) {
       // Don't show controls when video starts
       setShowControls(false)
 
       // Start playing
+      console.log('▶️ Starting video:', currentVideo.name)
       setTimeout(() => {
         player.play()
       }, 100)
@@ -267,8 +256,12 @@ export default function SoMiRoutineScreen({ navigation }) {
       soundManager.playBlockStart().catch(err => {
         console.error('Failed to play start sound:', err)
       })
+    } else if (phase === 'interstitial') {
+      // Pause when in interstitial phase
+      console.log('⏸️ Pausing for interstitial')
+      player.pause()
     }
-  }, [phase])
+  }, [phase, currentVideo, player])
 
   // Flow music is already playing - just manage volume
   useEffect(() => {
@@ -324,7 +317,12 @@ export default function SoMiRoutineScreen({ navigation }) {
     if (phase === 'interstitial' && hardcodedQueue && hardcodedQueue.length > 0) {
       // Get the block for the current cycle from the updated queue
       const nextBlock = hardcodedQueue[currentCycle - 1]
+      console.log(`🔁 [useEffect] Sync check - Cycle: ${currentCycle}, Phase: ${phase}`)
+      console.log(`   Queue block[${currentCycle - 1}]:`, nextBlock?.name, `(ID: ${nextBlock?.somi_block_id})`)
+      console.log(`   Current video:`, currentVideo?.name, `(ID: ${currentVideo?.id})`)
+
       if (nextBlock && nextBlock.somi_block_id !== currentVideo?.id) {
+        console.log(`🔄 [useEffect] MISMATCH! Updating currentVideo from queue`)
         // Use the block data directly from hardcodedQueue - it already has everything we need
         // Transform it to match the currentVideo format
         const blockAsVideo = {
@@ -338,6 +336,8 @@ export default function SoMiRoutineScreen({ navigation }) {
 
         setCurrentVideo(blockAsVideo)
         setSelectedVideoId(nextBlock.somi_block_id)
+      } else {
+        console.log(`✅ [useEffect] Match - no update needed`)
       }
     }
   }, [hardcodedQueue, phase, currentCycle, currentVideo])
@@ -478,6 +478,15 @@ export default function SoMiRoutineScreen({ navigation }) {
     // Force completion at 60 seconds regardless of actual video duration
     // ============================================================================
     if (videoDuration > 0 && videoCurrentTime >= Math.min(videoDuration, VIDEO_DURATION_CAP_SECONDS) - 0.5) {
+      // GUARD: Prevent double-completion when useEffect fires multiple times
+      if (hasCompletedCurrentBlockRef.current) {
+        console.log('⚠️ Completion already handled, skipping duplicate call')
+        return
+      }
+
+      console.log('✅ Video reached end, marking as completed')
+      hasCompletedCurrentBlockRef.current = true
+
       if (player) {
         player.pause()
       }
@@ -535,6 +544,7 @@ export default function SoMiRoutineScreen({ navigation }) {
     // Track start time for elapsed time calculation
     startTimeRef.current = Date.now()
     hasSavedCurrentBlockRef.current = false // Reset save guard for new block
+    hasCompletedCurrentBlockRef.current = false // Reset completion guard for new block
   }
 
   const handleSkipInterstitial = () => {
@@ -721,15 +731,26 @@ export default function SoMiRoutineScreen({ navigation }) {
 
       // Get next video from hardcoded queue (if not overridden by user)
       let nextVideo = null
+      console.log(`\n🔄 [CYCLE ${currentCycle} → ${updatedCycle}] Advancing to next block`)
+      console.log(`📋 hardcodedQueue length: ${hardcodedQueue?.length || 0}`)
+      console.log(`📺 videoQueue length: ${videoQueue.length}`)
+
       if (hardcodedQueue && hardcodedQueue.length >= updatedCycle) {
         const nextBlock = hardcodedQueue[updatedCycle - 1]
+        console.log(`🎯 Target block from queue[${updatedCycle - 1}]:`, nextBlock?.name, `(somi_block_id: ${nextBlock?.somi_block_id})`)
+        console.log(`🔍 Searching videoQueue for ID ${nextBlock?.somi_block_id}...`)
+        console.log(`   videoQueue IDs:`, videoQueue.map(v => `${v.id}:${v.name}`).join(', '))
+
         nextVideo = videoQueue.find(v => v.id === nextBlock.somi_block_id)
+        console.log(nextVideo ? `✅ FOUND: ${nextVideo.name}` : `❌ NOT FOUND - will use fallback!`)
       }
 
       // Fallback to algorithm if hardcoded queue is empty or incomplete
       if (!nextVideo) {
+        console.warn(`⚠️⚠️⚠️ FALLBACK ALGORITHM TRIGGERED! This explains random behavior!`)
         const stateTarget = STATE_CODE_TO_TARGET[savedInitialState] || 'settling'
         nextVideo = selectRoutineVideo(videoQueue, stateTarget, currentVideo?.id)
+        console.log(`🎲 Algorithm selected random block:`, nextVideo?.name)
       }
 
       setCurrentVideo(nextVideo)
@@ -820,15 +841,26 @@ export default function SoMiRoutineScreen({ navigation }) {
 
       // Get next video from hardcoded queue (if not overridden by user)
       let nextVideo = null
+      console.log(`\n🔄 [CYCLE ${currentCycle} → ${updatedCycle}] Advancing to next block`)
+      console.log(`📋 hardcodedQueue length: ${hardcodedQueue?.length || 0}`)
+      console.log(`📺 videoQueue length: ${videoQueue.length}`)
+
       if (hardcodedQueue && hardcodedQueue.length >= updatedCycle) {
         const nextBlock = hardcodedQueue[updatedCycle - 1]
+        console.log(`🎯 Target block from queue[${updatedCycle - 1}]:`, nextBlock?.name, `(somi_block_id: ${nextBlock?.somi_block_id})`)
+        console.log(`🔍 Searching videoQueue for ID ${nextBlock?.somi_block_id}...`)
+        console.log(`   videoQueue IDs:`, videoQueue.map(v => `${v.id}:${v.name}`).join(', '))
+
         nextVideo = videoQueue.find(v => v.id === nextBlock.somi_block_id)
+        console.log(nextVideo ? `✅ FOUND: ${nextVideo.name}` : `❌ NOT FOUND - will use fallback!`)
       }
 
       // Fallback to algorithm if hardcoded queue is empty or incomplete
       if (!nextVideo) {
+        console.warn(`⚠️⚠️⚠️ FALLBACK ALGORITHM TRIGGERED! This explains random behavior!`)
         const stateTarget = STATE_CODE_TO_TARGET[savedInitialState] || 'settling'
         nextVideo = selectRoutineVideo(videoQueue, stateTarget, currentVideo?.id)
+        console.log(`🎲 Algorithm selected random block:`, nextVideo?.name)
       }
 
       setCurrentVideo(nextVideo)

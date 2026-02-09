@@ -1,9 +1,12 @@
 import { NextResponse } from 'next/server'
-import { supabase } from '../../../../lib/supabase'
+import { getAuthenticatedUser, unauthorizedResponse } from '../../../../lib/auth'
 
 export async function DELETE(request, { params }) {
+  const { supabase, user, error: authError } = await getAuthenticatedUser(request)
+  if (authError) return unauthorizedResponse(authError)
+
   try {
-    const { id } = params
+    const { id } = await params
 
     if (!id) {
       return NextResponse.json(
@@ -12,7 +15,7 @@ export async function DELETE(request, { params }) {
       )
     }
 
-    // Delete the chain (this will cascade delete related records)
+    // Delete the chain (RLS ensures user can only delete their own chains)
     const { error } = await supabase
       .from('somi_chains')
       .delete()

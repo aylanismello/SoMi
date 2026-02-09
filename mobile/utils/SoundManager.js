@@ -68,15 +68,24 @@ class SoundManager {
 
     try {
       console.log(`▶️ Playing sound: ${soundKey}`)
+
       // Set volume to 50%
       player.volume = 0.5
-      // Rewind to start (in case it was played before) and play
-      player.seekTo(0)
+
+      // Stop current playback if any, then restart from beginning
+      // This ensures rapid-fire sounds always work
+      if (player.playing) {
+        player.pause()
+      }
+
+      // Seek to start and play (await seekTo to ensure it completes)
+      await player.seekTo(0)
       player.play()
+
       console.log(`✅ Sound ${soundKey} play() called successfully`)
     } catch (error) {
       console.error(`❌ Failed to play sound "${soundKey}":`, error)
-      throw error
+      // Don't throw - just log and continue (sound failure shouldn't break app)
     }
   }
 

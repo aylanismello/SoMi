@@ -351,6 +351,7 @@ export default function App() {
             })(),
           })}
         />
+        {/* MVP: Flow tab hidden - no routines for now
         <Tab.Screen
           name="Flow"
           component={CheckInStack}
@@ -374,6 +375,7 @@ export default function App() {
             })(),
           })}
         />
+        */}
         {/* Temporarily hidden - coming back later
         <Tab.Screen
           name="Explore"

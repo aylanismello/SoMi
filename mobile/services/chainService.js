@@ -131,19 +131,11 @@ export const chainService = {
   // Delete chain
   async deleteChain(chainId) {
     try {
-      const response = await fetch(`${API_BASE_URL}/chains/${chainId}`, {
-        method: 'DELETE',
-      })
-
-      if (!response.ok) {
-        throw new Error('Failed to delete chain')
-      }
-
-      const data = await response.json()
-      return data
+      const result = await api.deleteChain(chainId)
+      return result
     } catch (error) {
       console.error('Error deleting chain:', error)
-      return null
+      throw error
     }
   },
 }

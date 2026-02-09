@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useRef } from 'react'
+import React, { useState, useCallback, useRef, useMemo } from 'react'
 import { StyleSheet, Text, View, ScrollView, ActivityIndicator, TouchableOpacity, Animated, Modal } from 'react-native'
 import { useFocusEffect } from '@react-navigation/native'
 import { LinearGradient } from 'expo-linear-gradient'
@@ -43,11 +43,14 @@ function CalendarStreakView({ chains }) {
   const daysInMonth = lastDayOfMonth.getDate()
   const startingDayOfWeek = firstDayOfMonth.getDay() // 0 = Sunday
 
-  // Create map of days with sessions
+  // Create map of days with sessions (only daily flows)
   const daysWithSessions = new Set()
   const sessionsByDay = {}
 
-  chains.forEach(chain => {
+  // MVP: Only count daily flows
+  const dailyFlowChains = chains.filter(chain => chain.flow_type === 'daily_flow')
+
+  dailyFlowChains.forEach(chain => {
     const date = new Date(chain.created_at)
     if (date.getMonth() === currentMonth && date.getFullYear() === currentYear) {
       const day = date.getDate()
@@ -56,9 +59,9 @@ function CalendarStreakView({ chains }) {
     }
   })
 
-  // Calculate streak days
+  // Calculate streak days (only from daily flows)
   const streakDays = new Set()
-  const sortedChains = [...chains].sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
+  const sortedChains = [...dailyFlowChains].sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
   let lastDate = null
 
   for (const chain of sortedChains) {
@@ -341,8 +344,14 @@ export default function MySomiScreen({ navigation }) {
   const scrollViewRef = useRef(null)
 
   // Use React Query for chains data
-  const { data: somiChains = [], isLoading: loading, refetch } = useChains(30)
+  const { data: allChains = [], isLoading: loading, refetch } = useChains(30)
   const deleteChainMutation = useDeleteChain()
+
+  // MVP: Filter to only show daily flows (memoized to prevent infinite loops)
+  const somiChains = useMemo(() =>
+    allChains.filter(chain => chain.flow_type === 'daily_flow'),
+    [allChains]
+  )
 
   // Get user for personalization
   const user = useAuthStore((state) => state.user)
@@ -856,7 +865,7 @@ export default function MySomiScreen({ navigation }) {
           </View>
         </BlurView>
 
-        {/* Recent Check-Ins */}
+        {/* MVP: Recent Check-Ins hidden for now
         <Text style={styles.sectionTitle}>recent check-ins</Text>
         <BlurView intensity={20} tint="dark" style={styles.checkInsListCard}>
           {allChecksForRiver
@@ -867,7 +876,6 @@ export default function MySomiScreen({ navigation }) {
               const emoji = STATE_EMOJIS[check.polyvagal_state_code] || '❓'
               const fillLevel = check.embodiment_level / 100
 
-              // SVG progress ring calculations
               const circleSize = 48
               const strokeWidth = 3
               const radius = (circleSize - strokeWidth) / 2
@@ -882,7 +890,6 @@ export default function MySomiScreen({ navigation }) {
                   <View style={styles.checkInListLeft}>
                     <View style={styles.checkInStateCircle}>
                       <Svg width={circleSize} height={circleSize}>
-                        {/* Background ring */}
                         <Circle
                           cx={circleSize / 2}
                           cy={circleSize / 2}
@@ -891,7 +898,6 @@ export default function MySomiScreen({ navigation }) {
                           strokeWidth={strokeWidth}
                           fill="none"
                         />
-                        {/* Progress ring */}
                         <Circle
                           cx={circleSize / 2}
                           cy={circleSize / 2}
@@ -916,9 +922,10 @@ export default function MySomiScreen({ navigation }) {
               )
             })}
         </BlurView>
+        */}
 
-        {/* SoMi Chains Timeline */}
-        <Text style={styles.sectionTitle}>somi chains</Text>
+        {/* My Daily Flows Timeline */}
+        <Text style={styles.sectionTitle}>my daily flows</Text>
 
         {somiChains.map((chain, chainIndex) => {
           const isExpanded = expandedChains[chain.id]

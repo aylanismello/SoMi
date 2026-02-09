@@ -348,7 +348,7 @@ export default function HomeScreen({ navigation }) {
           </TouchableOpacity>
         </View>
 
-        {/* Quick Check-In Card (Calm-style) */}
+        {/* MVP: Quick Check-In hidden for now
         <View style={styles.quickCheckInSection}>
           <TouchableOpacity
             onPress={handleOpenQuickCheckIn}
@@ -360,7 +360,6 @@ export default function HomeScreen({ navigation }) {
                 <View style={styles.quickCheckInSelected}>
                   <Text style={styles.quickCheckInSelectedLabel}>You're feeling:</Text>
                   <View style={styles.quickCheckInRow}>
-                    {/* Polyvagal State Badge */}
                     <View style={styles.quickCheckInSelectedBadge}>
                       <Text style={styles.quickCheckInSelectedEmoji}>
                         {POLYVAGAL_STATES[lastQuickCheckInState]?.emoji}
@@ -379,11 +378,9 @@ export default function HomeScreen({ navigation }) {
                       </TouchableOpacity>
                     </View>
 
-                    {/* Embodiment Circle (on the right) */}
                     {lastQuickCheckInSliderValue !== null && (
                       <View style={styles.embodimentCircleContainer}>
                         <Svg width={50} height={50}>
-                          {/* Background circle */}
                           <Circle
                             cx={25}
                             cy={25}
@@ -392,7 +389,6 @@ export default function HomeScreen({ navigation }) {
                             strokeWidth={3}
                             fill="none"
                           />
-                          {/* Progress circle */}
                           <Circle
                             cx={25}
                             cy={25}
@@ -419,9 +415,9 @@ export default function HomeScreen({ navigation }) {
             </BlurView>
           </TouchableOpacity>
         </View>
+        */}
 
-
-        {/* Quick Check-In Modal */}
+        {/* MVP: Quick Check-In Modal hidden
         <Modal
           visible={showQuickCheckInModal}
           transparent={true}
@@ -430,7 +426,6 @@ export default function HomeScreen({ navigation }) {
         >
           <View style={styles.quickCheckInModalOverlay}>
             <BlurView intensity={40} tint="dark" style={styles.quickCheckInModalContainer}>
-              {/* Header with close button */}
               <View style={styles.quickCheckInModalHeader}>
                 <TouchableOpacity
                   onPress={() => setShowQuickCheckInModal(false)}
@@ -440,12 +435,10 @@ export default function HomeScreen({ navigation }) {
                 </TouchableOpacity>
               </View>
 
-              {/* Title */}
               <Text style={styles.quickCheckInModalTitle}>
                 {quickPolyvagalState ? 'how present are those\nfeelings in the body?' : 'how do you feel\nright now?'}
               </Text>
 
-              {/* EmbodimentSlider Component - Smaller */}
               <View style={styles.quickCheckInModalSliderWrapper}>
                 <EmbodimentSlider
                   value={quickSliderValue}
@@ -469,7 +462,6 @@ export default function HomeScreen({ navigation }) {
                 />
               </View>
 
-              {/* Save Button - Always visible when state selected */}
               {quickPolyvagalState !== null && (
                 <View style={styles.quickCheckInModalButtonWrapper}>
                   <TouchableOpacity
@@ -486,6 +478,7 @@ export default function HomeScreen({ navigation }) {
             </BlurView>
           </View>
         </Modal>
+        */}
 
       </Animated.ScrollView>
 

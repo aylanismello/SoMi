@@ -125,4 +125,11 @@ export const api = {
       : canonicalNames
     return apiRequest(`/blocks?canonical_names=${namesParam}`)
   },
+
+  // Delete chain
+  deleteChain: async (chainId) => {
+    return apiRequest(`/chains/${chainId}`, {
+      method: 'DELETE',
+    })
+  },
 }
