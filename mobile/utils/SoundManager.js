@@ -17,15 +17,23 @@ class SoundManager {
   // Preload all sound effects for instant playback (game-like performance)
   async preloadSounds() {
     if (this.isLoaded || this.isLoading) {
+      console.log('Sounds already loaded or loading, skipping preload')
       return
     }
 
     this.isLoading = true
+    console.log('🔊 Preloading sound effects...')
 
     try {
       // Create audio players for both sounds
+      console.log('Creating audio players...')
       const startPlayer = createAudioPlayer(SOUND_URLS.blockStart)
       const endPlayer = createAudioPlayer(SOUND_URLS.blockEnd)
+
+      // Verify players were created
+      if (!startPlayer || !endPlayer) {
+        throw new Error('Failed to create audio players - createAudioPlayer returned null/undefined')
+      }
 
       // Set volume immediately
       startPlayer.volume = 0.5
@@ -37,9 +45,11 @@ class SoundManager {
       this.players.blockEnd = endPlayer
 
       this.isLoaded = true
-      console.log('Sound effects preloaded successfully')
+      console.log('✅ Sound effects preloaded successfully')
+      console.log('Players:', { blockStart: !!startPlayer, blockEnd: !!endPlayer })
     } catch (error) {
-      console.error('Failed to preload sound effects:', error)
+      console.error('❌ Failed to preload sound effects:', error)
+      this.isLoaded = false
     } finally {
       this.isLoading = false
     }
@@ -50,24 +60,32 @@ class SoundManager {
     // Check if SFX is enabled
     const { isSfxEnabled } = useSettingsStore.getState()
     if (!isSfxEnabled) {
-      console.log(`SFX disabled, skipping ${soundKey}`)
+      console.log(`🔇 SFX disabled in settings, skipping ${soundKey}`)
       return
     }
 
     // Lazy load if not already loaded
     if (!this.isLoaded && !this.isLoading) {
-      console.log(`Sounds not loaded, preloading now for ${soundKey}`)
+      console.log(`⏳ Sounds not loaded, preloading now for ${soundKey}`)
       await this.preloadSounds()
+    }
+
+    // Wait for loading to complete if in progress
+    let waitCount = 0
+    while (this.isLoading && waitCount < 20) {
+      await new Promise(resolve => setTimeout(resolve, 100))
+      waitCount++
     }
 
     const player = this.players[soundKey]
     if (!player) {
-      console.warn(`❌ Sound "${soundKey}" not found`)
+      console.warn(`❌ Sound "${soundKey}" not found in players:`, Object.keys(this.players))
+      console.warn(`isLoaded: ${this.isLoaded}, isLoading: ${this.isLoading}`)
       return
     }
 
     try {
-      console.log(`▶️ Playing sound: ${soundKey}`)
+      console.log(`▶️ Playing sound: ${soundKey} (isSfxEnabled: ${isSfxEnabled})`)
 
       // Set volume to 50%
       player.volume = 0.5
@@ -75,6 +93,7 @@ class SoundManager {
       // Stop current playback if any, then restart from beginning
       // This ensures rapid-fire sounds always work
       if (player.playing) {
+        console.log(`⏸️ Pausing currently playing ${soundKey}`)
         player.pause()
       }
 
@@ -85,6 +104,7 @@ class SoundManager {
       console.log(`✅ Sound ${soundKey} play() called successfully`)
     } catch (error) {
       console.error(`❌ Failed to play sound "${soundKey}":`, error)
+      console.error('Error details:', error.message, error.stack)
       // Don't throw - just log and continue (sound failure shouldn't break app)
     }
   }

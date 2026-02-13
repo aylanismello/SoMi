@@ -225,9 +225,8 @@ export default function App() {
   }, [])
 
   // Create flow music audio player at app level so it persists
-  const flowAudioPlayer = useAudioPlayer(FLOW_MUSIC_URL, (player) => {
-    player.loop = true
-  })
+  // Note: useAudioPlayer doesn't accept a callback like useVideoPlayer
+  const flowAudioPlayer = useAudioPlayer(FLOW_MUSIC_URL)
 
   const { setAudioPlayer } = useFlowMusicStore()
 
@@ -235,7 +234,30 @@ export default function App() {
   useEffect(() => {
     if (flowAudioPlayer) {
       setAudioPlayer(flowAudioPlayer)
-      console.log('App: Flow music player initialized')
+      console.log('✅ App: Flow music player initialized:', {
+        hasPlayer: !!flowAudioPlayer,
+        volume: flowAudioPlayer.volume,
+        playing: flowAudioPlayer.playing,
+        muted: flowAudioPlayer.muted,
+        loop: flowAudioPlayer.loop,
+        currentTime: flowAudioPlayer.currentTime,
+        duration: flowAudioPlayer.duration
+      })
+
+      // Test the player to make sure it can play
+      try {
+        console.log('🧪 Testing flow music player...')
+        // Just verify the play method exists
+        if (typeof flowAudioPlayer.play === 'function') {
+          console.log('✅ Player has play() method')
+        } else {
+          console.error('❌ Player missing play() method!')
+        }
+      } catch (testError) {
+        console.error('❌ Error testing flow music player:', testError)
+      }
+    } else {
+      console.warn('❌ App: Flow music player is null/undefined')
     }
   }, [flowAudioPlayer])
 
@@ -351,12 +373,12 @@ export default function App() {
             })(),
           })}
         />
-        {/* MVP: Flow tab hidden - no routines for now
+        {/* Flow tab - hidden from tab bar but navigation still works */}
         <Tab.Screen
           name="Flow"
           component={CheckInStack}
           options={({ route }) => ({
-            tabBarLabel: 'Flow',
+            tabBarButton: () => null, // Hide from tab bar completely
             tabBarStyle: (() => {
               const routeName = getFocusedRouteNameFromRoute(route) ?? 'FlowMenu'
               // Hide tab bar when on flow screens (except FlowMenu)
@@ -375,7 +397,6 @@ export default function App() {
             })(),
           })}
         />
-        */}
         {/* Temporarily hidden - coming back later
         <Tab.Screen
           name="Explore"

@@ -5,6 +5,7 @@ import { LinearGradient } from 'expo-linear-gradient'
 import { BlurView } from 'expo-blur'
 import * as Haptics from 'expo-haptics'
 import Svg, { Path, Circle } from 'react-native-svg'
+import AsyncStorage from '@react-native-async-storage/async-storage'
 import { getSOSMedia, BODY_SCAN_MEDIA } from '../constants/media'
 import EmbodimentSlider, { POLYVAGAL_STATE_MAP, STATE_DESCRIPTIONS } from './EmbodimentSlider'
 import { chainService } from '../services/chainService'
@@ -587,6 +588,21 @@ export default function SoMiCheckIn({ navigation, route }) {
   const handleSkipFinalCheckin = async () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium)
 
+    // If it's a daily flow being skipped, DELETE the incomplete chain
+    const isDaily = !routineStore.isQuickRoutine
+    if (isDaily) {
+      try {
+        const storedChainId = await AsyncStorage.getItem('active_somi_chain_id')
+        if (storedChainId) {
+          const chainId = parseInt(storedChainId, 10)
+          await chainService.deleteChain(chainId)
+          console.log('🗑️ Deleted incomplete daily flow chain (skipped final check-in):', chainId)
+        }
+      } catch (error) {
+        console.error('Error deleting incomplete chain:', error)
+      }
+    }
+
     // End the active chain when skipping
     await chainService.endActiveChain()
 
@@ -663,7 +679,24 @@ export default function SoMiCheckIn({ navigation, route }) {
 
   const handleConfirmExit = async () => {
     setShowExitModal(false)
-    // End the active chain when closing
+
+    // If it's a daily flow, DELETE the incomplete chain from the database
+    // (not just clear from storage - we don't want incomplete daily flows saved)
+    const isDaily = !routineStore.isQuickRoutine
+    if (isDaily) {
+      try {
+        const storedChainId = await AsyncStorage.getItem('active_somi_chain_id')
+        if (storedChainId) {
+          const chainId = parseInt(storedChainId, 10)
+          await chainService.deleteChain(chainId)
+          console.log('🗑️ Deleted incomplete daily flow chain:', chainId)
+        }
+      } catch (error) {
+        console.error('Error deleting incomplete chain:', error)
+      }
+    }
+
+    // End the active chain (clear from storage)
     await chainService.endActiveChain()
     // Stop flow music when exiting early
     stopFlowMusic()
