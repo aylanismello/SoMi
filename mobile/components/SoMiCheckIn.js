@@ -555,10 +555,8 @@ export default function SoMiCheckIn({ navigation, route }) {
     await chainService.endActiveChain()
     console.log('✅ Active chain ended')
 
-    // Stop flow music when finishing the flow
-    console.log('🎵 Stopping flow music...')
-    stopFlowMusic()
-    console.log('✅ Flow music stopped')
+    // Keep flow music playing during CompletionScreen - it will fade out when user presses Continue
+    console.log('🎵 Keeping flow music playing for CompletionScreen...')
 
     // Check if this is daily flow BEFORE resetting routine store
     const isDaily = !routineStore.isQuickRoutine

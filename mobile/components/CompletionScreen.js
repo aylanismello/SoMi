@@ -6,6 +6,7 @@ import { Video } from 'expo-av'
 import * as Haptics from 'expo-haptics'
 import { colors } from '../constants/theme'
 import { useLatestChain } from '../hooks/useSupabaseQueries'
+import { useFlowMusicStore } from '../stores/flowMusicStore'
 
 const { width, height } = Dimensions.get('window')
 
@@ -34,6 +35,7 @@ export default function CompletionScreen({ route, navigation }) {
   console.log('🎉🎉🎉 COMPLETION SCREEN RENDERING 🎉🎉🎉')
   const { data: latestChain } = useLatestChain()
   const [confetti] = useState(generateConfetti(20))
+  const { stopFlowMusic } = useFlowMusicStore()
 
   // Animated values for staged reveal
   const badgeScale = useRef(new Animated.Value(0)).current
@@ -226,6 +228,10 @@ export default function CompletionScreen({ route, navigation }) {
 
   const handleContinue = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium)
+
+    // Fade out flow music when user presses Continue
+    console.log('🎵 CompletionScreen: Fading out flow music on Continue...')
+    stopFlowMusic()
 
     // Reset Flow stack and navigate to Home
     navigation.reset({

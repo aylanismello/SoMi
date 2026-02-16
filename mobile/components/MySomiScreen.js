@@ -360,8 +360,12 @@ export default function MySomiScreen({ navigation }) {
   const [expandedChains, setExpandedChains] = useState({}) // Track which chains are expanded
   const [deleteModalVisible, setDeleteModalVisible] = useState(false)
   const [chainToDelete, setChainToDelete] = useState(null)
+  const [deletingChainId, setDeletingChainId] = useState(null) // Track which chain is animating out
   const [journalModalVisible, setJournalModalVisible] = useState(false)
   const [selectedJournalEntry, setSelectedJournalEntry] = useState(null)
+
+  // Animated values for deletion (one per chain, created on demand)
+  const chainAnimations = useRef({})
   const [stats, setStats] = useState({
     averageScore: 0,
     totalCheckIns: 0,
@@ -605,15 +609,55 @@ export default function MySomiScreen({ navigation }) {
 
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning)
     setDeleteModalVisible(false)
+    setDeletingChainId(chainToDelete)
 
-    // Delete using React Query mutation (handles optimistic updates and refetching)
-    deleteChainMutation.mutate(chainToDelete, {
-      onSuccess: () => {
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success)
-      },
-      onError: () => {
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error)
-      },
+    // Initialize animation values for this chain if not exists
+    if (!chainAnimations.current[chainToDelete]) {
+      chainAnimations.current[chainToDelete] = {
+        opacity: new Animated.Value(1),
+        translateX: new Animated.Value(0),
+      }
+    }
+
+    const anim = chainAnimations.current[chainToDelete]
+
+    // Animate out with iOS-style slide and fade
+    Animated.parallel([
+      Animated.timing(anim.opacity, {
+        toValue: 0,
+        duration: 300,
+        useNativeDriver: true,
+      }),
+      Animated.timing(anim.translateX, {
+        toValue: -50,
+        duration: 300,
+        useNativeDriver: true,
+      }),
+    ]).start(() => {
+      // After animation completes, delete from backend
+      deleteChainMutation.mutate(chainToDelete, {
+        onSuccess: () => {
+          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success)
+          setDeletingChainId(null)
+          // Clean up animation values
+          delete chainAnimations.current[chainToDelete]
+        },
+        onError: () => {
+          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error)
+          // Reset animation on error
+          Animated.parallel([
+            Animated.spring(anim.opacity, {
+              toValue: 1,
+              useNativeDriver: true,
+            }),
+            Animated.spring(anim.translateX, {
+              toValue: 0,
+              useNativeDriver: true,
+            }),
+          ]).start()
+          setDeletingChainId(null)
+        },
+      })
     })
 
     setChainToDelete(null)
@@ -936,8 +980,27 @@ export default function MySomiScreen({ navigation }) {
           const totalSeconds = chain.somi_chain_entries.reduce((sum, entry) => sum + (entry.seconds_elapsed || 0), 0)
           const totalMinutes = Math.round(totalSeconds / 60)
 
+          // Get or create animation values for this chain
+          if (!chainAnimations.current[chain.id]) {
+            chainAnimations.current[chain.id] = {
+              opacity: new Animated.Value(1),
+              translateX: new Animated.Value(0),
+            }
+          }
+          const anim = chainAnimations.current[chain.id]
+          const isDeleting = deletingChainId === chain.id
+
           return (
-            <View key={chain.id} style={styles.checkInItem}>
+            <Animated.View
+              key={chain.id}
+              style={[
+                styles.checkInItem,
+                {
+                  opacity: anim.opacity,
+                  transform: [{ translateX: anim.translateX }],
+                }
+              ]}
+            >
               {/* Timeline dot and line */}
               <View style={styles.timelineContainer}>
                 <View style={[styles.timelineDot, { backgroundColor: colors.accent.primary }]} />
@@ -973,8 +1036,13 @@ export default function MySomiScreen({ navigation }) {
                     onPress={() => handleDeleteChainPress(chain.id)}
                     activeOpacity={0.7}
                     style={styles.deleteButton}
+                    disabled={isDeleting}
                   >
-                    <Text style={styles.deleteButtonText}>✕</Text>
+                    {isDeleting ? (
+                      <ActivityIndicator size="small" color="#ff6b6b" />
+                    ) : (
+                      <Text style={styles.deleteButtonText}>✕</Text>
+                    )}
                   </TouchableOpacity>
                 </View>
 
@@ -1092,7 +1160,7 @@ export default function MySomiScreen({ navigation }) {
                   </View>
                 )}
               </BlurView>
-            </View>
+            </Animated.View>
           )
         })}
 
