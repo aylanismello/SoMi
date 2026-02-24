@@ -48,8 +48,8 @@ export default function FlowMenuScreen({ navigation }) {
   const handleDailyFlow = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium)
 
-    // Navigate to SoMiCheckIn with flag indicating it's the daily flow (check-ins mandatory)
-    navigation.navigate('SoMiCheckIn', { isDailyFlow: true })
+    // Navigate to DailyFlowSetup (replaces multi-step SoMiCheckIn)
+    navigation.navigate('DailyFlowSetup')
   }
 
   const handleQuickRoutine = async (routineType, blockCount) => {

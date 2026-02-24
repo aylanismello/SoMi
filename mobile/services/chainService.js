@@ -3,9 +3,127 @@ import AsyncStorage from '@react-native-async-storage/async-storage'
 import { api } from './api'
 
 const ACTIVE_CHAIN_KEY = 'active_somi_chain_id'
+const SESSION_CHECKS_KEY = 'session_embodiment_checks'
+const SESSION_BLOCKS_KEY = 'session_completed_blocks'
 
 export const chainService = {
-  // Get or create active chain
+  // Session storage for checks and blocks (before chain creation)
+  async saveCheckToSession(sliderValue, polyvagalStateCode, journalEntry = null) {
+    try {
+      const existing = await AsyncStorage.getItem(SESSION_CHECKS_KEY)
+      const checks = existing ? JSON.parse(existing) : []
+
+      checks.push({
+        sliderValue,
+        polyvagalStateCode,
+        journalEntry,
+        timestamp: Date.now(),
+      })
+
+      await AsyncStorage.setItem(SESSION_CHECKS_KEY, JSON.stringify(checks))
+      console.log(`📝 Saved check to session (${checks.length} total)`)
+    } catch (error) {
+      console.error('Error saving check to session:', error)
+    }
+  },
+
+  async saveBlockToSession(somiBlockId, secondsElapsed, orderIndex = 0) {
+    try {
+      const existing = await AsyncStorage.getItem(SESSION_BLOCKS_KEY)
+      const blocks = existing ? JSON.parse(existing) : []
+
+      blocks.push({
+        somiBlockId,
+        secondsElapsed,
+        orderIndex,
+        timestamp: Date.now(),
+      })
+
+      await AsyncStorage.setItem(SESSION_BLOCKS_KEY, JSON.stringify(blocks))
+      console.log(`🎯 Saved block to session (${blocks.length} total)`)
+    } catch (error) {
+      console.error('Error saving block to session:', error)
+    }
+  },
+
+  async getSessionData() {
+    try {
+      const checksStr = await AsyncStorage.getItem(SESSION_CHECKS_KEY)
+      const blocksStr = await AsyncStorage.getItem(SESSION_BLOCKS_KEY)
+
+      return {
+        checks: checksStr ? JSON.parse(checksStr) : [],
+        blocks: blocksStr ? JSON.parse(blocksStr) : [],
+      }
+    } catch (error) {
+      console.error('Error getting session data:', error)
+      return { checks: [], blocks: [] }
+    }
+  },
+
+  async clearSessionData() {
+    try {
+      await AsyncStorage.removeItem(SESSION_CHECKS_KEY)
+      await AsyncStorage.removeItem(SESSION_BLOCKS_KEY)
+      console.log('🧹 Cleared session data')
+    } catch (error) {
+      console.error('Error clearing session data:', error)
+    }
+  },
+
+  // Create chain and upload all session data (called only when flow is complete)
+  async createChainFromSession(flowType = 'daily_flow') {
+    try {
+      console.log('🎉 Creating chain from session data...')
+
+      // Get all session data
+      const { checks, blocks } = await this.getSessionData()
+
+      if (checks.length === 0) {
+        console.error('❌ No checks in session, cannot create chain')
+        return null
+      }
+
+      // Create the chain
+      const { chain } = await api.createChain(flowType)
+      const chainId = chain.id
+      console.log(`✅ Created chain ${chainId}`)
+
+      // Upload all embodiment checks
+      for (const check of checks) {
+        await api.saveEmbodimentCheck(
+          chainId,
+          check.sliderValue,
+          check.polyvagalStateCode,
+          check.journalEntry
+        )
+        console.log(`  ✅ Uploaded check`)
+      }
+
+      // Upload all completed blocks
+      for (const block of blocks) {
+        await api.saveChainEntry(
+          chainId,
+          block.somiBlockId,
+          block.secondsElapsed,
+          block.orderIndex
+        )
+        console.log(`  ✅ Uploaded block ${block.somiBlockId}`)
+      }
+
+      // Clear session data
+      await this.clearSessionData()
+
+      console.log(`🎊 Chain ${chainId} created successfully with ${checks.length} checks and ${blocks.length} blocks`)
+      return chainId
+
+    } catch (error) {
+      console.error('Error creating chain from session:', error)
+      return null
+    }
+  },
+
+  // Get or create active chain (legacy - only used for quick routines now)
   async getOrCreateActiveChain(flowType = 'daily_flow') {
     try {
       // Check if there's an active chain in storage
@@ -49,9 +167,15 @@ export const chainService = {
     }
   },
 
-  // Save completed block to chain
+  // Save completed block - now saves to session for daily flows
   async saveCompletedBlock(somiBlockId, secondsElapsed, orderIndex = 0, chainId = null, flowType = 'daily_flow') {
     try {
+      // For daily flows without a chainId, save to session (will upload when flow completes)
+      if (!chainId && flowType === 'daily_flow') {
+        return await this.saveBlockToSession(somiBlockId, secondsElapsed, orderIndex)
+      }
+
+      // For quick routines or when chainId is provided, use old behavior
       const activeChainId = chainId || await this.getOrCreateActiveChain(flowType)
 
       if (!activeChainId) {
@@ -73,9 +197,15 @@ export const chainService = {
     }
   },
 
-  // Save embodiment check
+  // Save embodiment check - now saves to session for daily flows
   async saveEmbodimentCheck(sliderValue, polyvagalStateCode, journalEntry = null, flowType = 'daily_flow') {
     try {
+      // For daily flows, save to session (will upload when flow completes)
+      if (flowType === 'daily_flow') {
+        return await this.saveCheckToSession(sliderValue, polyvagalStateCode, journalEntry)
+      }
+
+      // For quick routines, use old behavior
       const chainId = await this.getOrCreateActiveChain(flowType)
 
       if (!chainId) {

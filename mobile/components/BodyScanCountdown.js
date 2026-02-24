@@ -1,157 +1,137 @@
 import { useState, useEffect, useRef } from 'react'
-import { StyleSheet, View, TouchableOpacity, Text, Animated, Modal } from 'react-native'
-import { LinearGradient } from 'expo-linear-gradient'
-import { BlurView } from 'expo-blur'
-import Svg, { Circle } from 'react-native-svg'
+import { StyleSheet, View, Text, Animated, Pressable, Modal, TouchableOpacity } from 'react-native'
+import { useVideoPlayer, VideoView } from 'expo-video'
+import { useEvent } from 'expo'
 import * as Haptics from 'expo-haptics'
 import { colors } from '../constants/theme'
 import { chainService } from '../services/chainService'
 import { useSettingsStore } from '../stores/settingsStore'
 import { useFlowMusicStore } from '../stores/flowMusicStore'
 import { useRoutineStore } from '../stores/routineStore'
-import SettingsModal from './SettingsModal'
+import FlowProgressHeader from './FlowProgressHeader'
+import FlowControlsOverlay from './FlowControlsOverlay'
 
 const COUNTDOWN_DURATION_SECONDS = 60
-
-const AnimatedCircle = Animated.createAnimatedComponent(Circle)
+const OCEAN_VIDEO_URI = 'https://qujifwhwntqxziymqdwu.supabase.co/storage/v1/object/public/test/somi%20videos/ocean_loop_final.mp4'
 
 export default function BodyScanCountdown({ route, navigation }) {
   const flowType = useRoutineStore(state => state.flowType)
   const {
-    isInitial, // true = before first check-in, false = after last block
+    isInitial,
     savedInitialValue,
     savedInitialState,
-    skipToRoutine, // If true, skip directly to Step 2 after body scan
-    fromCheckIn, // If true, show back button instead of skip
+    skipToRoutine,
+    fromCheckIn,
   } = route.params
+
+  const oceanPlayer = useVideoPlayer(OCEAN_VIDEO_URI, (player) => {
+    player.loop = true
+    player.muted = true
+    player.play()
+  })
+
+  // Stall recovery: ocean background should always loop — restart if it unexpectedly stops
+  const { isPlaying: oceanIsPlaying } = useEvent(oceanPlayer, 'playingChange', { isPlaying: oceanPlayer.playing })
+  useEffect(() => {
+    if (!oceanIsPlaying) {
+      try { oceanPlayer.play() } catch (e) { /* player released during navigation */ }
+    }
+  }, [oceanIsPlaying])
 
   const [countdown, setCountdown] = useState(COUNTDOWN_DURATION_SECONDS)
   const countdownIntervalRef = useRef(null)
+  const [showControls, setShowControls] = useState(false)
+  const videoOpacity = useRef(new Animated.Value(1)).current
   const [showExitModal, setShowExitModal] = useState(false)
-  const [showSettingsModal, setShowSettingsModal] = useState(false)
-  const [infinityMode, setInfinityMode] = useState(false)
-  const infinityModeRef = useRef(false)
-  const savedCountdownRef = useRef(COUNTDOWN_DURATION_SECONDS)
+  const [isPaused, setIsPaused] = useState(false)
+  const pausedCountdownRef = useRef(COUNTDOWN_DURATION_SECONDS)
   const startTimeRef = useRef(null)
 
-  // Pulsing animation for infinity symbol
-  const infinityPulseAnim = useRef(new Animated.Value(1)).current
+  const controlsOpacity = useRef(new Animated.Value(0)).current
+  const hideTimeoutRef = useRef(null)
 
-  const { isMusicEnabled, showTime } = useSettingsStore()
+  const { isMusicEnabled } = useSettingsStore()
   const { startFlowMusic, stopFlowMusic, updateMusicSetting, audioPlayer } = useFlowMusicStore()
 
-  // Animated value for smooth progress
   const progressAnim = useRef(new Animated.Value(0)).current
 
-  // Initialize start time and start flow music on mount
   useEffect(() => {
-    // Reset start time
     startTimeRef.current = Date.now()
-
-    // Start the flow music at the VERY FIRST body scan (if this is initial)
     if (isInitial && audioPlayer) {
-      console.log('BodyScanCountdown: Starting flow music for initial body scan')
       startFlowMusic(isMusicEnabled)
-    }
-
-    return () => {
-      // Don't stop music on unmount - it should continue through the flow
-      console.log('BodyScanCountdown: Unmounting but keeping audio player alive')
     }
   }, [isInitial, audioPlayer])
 
-  // Handle music toggle
   useEffect(() => {
     updateMusicSetting(isMusicEnabled)
   }, [isMusicEnabled])
 
-  // Smooth animation for progress circle (runs once on mount)
   useEffect(() => {
     progressAnim.setValue(0)
-
-    const runAnimation = () => {
-      Animated.timing(progressAnim, {
-        toValue: 1,
-        duration: COUNTDOWN_DURATION_SECONDS * 1000,
-        useNativeDriver: false,
-      }).start(({ finished }) => {
-        if (finished) {
-          if (infinityModeRef.current) {
-            // In infinity mode, reset and loop
-            progressAnim.setValue(0)
-            runAnimation()
-          } else {
-            // Normal mode, complete the body scan
-            handleComplete()
-          }
-        }
-      })
-    }
-
-    runAnimation()
-
-    return () => {
-      progressAnim.stopAnimation()
-    }
+    Animated.timing(progressAnim, {
+      toValue: 1,
+      duration: COUNTDOWN_DURATION_SECONDS * 1000,
+      useNativeDriver: false,
+    }).start(({ finished }) => {
+      if (finished) handleComplete()
+    })
+    return () => { progressAnim.stopAnimation() }
   }, [])
 
-  // Timer for display (countdown in normal mode, count up in infinity mode)
   useEffect(() => {
-    // Single interval that runs continuously, direction controlled by ref
     countdownIntervalRef.current = setInterval(() => {
       setCountdown(prev => {
-        if (infinityModeRef.current) {
-          // Infinity mode: count up
-          return prev + 1
-        } else {
-          // Normal mode: count down
-          if (prev <= 1) {
-            clearInterval(countdownIntervalRef.current)
-            return 0
-          }
-          return prev - 1
+        if (prev <= 1) {
+          clearInterval(countdownIntervalRef.current)
+          return 0
         }
+        return prev - 1
       })
     }, 1000)
-
     return () => {
-      if (countdownIntervalRef.current) {
-        clearInterval(countdownIntervalRef.current)
-      }
+      if (countdownIntervalRef.current) clearInterval(countdownIntervalRef.current)
     }
   }, [])
 
+  useEffect(() => {
+    Animated.timing(controlsOpacity, {
+      toValue: showControls ? 1 : 0,
+      duration: 300,
+      useNativeDriver: true,
+    }).start()
+  }, [showControls])
+
+  useEffect(() => {
+    if (hideTimeoutRef.current) {
+      clearTimeout(hideTimeoutRef.current)
+      hideTimeoutRef.current = null
+    }
+    if (showControls && !isPaused) {
+      hideTimeoutRef.current = setTimeout(() => {
+        setShowControls(false)
+        hideTimeoutRef.current = null
+      }, 4000)
+    }
+    return () => {
+      if (hideTimeoutRef.current) clearTimeout(hideTimeoutRef.current)
+    }
+  }, [showControls, isPaused])
+
   const handleComplete = async () => {
-    // Play block end sound
     const { soundManager } = require('../utils/SoundManager')
     soundManager.playBlockEnd()
-
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success)
 
-    // Don't stop music - it continues through the flow
-
-    // Save body scan as a completed block
-    // Use active chain if exists (from check-in), otherwise create new one
     const elapsedMs = Date.now() - startTimeRef.current
     const elapsedSeconds = Math.round(elapsedMs / 1000)
-    const BODY_SCAN_BLOCK_ID = 20 // From somi_blocks table
-    const chainId = await chainService.getOrCreateActiveChain(flowType)
-    await chainService.saveCompletedBlock(BODY_SCAN_BLOCK_ID, elapsedSeconds, 0, chainId, flowType)
-    console.log(`Body scan completed and saved: ${elapsedSeconds}s, chain: ${chainId}`)
+    const BODY_SCAN_BLOCK_ID = 20
+    await chainService.saveCompletedBlock(BODY_SCAN_BLOCK_ID, elapsedSeconds, 0, null, flowType)
 
     if (skipToRoutine) {
-      // Skip check-in, go directly to Step 2 (selection)
-      navigation.replace('SoMiCheckIn', {
-        fromBodyScan: true,
-        skipToStep2: true,
-      })
+      navigation.replace('SoMiRoutine')
     } else if (isInitial) {
-      // After initial body scan, go to first check-in
-      navigation.replace('SoMiCheckIn', {
-        fromBodyScan: true,
-      })
+      navigation.replace('SoMiCheckIn', { fromBodyScan: true })
     } else {
-      // After final body scan, go to final check-in
       navigation.replace('SoMiCheckIn', {
         fromPlayer: true,
         savedInitialValue,
@@ -160,62 +140,63 @@ export default function BodyScanCountdown({ route, navigation }) {
     }
   }
 
-  const handleSkip = () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium)
-
-    // Stop animations
+  const handleSkipBlock = () => {
+    setShowControls(false)
     progressAnim.stopAnimation()
-    if (countdownIntervalRef.current) {
-      clearInterval(countdownIntervalRef.current)
-    }
+    if (countdownIntervalRef.current) clearInterval(countdownIntervalRef.current)
     handleComplete()
   }
 
-  const handleBackPress = () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium)
+  const handlePauseResume = () => {
+    if (!isPaused) {
+      setIsPaused(true)
+      pausedCountdownRef.current = countdown
+      if (countdownIntervalRef.current) {
+        clearInterval(countdownIntervalRef.current)
+        countdownIntervalRef.current = null
+      }
+      progressAnim.stopAnimation()
+    } else {
+      setIsPaused(false)
+      const resumeCountdown = pausedCountdownRef.current
+      setCountdown(resumeCountdown)
 
-    // Stop animations
-    progressAnim.stopAnimation()
-    if (countdownIntervalRef.current) {
-      clearInterval(countdownIntervalRef.current)
+      countdownIntervalRef.current = setInterval(() => {
+        setCountdown(prev => {
+          if (prev <= 1) { clearInterval(countdownIntervalRef.current); return 0 }
+          return prev - 1
+        })
+      }, 1000)
+
+      const elapsed = COUNTDOWN_DURATION_SECONDS - resumeCountdown
+      const remaining = resumeCountdown * 1000
+      progressAnim.setValue(elapsed / COUNTDOWN_DURATION_SECONDS)
+      Animated.timing(progressAnim, {
+        toValue: 1,
+        duration: remaining,
+        useNativeDriver: false,
+      }).start(({ finished }) => { if (finished) handleComplete() })
     }
-
-    // Don't stop music - it continues through the flow
-    // Go back to check-in
-    navigation.goBack()
   }
 
-  const handleClosePress = () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium)
+  const handleEndFlow = () => {
+    setShowControls(false)
     setShowExitModal(true)
   }
 
   const handleConfirmExit = async () => {
     setShowExitModal(false)
-
-    // Stop animations
     progressAnim.stopAnimation()
-    if (countdownIntervalRef.current) {
-      clearInterval(countdownIntervalRef.current)
-    }
-
-    // Stop flow music when exiting early
+    if (countdownIntervalRef.current) clearInterval(countdownIntervalRef.current)
     stopFlowMusic()
-
-    // End the active chain when exiting early
-    await chainService.endActiveChain()
-
-    // Reset the Flow stack to FlowMenu before navigating away
-    navigation.reset({
-      index: 0,
-      routes: [{ name: 'FlowMenu' }],
-    })
-
-    // Navigate to Home tab
-    const tabNavigator = navigation.getParent()
-    if (tabNavigator) {
-      tabNavigator.navigate('Home')
+    if (flowType === 'daily_flow') {
+      await chainService.clearSessionData()
+    } else {
+      await chainService.endActiveChain()
     }
+    navigation.reset({ index: 0, routes: [{ name: 'FlowMenu' }] })
+    const tabNavigator = navigation.getParent()
+    if (tabNavigator) tabNavigator.navigate('Home')
   }
 
   const handleCancelExit = () => {
@@ -223,433 +204,191 @@ export default function BodyScanCountdown({ route, navigation }) {
     setShowExitModal(false)
   }
 
-  const handleOpenSettings = () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
-    setShowSettingsModal(true)
-  }
-
-  const handleCloseSettings = () => {
-    setShowSettingsModal(false)
-  }
-
-  const handleToggleInfinity = () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium)
-    const newMode = !infinityMode
-    setInfinityMode(newMode)
-    infinityModeRef.current = newMode
-
-    if (newMode) {
-      // Toggling to infinity mode - save current countdown value and stop the animation
-      savedCountdownRef.current = countdown
-      progressAnim.stopAnimation()
-
-      // Start pulsing animation for infinity symbol
-      Animated.loop(
-        Animated.sequence([
-          Animated.timing(infinityPulseAnim, {
-            toValue: 1.15,
-            duration: 1500,
-            useNativeDriver: true,
-          }),
-          Animated.timing(infinityPulseAnim, {
-            toValue: 1,
-            duration: 1500,
-            useNativeDriver: true,
-          }),
-        ])
-      ).start()
-    } else {
-      // Toggling back to normal mode from infinity
-      // Restore countdown to saved value (where it was when infinity was enabled)
-      const resumeCountdown = savedCountdownRef.current
-      setCountdown(resumeCountdown)
-
-      // Stop pulsing animation
-      infinityPulseAnim.stopAnimation()
-      infinityPulseAnim.setValue(1)
-
-      // Calculate how much time has elapsed and resume animation from there
-      const elapsedTime = COUNTDOWN_DURATION_SECONDS - resumeCountdown
-      const remainingTime = resumeCountdown * 1000
-      const initialProgress = elapsedTime / COUNTDOWN_DURATION_SECONDS
-
-      // Stop and restart the animation from where we left off
-      progressAnim.stopAnimation()
-      progressAnim.setValue(initialProgress)
-
-      Animated.timing(progressAnim, {
-        toValue: 1,
-        duration: remainingTime,
-        useNativeDriver: false,
-      }).start(({ finished }) => {
-        if (finished && !infinityModeRef.current) {
-          handleComplete()
-        }
-      })
-    }
-  }
-
   const message = isInitial
     ? "how do you feel in the body?\nnotice any sensations\ngoing into this flow"
     : "how do you feel those sensations\ncoming out of this flow"
 
-  // Calculate progress for circular indicator
-  const radius = 100
-  const strokeWidth = 8
-  const circumference = 2 * Math.PI * radius
-
-  // Interpolate strokeDashoffset smoothly
-  const strokeDashoffset = progressAnim.interpolate({
+  const barWidth = progressAnim.interpolate({
     inputRange: [0, 1],
-    outputRange: [circumference, 0],
+    outputRange: ['0%', '100%'],
   })
 
   return (
-    <LinearGradient
-      colors={[colors.background.primary, colors.background.secondary, colors.background.primary]}
-      style={styles.container}
-    >
-      {/* Header with Settings, Skip/Back and Close buttons */}
-      <View style={styles.header}>
-        {fromCheckIn ? (
-          <TouchableOpacity
-            onPress={handleBackPress}
-            style={styles.backButton}
-            activeOpacity={0.7}
-          >
-            <Text style={styles.backButtonText}>←</Text>
-          </TouchableOpacity>
-        ) : (
-          <TouchableOpacity
-            onPress={handleOpenSettings}
-            style={styles.settingsButton}
-            activeOpacity={0.7}
-          >
-            <Text style={styles.settingsButtonText}>⚙️</Text>
-          </TouchableOpacity>
-        )}
-        {!fromCheckIn && (
-          <TouchableOpacity
-            onPress={handleSkip}
-            style={styles.skipButtonLeft}
-            activeOpacity={0.7}
-          >
-            <Text style={styles.skipButtonText}>Skip</Text>
-          </TouchableOpacity>
-        )}
-        <View style={{ flex: 1 }} />
-        {fromCheckIn ? (
-          <TouchableOpacity
-            onPress={handleOpenSettings}
-            style={styles.settingsButton}
-            activeOpacity={0.7}
-          >
-            <Text style={styles.settingsButtonText}>⚙️</Text>
-          </TouchableOpacity>
-        ) : (
-          <TouchableOpacity
-            onPress={handleClosePress}
-            style={styles.closeButton}
-            activeOpacity={0.7}
-          >
-            <Text style={styles.closeButtonText}>✕</Text>
-          </TouchableOpacity>
-        )}
-      </View>
+    <View style={styles.container}>
+      {/* Ocean background video — preloaded, no black flash */}
+      <Animated.View style={[StyleSheet.absoluteFillObject, { opacity: videoOpacity }]}>
+        <VideoView
+          player={oceanPlayer}
+          style={StyleSheet.absoluteFillObject}
+          contentFit="cover"
+          nativeControls={false}
+        />
+      </Animated.View>
 
-      {/* Body Scan Content */}
-      <View style={styles.contentContainer}>
+      {/* Dark overlay */}
+      <View style={[StyleSheet.absoluteFillObject, styles.overlay]} />
+
+      {!fromCheckIn && <FlowProgressHeader />}
+
+      {/* Main content — tap anywhere to toggle controls */}
+      <Pressable style={styles.content} onPress={() => setShowControls(!showControls)}>
         <Text style={styles.title}>Body Scan</Text>
-
         <Text style={styles.message}>{message}</Text>
+      </Pressable>
 
-        {/* Circular Progress Indicator */}
-        <View style={styles.circleContainer}>
-          <Svg width={radius * 2 + strokeWidth * 2} height={radius * 2 + strokeWidth * 2}>
-            {/* Background circle */}
-            <Circle
-              cx={radius + strokeWidth}
-              cy={radius + strokeWidth}
-              r={radius}
-              stroke="rgba(255, 255, 255, 0.1)"
-              strokeWidth={strokeWidth}
-              fill="none"
-            />
-            {/* Progress circle - animated */}
-            <AnimatedCircle
-              cx={radius + strokeWidth}
-              cy={radius + strokeWidth}
-              r={radius}
-              stroke={infinityMode ? '#9D7CFF' : colors.accent.primary}
-              strokeWidth={strokeWidth}
-              fill="none"
-              strokeDasharray={circumference}
-              strokeDashoffset={strokeDashoffset}
-              strokeLinecap="round"
-              transform={`rotate(-90 ${radius + strokeWidth} ${radius + strokeWidth})`}
-            />
-          </Svg>
-          <TouchableOpacity
-            style={styles.circleCenter}
-            onPress={handleToggleInfinity}
-            activeOpacity={0.8}
-          >
-            {infinityMode ? (
-              <Animated.Text
-                style={[
-                  styles.infinitySymbol,
-                  { transform: [{ scale: infinityPulseAnim }] }
-                ]}
-              >
-                ∞
-              </Animated.Text>
-            ) : (
-              <>
-                <Text style={styles.circleText}>SoMi</Text>
-                {showTime && (
-                  <Text style={styles.countdownText}>
-                    {Math.floor(countdown / 60)}:{String(countdown % 60).padStart(2, '0')}
-                  </Text>
-                )}
-                <Text style={styles.infinityHint}>tap for ∞</Text>
-              </>
-            )}
-          </TouchableOpacity>
+      {/* Loading bar — tap to skip */}
+      <Pressable onPress={handleSkipBlock} style={styles.barWrapper}>
+        <View style={styles.barTrack}>
+          <Animated.View style={[styles.barFill, { width: barWidth }]} />
+          <View style={styles.barContent}>
+            <Text style={styles.barLabel}>Skip Body Scan</Text>
+            <Text style={styles.barArrow}>›</Text>
+          </View>
         </View>
-      </View>
+      </Pressable>
 
-      {/* Exit Confirmation Modal */}
-      <Modal
-        visible={showExitModal}
-        transparent={true}
-        animationType="fade"
-        onRequestClose={handleCancelExit}
-      >
-        <View style={styles.modalOverlay}>
-          <BlurView intensity={40} tint="dark" style={styles.exitModalContainer}>
-            <View style={styles.exitModalContent}>
-              <Text style={styles.exitModalTitle}>End Session Early?</Text>
-              <Text style={styles.exitModalMessage}>
-                Are you sure you want to end this body scan early?
-              </Text>
+      <FlowControlsOverlay
+        visible={showControls}
+        opacity={controlsOpacity}
+        isPaused={isPaused}
+        onSkipBlock={handleSkipBlock}
+        onPauseResume={handlePauseResume}
+        onEndFlow={handleEndFlow}
+        onDismiss={() => setShowControls(false)}
+        onInteraction={() => {
+          if (hideTimeoutRef.current) clearTimeout(hideTimeoutRef.current)
+          hideTimeoutRef.current = setTimeout(() => setShowControls(false), 4000)
+        }}
+      />
 
-              <View style={styles.exitModalButtons}>
-                <TouchableOpacity
-                  onPress={handleCancelExit}
-                  style={[styles.exitModalButton, styles.exitModalButtonCancel]}
-                  activeOpacity={0.7}
-                >
-                  <Text style={styles.exitModalButtonTextCancel}>Cancel</Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  onPress={handleConfirmExit}
-                  style={[styles.exitModalButton, styles.exitModalButtonConfirm]}
-                  activeOpacity={0.7}
-                >
-                  <Text style={styles.exitModalButtonTextConfirm}>End</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-          </BlurView>
-        </View>
+      <Modal visible={showExitModal} transparent={true} animationType="slide" onRequestClose={handleCancelExit}>
+        <Pressable style={styles.sheetOverlay} onPress={handleCancelExit}>
+          <Pressable style={styles.sheetContainer} onPress={() => {}}>
+            <View style={styles.sheetHandle} />
+            <Text style={styles.sheetTitle}>End Session?</Text>
+            <Text style={styles.sheetBody}>Your progress so far won't be saved.</Text>
+            <TouchableOpacity onPress={handleConfirmExit} style={styles.sheetEndButton}>
+              <Text style={styles.sheetEndText}>End Flow</Text>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={handleCancelExit} style={styles.sheetCancelButton}>
+              <Text style={styles.sheetCancelText}>Keep Going</Text>
+            </TouchableOpacity>
+          </Pressable>
+        </Pressable>
       </Modal>
-
-      <SettingsModal visible={showSettingsModal} onClose={handleCloseSettings} />
-    </LinearGradient>
+    </View>
   )
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    paddingTop: 60,
-    paddingHorizontal: 24,
+    backgroundColor: '#000',
+    paddingTop: 48,
   },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 16,
-    marginBottom: 20,
+  overlay: {
+    backgroundColor: 'rgba(0,0,0,0.5)',
   },
-  settingsButton: {
-    width: 44,
-    height: 44,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  backButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: colors.surface.tertiary,
-    borderWidth: 1,
-    borderColor: colors.border.default,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  backButtonText: {
-    color: colors.text.primary,
-    fontSize: 24,
-    fontWeight: '300',
-  },
-  settingsButtonText: {
-    fontSize: 24,
-  },
-  skipButtonLeft: {
-    paddingVertical: 12,
-    paddingHorizontal: 20,
-  },
-  skipButtonText: {
-    color: colors.text.primary,
-    fontSize: 17,
-    fontWeight: '400',
-  },
-  closeButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: colors.surface.tertiary,
-    borderWidth: 1,
-    borderColor: colors.border.default,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  closeButtonText: {
-    color: colors.text.primary,
-    fontSize: 24,
-    fontWeight: '300',
-  },
-  contentContainer: {
+  content: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    paddingBottom: 100,
+    paddingHorizontal: 32,
+    paddingBottom: 40,
   },
   title: {
-    color: colors.text.primary,
-    fontSize: 24,
-    fontWeight: '600',
-    marginBottom: 40,
-    letterSpacing: 0.5,
-  },
-  message: {
-    color: colors.text.secondary,
-    fontSize: 18,
-    fontWeight: '400',
-    textAlign: 'center',
-    lineHeight: 26,
-    marginBottom: 60,
-    paddingHorizontal: 20,
-  },
-  circleContainer: {
-    position: 'relative',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  circleCenter: {
-    position: 'absolute',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  circleText: {
-    color: colors.text.primary,
-    fontSize: 32,
+    color: '#ffffff',
+    fontSize: 13,
     fontWeight: '700',
     letterSpacing: 2,
-    marginBottom: 4,
-  },
-  countdownText: {
-    color: colors.text.secondary,
-    fontSize: 14,
-    fontWeight: '500',
-    letterSpacing: 0.5,
+    textTransform: 'uppercase',
     opacity: 0.5,
-    marginTop: 4,
-    marginBottom: 4,
+    marginBottom: 24,
   },
-  infinityHint: {
-    color: colors.text.secondary,
-    fontSize: 11,
-    fontWeight: '400',
-    letterSpacing: 0.5,
-    opacity: 0.6,
-  },
-  infinitySymbol: {
-    color: '#9D7CFF',
-    fontSize: 48,
+  message: {
+    color: '#ffffff',
+    fontSize: 28,
     fontWeight: '300',
-  },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.75)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 24,
-  },
-  exitModalContainer: {
-    borderRadius: 28,
-    overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: colors.border.default,
-    maxWidth: 380,
-    width: '100%',
-  },
-  exitModalContent: {
-    padding: 32,
-    alignItems: 'center',
-  },
-  exitModalTitle: {
-    color: colors.text.primary,
-    fontSize: 22,
-    fontWeight: '600',
-    marginBottom: 12,
     textAlign: 'center',
-    letterSpacing: 0.5,
-  },
-  exitModalMessage: {
-    color: colors.text.secondary,
-    fontSize: 16,
-    fontWeight: '400',
-    lineHeight: 24,
-    textAlign: 'center',
-    marginBottom: 28,
+    lineHeight: 40,
     letterSpacing: 0.2,
   },
-  exitModalButtons: {
+  barWrapper: {
+    paddingHorizontal: 20,
+    paddingBottom: 52,
+  },
+  barTrack: {
+    height: 68,
+    borderRadius: 34,
+    backgroundColor: 'rgba(255,255,255,0.1)',
+    overflow: 'hidden',
+    position: 'relative',
+  },
+  barFill: {
+    position: 'absolute',
+    left: 0,
+    top: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(255,255,255,0.18)',
+    borderRadius: 34,
+  },
+  barContent: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    top: 0,
+    bottom: 0,
     flexDirection: 'row',
-    gap: 12,
-    width: '100%',
-  },
-  exitModalButton: {
-    flex: 1,
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderRadius: 20,
     alignItems: 'center',
-    justifyContent: 'center',
-    minHeight: 48,
+    paddingHorizontal: 28,
   },
-  exitModalButtonCancel: {
-    backgroundColor: colors.surface.tertiary,
-    borderWidth: 2,
-    borderColor: colors.border.default,
-  },
-  exitModalButtonConfirm: {
-    backgroundColor: 'rgba(255, 107, 107, 0.2)',
-    borderWidth: 2,
-    borderColor: '#ff6b6b',
-  },
-  exitModalButtonTextCancel: {
-    color: colors.text.secondary,
-    fontSize: 15,
+  barLabel: {
+    flex: 1,
+    color: '#ffffff',
+    fontSize: 17,
     fontWeight: '600',
     letterSpacing: 0.3,
   },
-  exitModalButtonTextConfirm: {
-    color: '#ff6b6b',
-    fontSize: 15,
-    fontWeight: '600',
-    letterSpacing: 0.3,
+  barArrow: {
+    color: 'rgba(255,255,255,0.45)',
+    fontSize: 28,
+    fontWeight: '300',
   },
+  sheetOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.55)',
+    justifyContent: 'flex-end',
+  },
+  sheetContainer: {
+    backgroundColor: '#111827',
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+    paddingTop: 12,
+    paddingBottom: 48,
+    paddingHorizontal: 24,
+  },
+  sheetHandle: {
+    width: 36, height: 4,
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    borderRadius: 2, alignSelf: 'center', marginBottom: 28,
+  },
+  sheetTitle: {
+    color: '#ffffff', fontSize: 24, fontWeight: '700',
+    textAlign: 'center', marginBottom: 8,
+  },
+  sheetBody: {
+    color: 'rgba(255,255,255,0.45)', fontSize: 15,
+    textAlign: 'center', lineHeight: 22, marginBottom: 28,
+  },
+  sheetEndButton: {
+    backgroundColor: 'rgba(255,107,107,0.1)',
+    borderRadius: 20, borderWidth: 1.5, borderColor: '#ff6b6b',
+    paddingVertical: 16, alignItems: 'center', marginBottom: 12,
+  },
+  sheetEndText: { color: '#ff6b6b', fontSize: 17, fontWeight: '700' },
+  sheetCancelButton: {
+    backgroundColor: 'rgba(255,255,255,0.06)',
+    borderRadius: 20, paddingVertical: 16, alignItems: 'center',
+  },
+  sheetCancelText: { color: 'rgba(255,255,255,0.55)', fontSize: 17, fontWeight: '500' },
 })

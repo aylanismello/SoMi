@@ -20,9 +20,8 @@ import ExploreScreen from './components/ExploreScreen'
 import CategoryDetailScreen from './components/CategoryDetailScreen'
 import AccountSettingsScreen from './components/AccountSettingsScreen'
 import WelcomeScreen from './components/WelcomeScreen'
-import SignInModal from './components/SignInModal'
 import CreateAccountScreen from './components/CreateAccountScreen'
-import FlowMenuScreen from './components/FlowMenuScreen'
+import DailyFlowSetup from './components/DailyFlowSetup'
 import { useAuthStore } from './stores/authStore'
 import { prefetchVideoBlocks } from './constants/media'
 import { colors } from './constants/theme'
@@ -80,8 +79,16 @@ function CheckInStack() {
     >
       <Stack.Screen
         name="FlowMenu"
-        component={FlowMenuScreen}
+        component={DailyFlowSetup}
         options={{
+          gestureEnabled: false,
+        }}
+      />
+      <Stack.Screen
+        name="DailyFlowSetup"
+        component={DailyFlowSetup}
+        options={{
+          presentation: 'card',
           gestureEnabled: false,
         }}
       />
@@ -382,7 +389,7 @@ export default function App() {
             tabBarStyle: (() => {
               const routeName = getFocusedRouteNameFromRoute(route) ?? 'FlowMenu'
               // Hide tab bar when on flow screens (except FlowMenu)
-              if (routeName === 'Player' || routeName === 'SoMiTimer' || routeName === 'SoMiRoutine' || routeName === 'BodyScanCountdown' || routeName === 'SoMiCheckIn' || routeName === 'RoutineQueuePreview' || routeName === 'CompletionScreen') {
+              if (routeName === 'Player' || routeName === 'SoMiTimer' || routeName === 'SoMiRoutine' || routeName === 'BodyScanCountdown' || routeName === 'SoMiCheckIn' || routeName === 'RoutineQueuePreview' || routeName === 'CompletionScreen' || routeName === 'DailyFlowSetup' || routeName === 'FlowMenu') {
                 return { display: 'none' }
               }
               return {

@@ -9,6 +9,7 @@ export const useRoutineStore = create((set, get) => ({
   currentCycle: 1,
   totalBlocks: 6,
   phase: 'interstitial', // 'video' | 'interstitial' - always starts at interstitial
+  remainingSeconds: 0, // live countdown updated every second by SoMiRoutineScreen
 
   // Queue management
   hardcodedQueue: [],
@@ -25,6 +26,7 @@ export const useRoutineStore = create((set, get) => ({
   flowType: 'daily_flow', // 'daily_flow' | 'quick_routine' | 'single_block'
 
   // Actions
+  setRemainingSeconds: (s) => set({ remainingSeconds: s }),
   setCurrentCycle: (cycle) => set({ currentCycle: cycle }),
 
   setPhase: (phase) => set({ phase }),
@@ -62,6 +64,7 @@ export const useRoutineStore = create((set, get) => ({
     hardcodedQueue: customQueue || [],
     currentVideo: null,
     selectedVideoId: null,
+    remainingSeconds: totalBlocks * 80,
   }),
 
   advanceCycle: () => set((state) => ({

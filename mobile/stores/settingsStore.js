@@ -13,6 +13,8 @@ export const useSettingsStore = create(
       isMusicEnabled: true,
       showTime: true,
       isSfxEnabled: true,
+      bodyScanStart: true,
+      bodyScanEnd: true,
 
       // Actions
       toggleMusic: () => set((state) => ({
@@ -30,6 +32,8 @@ export const useSettingsStore = create(
       setMusicEnabled: (enabled) => set({ isMusicEnabled: enabled }),
       setShowTime: (show) => set({ showTime: show }),
       setSfxEnabled: (enabled) => set({ isSfxEnabled: enabled }),
+      setBodyScanStart: (val) => set({ bodyScanStart: val }),
+      setBodyScanEnd: (val) => set({ bodyScanEnd: val }),
     }),
     {
       name: 'somi-settings',

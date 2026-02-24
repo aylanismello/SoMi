@@ -7,7 +7,18 @@ import { colors } from '../constants/theme'
 import { supabase } from '../supabase'
 import { getRoutineConfig, ROUTINE_TYPES } from '../services/routineConfig'
 import { useRoutineStore } from '../stores/routineStore'
+import { useSettingsStore } from '../stores/settingsStore'
 import { useBlocks } from '../hooks/useSupabaseQueries'
+
+const SECTION_LABELS = {
+  'warm-up': 'WARM UP',
+  'main': 'MAIN',
+  'integration': 'INTEGRATION',
+}
+
+function getSectionLabel(name) {
+  return SECTION_LABELS[name] || name.toUpperCase()
+}
 
 // Polyvagal state emojis and colors
 const STATE_EMOJIS = {
@@ -28,10 +39,13 @@ export default function RoutineQueuePreview({ navigation, route }) {
     setQueue,
   } = useRoutineStore()
 
+  const { bodyScanStart, bodyScanEnd } = useSettingsStore()
+
   // Handle edit mode from route params (optional)
   const {
     isEditMode = false, // True when editing from interstitial
     onQueueUpdate = null, // Callback to update queue in parent (for edit mode)
+    displayMinutes = null, // User-selected duration (may differ from actual block count)
   } = route.params || {}
 
   const [localQueue, setLocalQueue] = useState([])
@@ -162,16 +176,13 @@ export default function RoutineQueuePreview({ navigation, route }) {
       // Simply go back
       navigation.goBack()
     } else {
-      // Navigate back to SoMiCheckIn
-      navigation.navigate('SoMiCheckIn', {
-        fromBodyScan: true,
-        skipToStep2: true,
-        isDailyFlow: route?.params?.isDailyFlow || false,
-      })
+      // Go back to previous screen (DailyFlowSetup or wherever we came from)
+      navigation.goBack()
     }
   }
 
-  const minutes = totalBlocks === 2 ? 5 : totalBlocks === 6 ? 10 : 15
+  // Use user-selected duration for display; fall back to block count
+  const minutes = displayMinutes ?? totalBlocks
 
   return (
     <LinearGradient
@@ -182,7 +193,7 @@ export default function RoutineQueuePreview({ navigation, route }) {
         <TouchableOpacity onPress={handleBack} style={styles.backButton}>
           <Text style={styles.backButtonText}>←</Text>
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>{isEditMode ? 'Edit Routine' : 'Your Routine'}</Text>
+        <Text style={styles.headerTitle}>Your Routine</Text>
         <View style={{ width: 44 }} />
       </View>
 
@@ -198,73 +209,113 @@ export default function RoutineQueuePreview({ navigation, route }) {
           <ActivityIndicator size="large" color={colors.accent.primary} style={styles.loader} />
         ) : (
           <ScrollView style={styles.queueList} contentContainerStyle={styles.queueListContent}>
-            {enrichedQueue.map((block, index) => {
-              const stateInfo = STATE_EMOJIS[block.state_target]
-              const isPastBlock = isEditMode && index < currentCycle - 1
-              const isCurrentBlock = isEditMode && index === currentCycle - 1
+            {(() => {
+              const hasSections = enrichedQueue.length > 0 && !!enrichedQueue[0].section
 
-              return (
-                <BlurView
-                  key={index}
-                  intensity={15}
-                  tint="dark"
-                  style={[
-                    styles.blockCard,
-                    stateInfo && { borderColor: stateInfo.color },
-                    isCurrentBlock && { borderWidth: 2 },
-                    isPastBlock && { opacity: 0.5 },
-                  ]}
-                >
+              const renderBodyScanCard = (subtitle) => (
+                <BlurView intensity={10} tint="dark" style={[styles.blockCard, styles.bodyScanCard]}>
                   <View style={styles.blockHeader}>
-                    <View style={[styles.blockNumber, stateInfo && { backgroundColor: stateInfo.color }]}>
-                      <Text style={styles.blockNumberText}>{index + 1}</Text>
+                    <View style={[styles.blockNumber, styles.bodyScanNumber]}>
+                      <Text style={styles.bodyScanIcon}>~</Text>
                     </View>
                     <View style={styles.blockContent}>
-                      <View style={styles.blockTitleRow}>
-                        <Text style={styles.blockName}>
-                          {block.name}
-                          {isCurrentBlock && <Text style={{ color: stateInfo?.color }}> (Current)</Text>}
-                          {isPastBlock && <Text style={{ color: colors.text.muted }}> (Completed)</Text>}
-                        </Text>
-                        {stateInfo && (
-                          <Text style={styles.stateEmoji}>{stateInfo.emoji}</Text>
-                        )}
-                      </View>
-                      {block.description && (
-                        <Text style={styles.blockDescription} numberOfLines={2}>
-                          {block.description}
-                        </Text>
-                      )}
-                      {stateInfo && (
-                        <Text style={[styles.stateLabel, { color: stateInfo.color }]}>
-                          {stateInfo.label}
-                        </Text>
-                      )}
+                      <Text style={styles.bodyScanName}>Body Scan</Text>
+                      <Text style={styles.bodyScanSubtitle}>{subtitle} · 60 sec</Text>
                     </View>
-                    <TouchableOpacity
-                      onPress={() => handleSwapPress(index)}
-                      style={[styles.swapButton, isPastBlock && { opacity: 0.5 }]}
-                      activeOpacity={isPastBlock ? 1 : 0.7}
-                      disabled={isPastBlock}
-                    >
-                      <Text style={styles.swapButtonText}>{isPastBlock ? '🔒' : '⇄'}</Text>
-                    </TouchableOpacity>
+                    <Text style={styles.lockIcon}>🔒</Text>
                   </View>
                 </BlurView>
               )
-            })}
+
+              const renderBlock = (block, index) => {
+                const stateInfo = STATE_EMOJIS[block.state_target]
+                const isPastBlock = isEditMode && index < currentCycle - 1
+                const isCurrentBlock = isEditMode && index === currentCycle - 1
+                return (
+                  <BlurView
+                    key={index}
+                    intensity={15}
+                    tint="dark"
+                    style={[
+                      styles.blockCard,
+                      isCurrentBlock && { borderWidth: 2, borderColor: colors.accent.primary },
+                      isPastBlock && { opacity: 0.5 },
+                    ]}
+                  >
+                    <View style={styles.blockHeader}>
+                      <View style={styles.blockNumber}>
+                        <Text style={styles.blockNumberText}>{index + 1}</Text>
+                      </View>
+                      <View style={styles.blockContent}>
+                        <View style={styles.blockTitleRow}>
+                          <Text style={styles.blockName}>
+                            {block.name}
+                            {isCurrentBlock && <Text style={{ color: stateInfo?.color }}> (Current)</Text>}
+                            {isPastBlock && <Text style={{ color: colors.text.muted }}> (Completed)</Text>}
+                          </Text>
+                          {stateInfo && <Text style={styles.stateEmoji}>{stateInfo.emoji}</Text>}
+                        </View>
+                        {block.description && (
+                          <Text style={styles.blockDescription} numberOfLines={2}>{block.description}</Text>
+                        )}
+                        {stateInfo && (
+                          <Text style={[styles.stateLabel, { color: stateInfo.color }]}>{stateInfo.label}</Text>
+                        )}
+                      </View>
+                      <TouchableOpacity
+                        onPress={() => handleSwapPress(index)}
+                        style={[styles.swapButton, isPastBlock && { opacity: 0.5 }]}
+                        activeOpacity={isPastBlock ? 1 : 0.7}
+                        disabled={isPastBlock}
+                      >
+                        <Text style={styles.swapButtonText}>{isPastBlock ? '🔒' : '⇄'}</Text>
+                      </TouchableOpacity>
+                    </View>
+                  </BlurView>
+                )
+              }
+
+              if (hasSections) {
+                const groups = []
+                let currentName = null
+                enrichedQueue.forEach((block, i) => {
+                  const name = block.section || 'main'
+                  if (name !== currentName) {
+                    currentName = name
+                    groups.push({ name, items: [] })
+                  }
+                  groups[groups.length - 1].items.push({ block, globalIndex: i })
+                })
+
+                return groups.map((group, groupIdx) => (
+                  <View key={group.name} style={styles.sectionGroup}>
+                    <Text style={styles.sectionHeader}>{getSectionLabel(group.name)}</Text>
+                    {groupIdx === 0 && bodyScanStart && renderBodyScanCard('opening')}
+                    {group.items.map(({ block, globalIndex }) => renderBlock(block, globalIndex))}
+                    {groupIdx === groups.length - 1 && bodyScanEnd && renderBodyScanCard('closing')}
+                  </View>
+                ))
+              }
+
+              // Flat fallback
+              return (
+                <>
+                  {bodyScanStart && renderBodyScanCard('opening')}
+                  {enrichedQueue.map((block, index) => renderBlock(block, index))}
+                  {bodyScanEnd && renderBodyScanCard('closing')}
+                </>
+              )
+            })()}
           </ScrollView>
         )}
 
-        {!isEditMode && (
-          <TouchableOpacity
-            onPress={handleConfirm}
-            style={styles.confirmButton}
-            activeOpacity={0.8}
-          >
-            <Text style={styles.confirmButtonText}>Start Routine</Text>
-          </TouchableOpacity>
-        )}
+        <TouchableOpacity
+          onPress={isEditMode ? handleBack : handleConfirm}
+          style={styles.confirmButton}
+          activeOpacity={0.8}
+        >
+          <Text style={styles.confirmButtonText}>{isEditMode ? 'Update Routine' : 'Start Routine'}</Text>
+        </TouchableOpacity>
       </View>
 
       {/* Library Modal */}
@@ -422,6 +473,17 @@ const styles = StyleSheet.create({
   queueListContent: {
     gap: 12,
     paddingBottom: 20,
+  },
+  sectionGroup: {
+    gap: 12,
+  },
+  sectionHeader: {
+    color: colors.text.muted,
+    fontSize: 11,
+    fontWeight: '700',
+    letterSpacing: 1.2,
+    marginTop: 8,
+    paddingHorizontal: 4,
   },
   blockCard: {
     padding: 16,
@@ -659,5 +721,33 @@ const styles = StyleSheet.create({
     fontSize: 24,
     color: colors.text.primary,
     fontWeight: '300',
+  },
+  bodyScanCard: {
+    borderColor: 'rgba(255,255,255,0.12)',
+    borderStyle: 'dashed',
+    opacity: 0.75,
+  },
+  bodyScanNumber: {
+    backgroundColor: 'rgba(255,255,255,0.12)',
+  },
+  bodyScanIcon: {
+    color: colors.text.muted,
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  bodyScanName: {
+    color: colors.text.secondary,
+    fontSize: 17,
+    fontWeight: '600',
+  },
+  bodyScanSubtitle: {
+    color: colors.text.muted,
+    fontSize: 12,
+    fontWeight: '400',
+    letterSpacing: 0.2,
+  },
+  lockIcon: {
+    fontSize: 16,
+    alignSelf: 'center',
   },
 })

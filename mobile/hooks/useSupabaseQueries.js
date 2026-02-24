@@ -108,11 +108,14 @@ export function useSaveEmbodimentCheck() {
         finalFlowType
       )
     },
-    onSuccess: () => {
-      // Invalidate and refetch chains to show the new check
-      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.chains })
-      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.latestChain })
-      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.latestDailyFlow })
+    onSuccess: (data, variables) => {
+      // Only invalidate queries for quick routines (daily flows save to session, not DB)
+      const finalFlowType = variables.flowType || useRoutineStore.getState().flowType
+      if (finalFlowType !== 'daily_flow') {
+        queryClient.invalidateQueries({ queryKey: QUERY_KEYS.chains })
+        queryClient.invalidateQueries({ queryKey: QUERY_KEYS.latestChain })
+        queryClient.invalidateQueries({ queryKey: QUERY_KEYS.latestDailyFlow })
+      }
     },
   })
 }
@@ -136,11 +139,14 @@ export function useSaveChainEntry() {
         finalFlowType
       )
     },
-    onSuccess: () => {
-      // Invalidate and refetch chains to show the new entry
-      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.chains })
-      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.latestChain })
-      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.latestDailyFlow })
+    onSuccess: (data, variables) => {
+      // Only invalidate queries for quick routines (daily flows save to session, not DB)
+      const finalFlowType = variables.flowType || useRoutineStore.getState().flowType
+      if (finalFlowType !== 'daily_flow') {
+        queryClient.invalidateQueries({ queryKey: QUERY_KEYS.chains })
+        queryClient.invalidateQueries({ queryKey: QUERY_KEYS.latestChain })
+        queryClient.invalidateQueries({ queryKey: QUERY_KEYS.latestDailyFlow })
+      }
     },
   })
 }

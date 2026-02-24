@@ -137,8 +137,8 @@ export default function HomeScreen({ navigation }) {
     const hour = new Date().getHours()
     if (hour >= 0 && hour < 5) return 'Hey there, night owl'
     if (hour >= 5 && hour < 12) return 'Good morning'
-    if (hour >= 12 && hour < 18) return 'Good afternoon'
-    return 'Good evening'
+    if (hour >= 12 && hour < 18) return 'Good afternoons'
+    return 'Good evenings'
   }
 
   const chainStats = getChainStats()
@@ -310,10 +310,7 @@ export default function HomeScreen({ navigation }) {
           <TouchableOpacity
             onPress={() => {
               Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium)
-              navigation.navigate('Flow', {
-                screen: 'SoMiCheckIn',
-                params: { isDailyFlow: true }
-              })
+              navigation.navigate('Flow')
             }}
             activeOpacity={0.85}
             style={styles.dailyFlowCard}
@@ -323,7 +320,7 @@ export default function HomeScreen({ navigation }) {
                 <View style={styles.dailyFlowTextContainer}>
                   <Text style={styles.dailyFlowTitle}>My Daily Flow</Text>
                   <Text style={styles.dailyFlowSubtitle}>
-                    complete practice with check-ins and body scan
+                    complete practice with check-ins
                   </Text>
                 </View>
 

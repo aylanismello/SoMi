@@ -86,6 +86,8 @@ export default function EmbodimentSlider({
   onConfirm = null,
   resetKey = 0, // New prop to force carousel reset
   helpMode = false, // New prop for help mode
+  onDragStart = null, // Called when user starts dragging the ring
+  onDragEnd = null, // Called when user stops dragging the ring
 }) {
   const previousValueRef = useRef(value)
   const touchStartedOnRing = useRef(false)
@@ -265,6 +267,7 @@ export default function EmbodimentSlider({
       onPanResponderGrant: (evt) => {
         // Don't update value on initial touch - only on drag
         // This prevents jumping to tapped position
+        if (onDragStart) onDragStart()
       },
       onPanResponderMove: (evt) => {
         // Only handle if touch started on ring
@@ -275,6 +278,7 @@ export default function EmbodimentSlider({
       onPanResponderRelease: () => {
         touchStartedOnRing.current = false
         previousValueRef.current = value
+        if (onDragEnd) onDragEnd()
       },
     }), [value, onValueChange] // Recreate when these change
   )
@@ -332,7 +336,7 @@ export default function EmbodimentSlider({
         </View>
       )}
 
-      <View style={styles.circularSliderContainer}>
+      <View style={[styles.circularSliderContainer, !selectedStateId && showChips && { height: 'auto' }]}>
         {selectedStateId ? (
           // State 2: Show circular slider with chip in center
           <View {...panResponder.panHandlers}>

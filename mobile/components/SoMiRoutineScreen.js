@@ -17,9 +17,14 @@ import { useSettingsStore } from '../stores/settingsStore'
 import { useFlowMusicStore } from '../stores/flowMusicStore'
 import { useRoutineStore } from '../stores/routineStore'
 import SettingsModal from './SettingsModal'
+import FlowProgressHeader from './FlowProgressHeader'
+import FlowControlsOverlay from './FlowControlsOverlay'
+import { useSettingsStore as useSettingsStoreForBodyScan } from '../stores/settingsStore'
 import { useSaveChainEntry } from '../hooks/useSupabaseQueries'
 
 const AnimatedCircle = Animated.createAnimatedComponent(Circle)
+
+const OCEAN_VIDEO_URI = 'https://qujifwhwntqxziymqdwu.supabase.co/storage/v1/object/public/test/somi%20videos/ocean_loop_final.mp4'
 
 // ============================================================================
 // HACK: VIDEO DURATION CAP
@@ -78,13 +83,15 @@ export default function SoMiRoutineScreen({ navigation }) {
     setCurrentVideo,
     advanceCycle,
     resetRoutine,
+    setRemainingSeconds,
   } = useRoutineStore()
 
   // Dynamic block count based on user selection
   const TOTAL_CYCLES = totalBlocks
 
   // Use stores instead of contexts
-  const { isMusicEnabled, showTime } = useSettingsStore()
+  const { isMusicEnabled } = useSettingsStore()
+  const bodyScanEnd = useSettingsStoreForBodyScan(state => state.bodyScanEnd)
   const flowMusicStore = useFlowMusicStore()
   const { startFlowMusic, setVolume: setFlowMusicVolume, updateMusicSetting, stopFlowMusic, audioPlayer } = flowMusicStore
 
@@ -106,12 +113,14 @@ export default function SoMiRoutineScreen({ navigation }) {
   const [showExitModal, setShowExitModal] = useState(false)
   const [showSettingsModal, setShowSettingsModal] = useState(false)
   const [showEditModal, setShowEditModal] = useState(false)
+  const [interstitialPaused, setInterstitialPaused] = useState(false)
   const [allBlocks, setAllBlocks] = useState([])
 
   // Infinity mode for interstitial
   const [infinityMode, setInfinityMode] = useState(false)
   const infinityModeRef = useRef(false)
   const savedCountdownRef = useRef(INTERSTITIAL_DURATION_SECONDS)
+  const countdownRef = useRef(INTERSTITIAL_DURATION_SECONDS)
 
   // Pulsing animation for infinity symbol
   const infinityPulseAnim = useRef(new Animated.Value(1)).current
@@ -134,11 +143,14 @@ export default function SoMiRoutineScreen({ navigation }) {
   const thumbScale = useRef(new Animated.Value(1)).current
   const hideTimeoutRef = useRef(null)
   const isSeekingRef = useRef(false)
+  const shouldVideoPlayRef = useRef(false) // intent tracker for stall recovery
+  const isMountedRef = useRef(true)        // guards stall recovery after unmount
 
   // Refs
   const countdownIntervalRef = useRef(null)
   const videoProgressIntervalRef = useRef(null)
   const interstitialProgressAnim = useRef(new Animated.Value(0)).current
+  const oceanOpacity = useRef(new Animated.Value(0)).current
   const messageOpacity = useRef(new Animated.Value(1)).current
   const messageIntervalRef = useRef(null)
 
@@ -148,6 +160,26 @@ export default function SoMiRoutineScreen({ navigation }) {
   const player = useVideoPlayer(videoUrl, (player) => {
     player.muted = true
   })
+
+  // Ocean video player — preloaded once at mount so interstitial has no black flash
+  const oceanPlayer = useVideoPlayer(OCEAN_VIDEO_URI, (player) => {
+    player.loop = true
+    player.muted = true
+  })
+
+  // Preview player — dedicated player for the interstitial preview card.
+  // During video phase we silently preload the NEXT block's URL so when the
+  // interstitial renders it plays instantly with zero black flash.
+  const [previewUrl, setPreviewUrl] = useState(videoUrl)
+  const previewPlayer = useVideoPlayer(previewUrl, (p) => {
+    p.muted = true
+    p.loop = true
+  })
+
+  // Stall recovery: track playing state via events for all three players
+  const { isPlaying: mainIsPlaying } = useEvent(player, 'playingChange', { isPlaying: player.playing })
+  const { isPlaying: previewIsPlaying } = useEvent(previewPlayer, 'playingChange', { isPlaying: previewPlayer.playing })
+  const { isPlaying: oceanIsPlaying } = useEvent(oceanPlayer, 'playingChange', { isPlaying: oceanPlayer.playing })
 
   // Preload sound effects on mount for instant playback
   useEffect(() => {
@@ -242,6 +274,7 @@ export default function SoMiRoutineScreen({ navigation }) {
     if (!player) return
 
     if (phase === 'video' && currentVideo) {
+      shouldVideoPlayRef.current = true
       // Don't show controls when video starts
       setShowControls(false)
 
@@ -257,11 +290,43 @@ export default function SoMiRoutineScreen({ navigation }) {
         console.error('Failed to play start sound:', err)
       })
     } else if (phase === 'interstitial') {
-      // Pause when in interstitial phase
-      console.log('⏸️ Pausing for interstitial')
+      shouldVideoPlayRef.current = false
+      // Main player loads the new URL silently while previewPlayer shows it
       player.pause()
     }
   }, [phase, currentVideo, player])
+
+  // Preload next video during video phase so the interstitial preview is instant.
+  // During interstitial, switch previewUrl to currentVideo so there's no URL
+  // change (preloadUrl === currentVideo.media_url = same string → no reload).
+  useEffect(() => {
+    if (phase === 'video' && videoQueue.length > 0) {
+      const nextBlock = hardcodedQueue[currentCycle] // 0-indexed; currentCycle is 1-based
+      if (nextBlock) {
+        const nextVideoData = videoQueue.find(v => v.id === nextBlock.somi_block_id)
+        if (nextVideoData?.media_url) {
+          setPreviewUrl(nextVideoData.media_url)
+        }
+      }
+    } else if (phase === 'interstitial' && currentVideo?.media_url) {
+      setPreviewUrl(currentVideo.media_url)
+    }
+  }, [phase, currentCycle, videoQueue, hardcodedQueue, currentVideo?.media_url])
+
+  // Play/pause previewPlayer based on interstitial state
+  useEffect(() => {
+    if (phase === 'interstitial') {
+      previewPlayer.loop = true
+      if (interstitialPaused) {
+        previewPlayer.pause()
+      } else {
+        previewPlayer.play()
+      }
+    } else {
+      // Silently buffer during video phase
+      previewPlayer.pause()
+    }
+  }, [phase, interstitialPaused, previewPlayer])
 
   // Flow music is already playing - just manage volume
   useEffect(() => {
@@ -273,6 +338,52 @@ export default function SoMiRoutineScreen({ navigation }) {
   useEffect(() => {
     updateMusicSetting(isMusicEnabled)
   }, [isMusicEnabled])
+
+  // Mark unmounted so stall recovery timeouts don't fire on a dead player
+  useEffect(() => {
+    isMountedRef.current = true
+    return () => { isMountedRef.current = false }
+  }, [])
+
+  // Stall recovery: main video player unexpectedly stopped during video phase
+  useEffect(() => {
+    if (!mainIsPlaying && shouldVideoPlayRef.current) {
+      const t = setTimeout(() => {
+        if (isMountedRef.current && shouldVideoPlayRef.current) {
+          try {
+            console.log('🔁 Stall recovery: restarting main video player')
+            player.play()
+          } catch (e) { /* player released during navigation */ }
+        }
+      }, 800)
+      return () => clearTimeout(t)
+    }
+  }, [mainIsPlaying])
+
+  // Stall recovery: preview player stopped during interstitial (not user-paused)
+  useEffect(() => {
+    if (!previewIsPlaying && phase === 'interstitial' && !interstitialPaused) {
+      const t = setTimeout(() => {
+        if (isMountedRef.current && phase === 'interstitial' && !interstitialPaused) {
+          try {
+            console.log('🔁 Stall recovery: restarting preview player')
+            previewPlayer.play()
+          } catch (e) { /* player released during navigation */ }
+        }
+      }, 500)
+      return () => clearTimeout(t)
+    }
+  }, [previewIsPlaying])
+
+  // Stall recovery: ocean player stopped during interstitial
+  useEffect(() => {
+    if (!oceanIsPlaying && phase === 'interstitial') {
+      try {
+        console.log('🔁 Stall recovery: restarting ocean player')
+        oceanPlayer.play()
+      } catch (e) { /* player released during navigation */ }
+    }
+  }, [oceanIsPlaying])
 
   const fetchAvailableVideos = async () => {
     try {
@@ -341,6 +452,42 @@ export default function SoMiRoutineScreen({ navigation }) {
       }
     }
   }, [hardcodedQueue, phase, currentCycle, currentVideo])
+
+  // Ocean player: play during interstitial, pause otherwise
+  useEffect(() => {
+    if (phase === 'interstitial') {
+      oceanOpacity.setValue(0)
+      oceanPlayer.play()
+      Animated.timing(oceanOpacity, { toValue: 1, duration: 400, useNativeDriver: true }).start()
+    } else {
+      oceanPlayer.pause()
+    }
+  }, [phase])
+
+  // Keep countdownRef in sync so the tick closure always has the live value
+  useEffect(() => { countdownRef.current = countdown }, [countdown])
+
+  // Live remaining-time updater — runs every second, pushes to store for FlowProgressHeader
+  useEffect(() => {
+    const BLOCK_SECS = 60
+    const INTERSTITIAL_SECS = 20
+    const blocksAfterCurrent = Math.max(0, totalBlocks - currentCycle)
+
+    const tick = () => {
+      if (phase === 'video') {
+        const elapsed = player.currentTime || 0
+        const inBlock = Math.max(0, BLOCK_SECS - elapsed)
+        setRemainingSeconds(Math.round(inBlock + blocksAfterCurrent * (BLOCK_SECS + INTERSTITIAL_SECS)))
+      } else if (phase === 'interstitial') {
+        const interstitialLeft = countdownRef.current ?? INTERSTITIAL_SECS
+        setRemainingSeconds(Math.round(interstitialLeft + BLOCK_SECS + blocksAfterCurrent * (BLOCK_SECS + INTERSTITIAL_SECS)))
+      }
+    }
+
+    tick()
+    const id = setInterval(tick, 1000)
+    return () => clearInterval(id)
+  }, [phase, currentCycle, totalBlocks])
 
   // Smooth animation for interstitial progress circle
   useEffect(() => {
@@ -512,12 +659,9 @@ export default function SoMiRoutineScreen({ navigation }) {
     }
 
     // Don't hide if user is actively scrubbing
-    if (showControls && !isScrubbing && phase === 'video') {
+    if (showControls && !isScrubbing) {
       hideTimeoutRef.current = setTimeout(() => {
-        // Check if still playing when timer fires
-        if (player && player.playing) {
-          setShowControls(false)
-        }
+        setShowControls(false)
         hideTimeoutRef.current = null
       }, 3000)
     }
@@ -537,6 +681,9 @@ export default function SoMiRoutineScreen({ navigation }) {
     setInfinityMode(false)
     infinityModeRef.current = false
 
+    // Ensure main player starts from the beginning
+    player.currentTime = 0
+
     setPhase('video')
     setVideoProgress(0)
     setVideoCurrentTime(0)
@@ -549,14 +696,50 @@ export default function SoMiRoutineScreen({ navigation }) {
 
   const handleSkipInterstitial = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium)
-    // Stop animations
+    setShowControls(false)
     interstitialProgressAnim.stopAnimation()
     if (countdownIntervalRef.current) {
       clearInterval(countdownIntervalRef.current)
     }
-
-    // Transition to video phase (no final interstitial exists anymore)
     transitionToVideoPhase()
+  }
+
+  const handleInterstitialPauseResume = () => {
+    if (!interstitialPaused) {
+      // Pause
+      setInterstitialPaused(true)
+      wasPausedRef.current = true
+      pausedCountdownRef.current = countdown
+      if (countdownIntervalRef.current) {
+        clearInterval(countdownIntervalRef.current)
+        countdownIntervalRef.current = null
+      }
+      interstitialProgressAnim.stopAnimation()
+    } else {
+      // Resume
+      setInterstitialPaused(false)
+      wasPausedRef.current = false
+      const elapsedTime = INTERSTITIAL_DURATION_SECONDS - countdown
+      const remainingTime = countdown * 1000
+      const initialProgress = elapsedTime / INTERSTITIAL_DURATION_SECONDS
+
+      countdownIntervalRef.current = setInterval(() => {
+        setCountdown(prev => {
+          if (prev <= 1) { clearInterval(countdownIntervalRef.current); return 0 }
+          return prev - 1
+        })
+      }, 1000)
+
+      interstitialProgressAnim.setValue(initialProgress)
+      Animated.timing(interstitialProgressAnim, {
+        toValue: 1,
+        duration: remainingTime,
+        useNativeDriver: false,
+      }).start(({ finished }) => {
+        if (finished) transitionToVideoPhase()
+      })
+    }
+    // Don't close overlay - let user see the state change
   }
 
   const handlePlayPause = () => {
@@ -565,13 +748,13 @@ export default function SoMiRoutineScreen({ navigation }) {
     const currentlyPlaying = player.playing
 
     if (currentlyPlaying) {
+      shouldVideoPlayRef.current = false
       player.pause()
     } else {
+      shouldVideoPlayRef.current = true
       player.play()
-      // Reset the auto-hide timer when resuming playback
-      setShowControls(false)
-      setTimeout(() => setShowControls(true), 10)
     }
+    // Don't close overlay - let user see the state change
   }
 
   const handleSkipBackward = () => {
@@ -668,6 +851,7 @@ export default function SoMiRoutineScreen({ navigation }) {
   }
 
   const handleVideoComplete = async () => {
+    shouldVideoPlayRef.current = false
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success)
     console.log('🔊 Playing block end sound (video complete)')
     soundManager.playBlockEnd().catch(err => {
@@ -681,14 +865,11 @@ export default function SoMiRoutineScreen({ navigation }) {
         Math.round((Date.now() - startTimeRef.current) / 1000),
         VIDEO_DURATION_CAP_SECONDS
       )
-      const chainId = await chainService.getOrCreateActiveChain(flowType)
-
-      // Use React Query mutation for saving
       saveChainEntryMutation.mutate({
         somiBlockId: currentVideo.id,
         secondsElapsed: elapsedSeconds,
-        orderIndex: currentCycle - 1, // 0-indexed order
-        chainId: chainId,
+        orderIndex: currentCycle - 1,
+        chainId: null, // always null — session handles it for daily flows
         flowType: flowType,
       })
     }
@@ -714,13 +895,22 @@ export default function SoMiRoutineScreen({ navigation }) {
           tabNavigator.navigate('Home')
         }
       } else {
-        // Daily flow: Flow music continues playing into final body scan
-        // After last block: Go straight to body scan (no final interstitial)
-        navigation.navigate('BodyScanCountdown', {
-          isInitial: false,
-          savedInitialValue,
-          savedInitialState,
-        })
+        // Daily flow: check bodyScanEnd setting
+        if (bodyScanEnd) {
+          // Flow music continues playing into final body scan
+          navigation.navigate('BodyScanCountdown', {
+            isInitial: false,
+            savedInitialValue,
+            savedInitialState,
+          })
+        } else {
+          // Skip body scan, go straight to closing check-in
+          navigation.navigate('SoMiCheckIn', {
+            fromPlayer: true,
+            savedInitialValue,
+            savedInitialState,
+          })
+        }
       }
     } else {
       // Move to next cycle
@@ -791,14 +981,11 @@ export default function SoMiRoutineScreen({ navigation }) {
         Math.round((Date.now() - startTimeRef.current) / 1000),
         VIDEO_DURATION_CAP_SECONDS
       )
-      const chainId = await chainService.getOrCreateActiveChain(flowType)
-
-      // Use React Query mutation for saving
       saveChainEntryMutation.mutate({
         somiBlockId: currentVideo.id,
         secondsElapsed: elapsedSeconds,
         orderIndex: currentCycle - 1,
-        chainId: chainId,
+        chainId: null, // always null — session handles it for daily flows
         flowType: flowType,
       })
     }
@@ -824,13 +1011,22 @@ export default function SoMiRoutineScreen({ navigation }) {
           tabNavigator.navigate('Home')
         }
       } else {
-        // Daily flow: Flow music continues playing into final body scan
-        // After last block: Go straight to body scan (no final interstitial)
-        navigation.navigate('BodyScanCountdown', {
-          isInitial: false,
-          savedInitialValue,
-          savedInitialState,
-        })
+        // Daily flow: check bodyScanEnd setting
+        if (bodyScanEnd) {
+          // Flow music continues playing into final body scan
+          navigation.navigate('BodyScanCountdown', {
+            isInitial: false,
+            savedInitialValue,
+            savedInitialState,
+          })
+        } else {
+          // Skip body scan, go straight to closing check-in
+          navigation.navigate('SoMiCheckIn', {
+            fromPlayer: true,
+            savedInitialValue,
+            savedInitialState,
+          })
+        }
       }
     } else {
       // Move to next cycle
@@ -880,8 +1076,8 @@ export default function SoMiRoutineScreen({ navigation }) {
     // Stop flow music when exiting early
     stopFlowMusic()
 
-    // End the active chain to reset state completely
-    await chainService.endActiveChain()
+    // Discard session data — flow was abandoned before completion
+    await chainService.clearSessionData()
 
     // Reset routine store
     resetRoutine()
@@ -1097,212 +1293,117 @@ export default function SoMiRoutineScreen({ navigation }) {
 
   // Interstitial Phase
   if (phase === 'interstitial') {
-    // Calculate smooth progress for circular indicator
-    const radius = 100
-    const strokeWidth = 8
-    const circumference = 2 * Math.PI * radius
-
-    // Interpolate strokeDashoffset smoothly
-    const strokeDashoffset = interstitialProgressAnim.interpolate({
+    const barWidth = interstitialProgressAnim.interpolate({
       inputRange: [0, 1],
-      outputRange: [circumference, 0],
+      outputRange: ['0%', '100%'],
     })
 
     return (
-      <LinearGradient
-        colors={[colors.background.primary, colors.background.secondary, colors.background.primary]}
-        style={styles.container}
-      >
-        {/* Block counter at very top */}
-        {currentCycle <= TOTAL_CYCLES && (
-          <Text style={styles.blockCounter}>
-            {currentCycle} of {TOTAL_CYCLES}
-          </Text>
-        )}
+      <View style={styles.interstitialContainer}>
+        {/* Ocean background video — preloaded, no black flash */}
+        <Animated.View style={[StyleSheet.absoluteFillObject, { opacity: oceanOpacity }]}>
+          <VideoView
+            player={oceanPlayer}
+            style={StyleSheet.absoluteFillObject}
+            contentFit="cover"
+            nativeControls={false}
+          />
+        </Animated.View>
+        {/* Dark overlay */}
+        <View style={[StyleSheet.absoluteFillObject, styles.interstitialOverlay]} />
 
-        {/* Header */}
-        <View style={styles.header}>
-          <TouchableOpacity
-            onPress={handleOpenSettings}
-            style={styles.settingsButton}
-            activeOpacity={0.7}
-          >
-            <Text style={styles.settingsButtonText}>⚙️</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            onPress={handleSkipInterstitial}
-            style={styles.skipButton}
-            activeOpacity={0.7}
-          >
-            <Text style={styles.skipButtonText}>Skip</Text>
-          </TouchableOpacity>
-          <View style={{ flex: 1 }} />
-          <TouchableOpacity
-            onPress={handleExit}
-            style={styles.exitButton}
-            activeOpacity={0.7}
-          >
-            <Text style={styles.exitButtonIcon}>✕</Text>
-          </TouchableOpacity>
-        </View>
+        <FlowProgressHeader />
 
-        <View style={styles.interstitialContent}>
-          {/* Integration message */}
+        {/* Main content — tap to toggle controls */}
+        <Pressable style={styles.interstitialContent} onPress={toggleControls}>
+          {/* Rotating integration message — smaller above the card */}
           <Animated.Text style={[styles.integrationMessage, { opacity: messageOpacity }]}>
             {INTEGRATION_MESSAGES[currentMessageIndex]}
           </Animated.Text>
 
-          {/* Circular Progress Indicator */}
-          <View style={styles.circleContainer}>
-            <Svg width={radius * 2 + strokeWidth * 2} height={radius * 2 + strokeWidth * 2}>
-              {/* Background circle */}
-              <Circle
-                cx={radius + strokeWidth}
-                cy={radius + strokeWidth}
-                r={radius}
-                stroke="rgba(255, 255, 255, 0.1)"
-                strokeWidth={strokeWidth}
-                fill="none"
+          {/* Small next block video preview */}
+          {currentVideo?.media_url && (
+            <View style={styles.previewCard}>
+              <VideoView
+                player={previewPlayer}
+                style={StyleSheet.absoluteFillObject}
+                contentFit="cover"
+                nativeControls={false}
               />
-              {/* Progress circle - animated */}
-              <AnimatedCircle
-                cx={radius + strokeWidth}
-                cy={radius + strokeWidth}
-                r={radius}
-                stroke={infinityMode ? '#9D7CFF' : colors.accent.primary}
-                strokeWidth={strokeWidth}
-                fill="none"
-                strokeDasharray={circumference}
-                strokeDashoffset={strokeDashoffset}
-                strokeLinecap="round"
-                transform={`rotate(-90 ${radius + strokeWidth} ${radius + strokeWidth})`}
-              />
-            </Svg>
-            <TouchableOpacity
-              style={styles.circleCenter}
-              onPress={handleToggleInfinity}
-              activeOpacity={0.8}
-            >
-              {infinityMode ? (
-                <Animated.Text
-                  style={[
-                    styles.infinitySymbol,
-                    { transform: [{ scale: infinityPulseAnim }] }
-                  ]}
-                >
-                  ∞
-                </Animated.Text>
-              ) : (
-                <>
-                  <Text style={styles.circleText}>SoMi</Text>
-                  {showTime && (
-                    <Text style={styles.countdownText}>
-                      {Math.floor(countdown / 60)}:{String(countdown % 60).padStart(2, '0')}
-                    </Text>
-                  )}
-                  <Text style={styles.infinityHint}>tap for ∞</Text>
-                </>
-              )}
-            </TouchableOpacity>
-          </View>
-
-          {/* Next Video Preview */}
-          {currentVideo && (
-            <View style={styles.nextVideoSection}>
-              <Text style={styles.nextVideoLabel}>Next Block:</Text>
-              <View style={[
-                styles.nextVideoCard,
-                STATE_EMOJIS[currentVideo.state_target] && {
-                  borderColor: STATE_EMOJIS[currentVideo.state_target].color,
-                }
-              ]}>
-                <BlurView intensity={15} tint="dark" style={styles.nextVideoBlur}>
-                  <Text style={styles.nextVideoName}>{currentVideo.name}</Text>
-                  {currentVideo.description && (
-                    <Text style={styles.nextVideoDescription} numberOfLines={2}>
-                      {currentVideo.description}
-                    </Text>
-                  )}
-                  {STATE_EMOJIS[currentVideo.state_target] && (
-                    <View style={[
-                      styles.nextVideoBadge,
-                      {
-                        backgroundColor: `${STATE_EMOJIS[currentVideo.state_target].color}30`,
-                        borderColor: STATE_EMOJIS[currentVideo.state_target].color,
-                      }
-                    ]}>
-                      <Text style={[
-                        styles.nextVideoBadgeText,
-                        { color: STATE_EMOJIS[currentVideo.state_target].color }
-                      ]}>
-                        {currentVideo.state_target} {STATE_EMOJIS[currentVideo.state_target].emoji}
-                      </Text>
-                    </View>
-                  )}
-                </BlurView>
-              </View>
+              {/* Gradient + "UP NEXT" + block name overlaid at top of card */}
+              <LinearGradient
+                colors={['rgba(0,0,0,0.7)', 'transparent']}
+                style={styles.previewTopOverlay}
+              >
+                <Text style={styles.previewLabel}>UP NEXT</Text>
+                <Text style={styles.previewName}>{currentVideo.name}</Text>
+              </LinearGradient>
             </View>
           )}
+        </Pressable>
 
-          {/* Edit Routine Button */}
-          <TouchableOpacity
-            onPress={handleOpenEditModal}
-            style={styles.editRoutineButton}
-            activeOpacity={0.8}
-          >
-            <Text style={styles.editRoutineButtonText}>✎ Edit Routine</Text>
-          </TouchableOpacity>
-        </View>
+        {/* Loading bar — tap to skip */}
+        <Pressable onPress={handleSkipInterstitial} style={styles.barWrapper}>
+          <View style={styles.barTrack}>
+            <Animated.View style={[styles.barFill, { width: barWidth }]} />
+            <View style={styles.barContent}>
+              <Text style={styles.barLabel}>Skip Integration</Text>
+              <Text style={styles.barArrow}>›</Text>
+            </View>
+          </View>
+        </Pressable>
 
-        {/* Exit Confirmation Modal */}
+        <FlowControlsOverlay
+          visible={showControls}
+          opacity={controlsOpacity}
+          isPaused={interstitialPaused}
+          onSkipBlock={handleSkipInterstitial}
+          onPauseResume={handleInterstitialPauseResume}
+          onEndFlow={() => { setShowControls(false); handleExit() }}
+          onDismiss={() => setShowControls(false)}
+          onInteraction={() => {
+            if (hideTimeoutRef.current) clearTimeout(hideTimeoutRef.current)
+            hideTimeoutRef.current = setTimeout(() => setShowControls(false), 4000)
+          }}
+        />
+
         <Modal
           visible={showExitModal}
           transparent={true}
-          animationType="fade"
+          animationType="slide"
           onRequestClose={handleCancelExit}
         >
-          <View style={styles.modalOverlay}>
-            <BlurView intensity={40} tint="dark" style={styles.exitModalContainer}>
-              <View style={styles.exitModalContent}>
-                <Text style={styles.exitModalTitle}>End Session?</Text>
-                <Text style={styles.exitModalMessage}>
-                  Are you sure you want to end this flow early?
-                </Text>
-
-                <View style={styles.exitModalButtons}>
-                  <TouchableOpacity
-                    onPress={handleCancelExit}
-                    style={[styles.exitModalButton, styles.exitModalButtonCancel]}
-                    activeOpacity={0.7}
-                  >
-                    <Text style={styles.exitModalButtonTextCancel}>Cancel</Text>
-                  </TouchableOpacity>
-
-                  <TouchableOpacity
-                    onPress={handleConfirmExit}
-                    style={[styles.exitModalButton, styles.exitModalButtonConfirm]}
-                    activeOpacity={0.7}
-                  >
-                    <Text style={styles.exitModalButtonTextConfirm}>End</Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
-            </BlurView>
-          </View>
+          <TouchableOpacity style={styles.sheetOverlay} activeOpacity={1} onPress={handleCancelExit}>
+            <TouchableOpacity activeOpacity={1} style={styles.sheetContainer} onPress={() => {}}>
+              <View style={styles.sheetHandle} />
+              <Text style={styles.sheetTitle}>End Session?</Text>
+              <Text style={styles.sheetBody}>Your progress so far won't be saved.</Text>
+              <TouchableOpacity onPress={handleConfirmExit} style={styles.sheetEndButton} activeOpacity={0.85}>
+                <Text style={styles.sheetEndText}>End Flow</Text>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={handleCancelExit} style={styles.sheetCancelButton} activeOpacity={0.7}>
+                <Text style={styles.sheetCancelText}>Keep Going</Text>
+              </TouchableOpacity>
+            </TouchableOpacity>
+          </TouchableOpacity>
         </Modal>
 
         <SettingsModal visible={showSettingsModal} onClose={handleCloseSettings} />
-      </LinearGradient>
+      </View>
     )
   }
 
-  // Video Phase - Match PlayerScreen UI exactly
-  const displayTime = isScrubbing ? scrubbingPosition : videoCurrentTime
+  // Video Phase - Simplified with FlowProgressHeader + always-visible countdown
   const cappedDuration = Math.min(videoDuration, VIDEO_DURATION_CAP_SECONDS)
-  const progress = cappedDuration > 0 ? displayTime / cappedDuration : 0
+  const timeRemaining = Math.max(0, cappedDuration - videoCurrentTime)
 
   return (
     <View style={styles.videoContainer}>
+      {/* Flow Progress Header - always visible at top */}
+      <View style={styles.videoProgressHeader}>
+        <FlowProgressHeader />
+      </View>
+
       <Pressable style={styles.videoPlayerArea} onPress={toggleControls}>
         {showBackground ? (
           <LinearGradient
@@ -1324,124 +1425,47 @@ export default function SoMiRoutineScreen({ navigation }) {
         )}
       </Pressable>
 
-      <Animated.View
-        style={[styles.controlsOverlay, { opacity: controlsOpacity }]}
-        pointerEvents={showControls ? 'box-none' : 'none'}
-      >
-        {/* Dark overlay scrim */}
-        <View style={styles.overlayScrim} pointerEvents="none" />
+      {/* Always-visible countdown at bottom */}
+      <View style={styles.videoCountdownContainer}>
+        <Text style={styles.videoCountdownText}>
+          {formatTime(timeRemaining)}
+        </Text>
+      </View>
 
-        <TouchableOpacity
-          style={styles.closeButton}
-          onPress={handleCloseVideo}
-        >
-          <Text style={styles.closeText}>✕</Text>
-        </TouchableOpacity>
+      <FlowControlsOverlay
+        visible={showControls}
+        opacity={controlsOpacity}
+        isPaused={!isPlayingState}
+        onSkipBlock={() => { setShowControls(false); handleCloseVideo() }}
+        onPauseResume={handlePlayPause}
+        onEndFlow={() => { setShowControls(false); handleExit() }}
+        onDismiss={() => setShowControls(false)}
+        onInteraction={() => {
+          if (hideTimeoutRef.current) clearTimeout(hideTimeoutRef.current)
+          hideTimeoutRef.current = setTimeout(() => setShowControls(false), 4000)
+        }}
+      />
 
-        {/* Settings button */}
-        <TouchableOpacity
-          style={styles.videoSettingsButton}
-          onPress={handleOpenSettings}
-        >
-          <Text style={styles.settingsText}>⚙️</Text>
-        </TouchableOpacity>
-
-        <View style={styles.controlsContainer}>
-          {/* Skip backward button */}
-          <TouchableOpacity
-            style={styles.skipButton}
-            onPress={handleSkipBackward}
-          >
-            <Text style={styles.skipArrow}>⟲</Text>
-            <Text style={styles.skipText}>15</Text>
-          </TouchableOpacity>
-
-          {/* Play/Pause button */}
-          <TouchableOpacity
-            style={styles.playPauseButton}
-            onPress={handlePlayPause}
-          >
-            <Text style={styles.playPauseText}>
-              {isPlayingState ? '❚❚' : '▶'}
-            </Text>
-          </TouchableOpacity>
-
-          {/* Skip forward button */}
-          <TouchableOpacity
-            style={styles.skipButton}
-            onPress={handleSkipForward}
-          >
-            <Text style={styles.skipArrow}>⟳</Text>
-            <Text style={styles.skipText}>15</Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* Progress bar */}
-        <View style={styles.progressContainer}>
-          <View
-            ref={progressBarRef}
-            style={styles.progressBarTouchable}
-            onStartShouldSetResponder={() => true}
-            onMoveShouldSetResponder={() => true}
-            onResponderGrant={handleProgressBarTouch}
-            onResponderMove={handleProgressBarMove}
-            onResponderRelease={handleProgressBarRelease}
-          >
-            <View style={styles.progressBar}>
-              <View style={[styles.progressFill, { width: `${progress * 100}%` }]} />
-              <Animated.View
-                style={[
-                  styles.progressThumb,
-                  {
-                    left: `${progress * 100}%`,
-                    transform: [{ scale: thumbScale }],
-                  },
-                ]}
-              />
-            </View>
-          </View>
-          <View style={styles.timeContainer}>
-            <Text style={styles.timeText}>{formatTime(displayTime)}</Text>
-            <Text style={styles.timeText}>{formatTime(cappedDuration)}</Text>
-          </View>
-        </View>
-      </Animated.View>
-
-      {/* Exit Confirmation Modal */}
+      {/* Exit Bottom Sheet */}
       <Modal
         visible={showExitModal}
         transparent={true}
-        animationType="fade"
+        animationType="slide"
         onRequestClose={handleCancelExit}
       >
-        <View style={styles.modalOverlay}>
-          <BlurView intensity={40} tint="dark" style={styles.exitModalContainer}>
-            <View style={styles.exitModalContent}>
-              <Text style={styles.exitModalTitle}>End Session?</Text>
-              <Text style={styles.exitModalMessage}>
-                Are you sure you want to end this flow early?
-              </Text>
-
-              <View style={styles.exitModalButtons}>
-                <TouchableOpacity
-                  onPress={handleCancelExit}
-                  style={[styles.exitModalButton, styles.exitModalButtonCancel]}
-                  activeOpacity={0.7}
-                >
-                  <Text style={styles.exitModalButtonTextCancel}>Cancel</Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  onPress={handleConfirmExit}
-                  style={[styles.exitModalButton, styles.exitModalButtonConfirm]}
-                  activeOpacity={0.7}
-                >
-                  <Text style={styles.exitModalButtonTextConfirm}>End</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-          </BlurView>
-        </View>
+        <TouchableOpacity style={styles.sheetOverlay} activeOpacity={1} onPress={handleCancelExit}>
+          <TouchableOpacity activeOpacity={1} style={styles.sheetContainer} onPress={() => {}}>
+            <View style={styles.sheetHandle} />
+            <Text style={styles.sheetTitle}>End Session?</Text>
+            <Text style={styles.sheetBody}>Your progress so far won't be saved.</Text>
+            <TouchableOpacity onPress={handleConfirmExit} style={styles.sheetEndButton} activeOpacity={0.85}>
+              <Text style={styles.sheetEndText}>End Flow</Text>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={handleCancelExit} style={styles.sheetCancelButton} activeOpacity={0.7}>
+              <Text style={styles.sheetCancelText}>Keep Going</Text>
+            </TouchableOpacity>
+          </TouchableOpacity>
+        </TouchableOpacity>
       </Modal>
 
       <SettingsModal visible={showSettingsModal} onClose={handleCloseSettings} />
@@ -1515,21 +1539,102 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
   },
+  interstitialContainer: {
+    flex: 1,
+    backgroundColor: '#000',
+    paddingTop: 48,
+  },
+  interstitialOverlay: {
+    backgroundColor: 'rgba(0,0,0,0.5)',
+  },
   interstitialContent: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingBottom: 40,
+    paddingHorizontal: 20,
+    paddingBottom: 20,
   },
   integrationMessage: {
-    color: colors.text.secondary,
-    fontSize: 20,
-    fontWeight: '400',
+    color: 'rgba(255,255,255,0.85)',
+    fontSize: 22,
+    fontWeight: '300',
     textAlign: 'center',
-    lineHeight: 28,
-    marginTop: 32,
-    marginBottom: 48,
+    lineHeight: 32,
+    letterSpacing: 0.2,
+    marginBottom: 40,
+  },
+  previewCard: {
+    width: '100%',
+    height: 160,
+    borderRadius: 16,
+    overflow: 'hidden',
+    backgroundColor: '#111',
+    position: 'relative',
+  },
+  previewTopOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    paddingHorizontal: 14,
+    paddingTop: 12,
+    paddingBottom: 40,
+  },
+  previewLabel: {
+    color: 'rgba(255,255,255,0.6)',
+    fontSize: 9,
+    fontWeight: '700',
+    letterSpacing: 2,
+    textTransform: 'uppercase',
+    marginBottom: 4,
+  },
+  previewName: {
+    color: '#ffffff',
+    fontSize: 16,
+    fontWeight: '600',
+    letterSpacing: 0.2,
+    lineHeight: 20,
+  },
+  barWrapper: {
     paddingHorizontal: 20,
+    paddingBottom: 52,
+  },
+  barTrack: {
+    height: 68,
+    borderRadius: 34,
+    backgroundColor: 'rgba(255,255,255,0.1)',
+    overflow: 'hidden',
+    position: 'relative',
+  },
+  barFill: {
+    position: 'absolute',
+    left: 0,
+    top: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(255,255,255,0.18)',
+    borderRadius: 34,
+  },
+  barContent: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    top: 0,
+    bottom: 0,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 28,
+  },
+  barLabel: {
+    flex: 1,
+    color: '#ffffff',
+    fontSize: 17,
+    fontWeight: '600',
+    letterSpacing: 0.3,
+  },
+  barArrow: {
+    color: 'rgba(255,255,255,0.45)',
+    fontSize: 28,
+    fontWeight: '300',
   },
   circleContainer: {
     position: 'relative',
@@ -1746,13 +1851,12 @@ const styles = StyleSheet.create({
   },
   controlsContainer: {
     position: 'absolute',
-    flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
     width: '100%',
     top: '50%',
     transform: [{ translateY: -50 }],
-    gap: 40,
+    gap: 8,
   },
   playPauseButton: {
     width: 100,
@@ -1834,77 +1938,65 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '500',
   },
-  modalOverlay: {
+  sheetOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.75)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 24,
+    backgroundColor: 'rgba(0,0,0,0.55)',
+    justifyContent: 'flex-end',
   },
-  exitModalContainer: {
-    borderRadius: 28,
-    overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: colors.border.default,
-    maxWidth: 380,
-    width: '100%',
+  sheetContainer: {
+    backgroundColor: '#111827',
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+    paddingTop: 12,
+    paddingBottom: 48,
+    paddingHorizontal: 24,
   },
-  exitModalContent: {
-    padding: 32,
-    alignItems: 'center',
-  },
-  exitModalTitle: {
-    color: colors.text.primary,
-    fontSize: 22,
-    fontWeight: '600',
-    marginBottom: 12,
-    textAlign: 'center',
-    letterSpacing: 0.5,
-  },
-  exitModalMessage: {
-    color: colors.text.secondary,
-    fontSize: 16,
-    fontWeight: '400',
-    lineHeight: 24,
-    textAlign: 'center',
+  sheetHandle: {
+    width: 36,
+    height: 4,
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    borderRadius: 2,
+    alignSelf: 'center',
     marginBottom: 28,
-    letterSpacing: 0.2,
   },
-  exitModalButtons: {
-    flexDirection: 'row',
-    gap: 12,
-    width: '100%',
+  sheetTitle: {
+    color: '#ffffff',
+    fontSize: 24,
+    fontWeight: '700',
+    textAlign: 'center',
+    marginBottom: 8,
   },
-  exitModalButton: {
-    flex: 1,
-    paddingVertical: 12,
-    paddingHorizontal: 16,
+  sheetBody: {
+    color: 'rgba(255,255,255,0.45)',
+    fontSize: 15,
+    textAlign: 'center',
+    lineHeight: 22,
+    marginBottom: 28,
+  },
+  sheetEndButton: {
+    backgroundColor: 'rgba(255,107,107,0.1)',
     borderRadius: 20,
-    alignItems: 'center',
-    justifyContent: 'center',
-    minHeight: 48,
-  },
-  exitModalButtonCancel: {
-    backgroundColor: colors.surface.tertiary,
-    borderWidth: 2,
-    borderColor: colors.border.default,
-  },
-  exitModalButtonConfirm: {
-    backgroundColor: 'rgba(255, 107, 107, 0.2)',
-    borderWidth: 2,
+    borderWidth: 1.5,
     borderColor: '#ff6b6b',
+    paddingVertical: 16,
+    alignItems: 'center',
+    marginBottom: 12,
   },
-  exitModalButtonTextCancel: {
-    color: colors.text.secondary,
-    fontSize: 15,
-    fontWeight: '600',
-    letterSpacing: 0.3,
-  },
-  exitModalButtonTextConfirm: {
+  sheetEndText: {
     color: '#ff6b6b',
-    fontSize: 15,
-    fontWeight: '600',
-    letterSpacing: 0.3,
+    fontSize: 17,
+    fontWeight: '700',
+  },
+  sheetCancelButton: {
+    backgroundColor: 'rgba(255,255,255,0.06)',
+    borderRadius: 20,
+    paddingVertical: 16,
+    alignItems: 'center',
+  },
+  sheetCancelText: {
+    color: 'rgba(255,255,255,0.55)',
+    fontSize: 17,
+    fontWeight: '500',
   },
   editRoutineButton: {
     backgroundColor: colors.surface.tertiary,
@@ -2066,5 +2158,64 @@ const styles = StyleSheet.create({
     fontSize: 24,
     color: colors.text.primary,
     fontWeight: '300',
+  },
+  videoProgressHeader: {
+    position: 'absolute',
+    top: 50,
+    left: 0,
+    right: 0,
+    zIndex: 20,
+  },
+  videoCountdownContainer: {
+    position: 'absolute',
+    bottom: 60,
+    left: 0,
+    right: 0,
+    alignItems: 'center',
+    zIndex: 10,
+  },
+  videoCountdownText: {
+    color: 'rgba(255, 255, 255, 0.8)',
+    fontSize: 48,
+    fontWeight: '200',
+    letterSpacing: 2,
+  },
+  skipBlockButton: {
+    paddingVertical: 14,
+    paddingHorizontal: 32,
+    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+    borderRadius: 30,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.25)',
+    marginBottom: 12,
+  },
+  skipBlockText: {
+    color: '#ffffff',
+    fontSize: 14,
+    fontWeight: '600',
+    letterSpacing: 0.8,
+  },
+  pauseFlowButton: {
+    paddingVertical: 16,
+    paddingHorizontal: 40,
+    backgroundColor: 'rgba(255, 255, 255, 0.95)',
+    borderRadius: 30,
+    marginBottom: 16,
+  },
+  pauseFlowText: {
+    color: '#000000',
+    fontSize: 16,
+    fontWeight: '700',
+    letterSpacing: 1,
+  },
+  endFlowButton: {
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+  },
+  endFlowText: {
+    color: '#ff6b6b',
+    fontSize: 14,
+    fontWeight: '600',
+    letterSpacing: 0.8,
   },
 })
