@@ -21,6 +21,7 @@ const PRESET_TAGS = [
 export default function SoMiCheckIn({ navigation, route }) {
   const [sliderValue, setSliderValue] = useState(0)
   const [polyvagalState, setPolyvagalState] = useState(null)
+  const [scrollEnabled, setScrollEnabled] = useState(true)
 
   const [showExitModal, setShowExitModal] = useState(false)
 
@@ -39,11 +40,12 @@ export default function SoMiCheckIn({ navigation, route }) {
   const saveEmbodimentCheckMutation = useSaveEmbodimentCheck()
   const queryClient = useQueryClient()
 
-  const saveEmbodimentCheck = async (value, stateId, journal = null) => {
+  const saveEmbodimentCheck = async (value, stateId, journal = null, tags = null) => {
     await saveEmbodimentCheckMutation.mutateAsync({
       sliderValue: value,
       polyvagalStateCode: stateId,
       journalEntry: journal,
+      tags,
     })
   }
 
@@ -86,7 +88,7 @@ export default function SoMiCheckIn({ navigation, route }) {
 
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium)
 
-    await saveEmbodimentCheck(sliderValue, polyvagalState, journalEntry || null)
+    await saveEmbodimentCheck(sliderValue, polyvagalState, journalEntry || null, selectedTags.size > 0 ? [...selectedTags] : null)
 
     const isDaily = !routineStore.isQuickRoutine
 
@@ -166,6 +168,7 @@ export default function SoMiCheckIn({ navigation, route }) {
         contentContainerStyle={styles.cardContent}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
+        scrollEnabled={scrollEnabled}
       >
         {/* Question */}
         <View style={styles.questionSection}>
@@ -200,6 +203,8 @@ export default function SoMiCheckIn({ navigation, route }) {
             onStateChange={handleStateChange}
             intensityValue={sliderValue}
             onIntensityChange={handleSliderChange}
+            onDragStart={() => setScrollEnabled(false)}
+            onDragEnd={() => setScrollEnabled(true)}
           />
         </View>
 

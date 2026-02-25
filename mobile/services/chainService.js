@@ -8,7 +8,7 @@ const SESSION_BLOCKS_KEY = 'session_completed_blocks'
 
 export const chainService = {
   // Session storage for checks and blocks (before chain creation)
-  async saveCheckToSession(sliderValue, polyvagalStateCode, journalEntry = null) {
+  async saveCheckToSession(sliderValue, polyvagalStateCode, journalEntry = null, tags = null) {
     try {
       const existing = await AsyncStorage.getItem(SESSION_CHECKS_KEY)
       const checks = existing ? JSON.parse(existing) : []
@@ -17,6 +17,7 @@ export const chainService = {
         sliderValue,
         polyvagalStateCode,
         journalEntry,
+        tags: tags && tags.length > 0 ? tags : null,
         timestamp: Date.now(),
       })
 
@@ -27,7 +28,7 @@ export const chainService = {
     }
   },
 
-  async saveBlockToSession(somiBlockId, secondsElapsed, orderIndex = 0) {
+  async saveBlockToSession(somiBlockId, secondsElapsed, orderIndex = 0, section = null) {
     try {
       const existing = await AsyncStorage.getItem(SESSION_BLOCKS_KEY)
       const blocks = existing ? JSON.parse(existing) : []
@@ -36,6 +37,7 @@ export const chainService = {
         somiBlockId,
         secondsElapsed,
         orderIndex,
+        section,
         timestamp: Date.now(),
       })
 
@@ -95,7 +97,8 @@ export const chainService = {
           chainId,
           check.sliderValue,
           check.polyvagalStateCode,
-          check.journalEntry
+          check.journalEntry,
+          check.tags || null
         )
         console.log(`  ✅ Uploaded check`)
       }
@@ -106,7 +109,8 @@ export const chainService = {
           chainId,
           block.somiBlockId,
           block.secondsElapsed,
-          block.orderIndex
+          block.orderIndex,
+          block.section || null
         )
         console.log(`  ✅ Uploaded block ${block.somiBlockId}`)
       }
@@ -168,11 +172,11 @@ export const chainService = {
   },
 
   // Save completed block - now saves to session for daily flows
-  async saveCompletedBlock(somiBlockId, secondsElapsed, orderIndex = 0, chainId = null, flowType = 'daily_flow') {
+  async saveCompletedBlock(somiBlockId, secondsElapsed, orderIndex = 0, chainId = null, flowType = 'daily_flow', section = null) {
     try {
       // For daily flows without a chainId, save to session (will upload when flow completes)
       if (!chainId && flowType === 'daily_flow') {
-        return await this.saveBlockToSession(somiBlockId, secondsElapsed, orderIndex)
+        return await this.saveBlockToSession(somiBlockId, secondsElapsed, orderIndex, section)
       }
 
       // For quick routines or when chainId is provided, use old behavior
@@ -198,11 +202,11 @@ export const chainService = {
   },
 
   // Save embodiment check - now saves to session for daily flows
-  async saveEmbodimentCheck(sliderValue, polyvagalStateCode, journalEntry = null, flowType = 'daily_flow') {
+  async saveEmbodimentCheck(sliderValue, polyvagalStateCode, journalEntry = null, flowType = 'daily_flow', tags = null) {
     try {
       // For daily flows, save to session (will upload when flow completes)
       if (flowType === 'daily_flow') {
-        return await this.saveCheckToSession(sliderValue, polyvagalStateCode, journalEntry)
+        return await this.saveCheckToSession(sliderValue, polyvagalStateCode, journalEntry, tags)
       }
 
       // For quick routines, use old behavior

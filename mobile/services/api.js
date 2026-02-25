@@ -95,7 +95,7 @@ export const api = {
   },
 
   // Embodiment checks
-  saveEmbodimentCheck: async (chainId, sliderValue, polyvagalStateCode, journalEntry = null) => {
+  saveEmbodimentCheck: async (chainId, sliderValue, polyvagalStateCode, journalEntry = null, tags = null) => {
     return apiRequest('/embodiment-checks', {
       method: 'POST',
       body: JSON.stringify({
@@ -103,12 +103,13 @@ export const api = {
         sliderValue,
         polyvagalStateCode,
         journalEntry,
+        ...(tags && tags.length > 0 ? { tags } : {}),
       }),
     })
   },
 
   // Chain entries (completed blocks)
-  saveChainEntry: async (chainId, blockId, secondsElapsed, sessionOrder = 0) => {
+  saveChainEntry: async (chainId, blockId, secondsElapsed, sessionOrder = 0, section = null) => {
     return apiRequest('/chain-entries', {
       method: 'POST',
       body: JSON.stringify({
@@ -116,6 +117,7 @@ export const api = {
         blockId,
         secondsElapsed,
         sessionOrder,
+        ...(section ? { section } : {}),
       }),
     })
   },

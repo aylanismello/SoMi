@@ -681,8 +681,8 @@ export default function SoMiRoutineScreen({ navigation }) {
     setInfinityMode(false)
     infinityModeRef.current = false
 
-    // Ensure main player starts from the beginning
-    player.currentTime = 0
+    // Ensure main player starts from the beginning (guard against stale native object)
+    try { player.currentTime = 0 } catch (_) {}
 
     setPhase('video')
     setVideoProgress(0)
@@ -868,9 +868,10 @@ export default function SoMiRoutineScreen({ navigation }) {
       saveChainEntryMutation.mutate({
         somiBlockId: currentVideo.id,
         secondsElapsed: elapsedSeconds,
-        orderIndex: currentCycle - 1,
+        orderIndex: currentCycle,
         chainId: null, // always null — session handles it for daily flows
         flowType: flowType,
+        section: hardcodedQueue[currentCycle - 1]?.section ?? null,
       })
     }
 
@@ -902,6 +903,7 @@ export default function SoMiRoutineScreen({ navigation }) {
             isInitial: false,
             savedInitialValue,
             savedInitialState,
+            finalOrderIndex: currentCycle + 1,
           })
         } else {
           // Skip body scan, go straight to closing check-in
@@ -984,9 +986,10 @@ export default function SoMiRoutineScreen({ navigation }) {
       saveChainEntryMutation.mutate({
         somiBlockId: currentVideo.id,
         secondsElapsed: elapsedSeconds,
-        orderIndex: currentCycle - 1,
+        orderIndex: currentCycle,
         chainId: null, // always null — session handles it for daily flows
         flowType: flowType,
+        section: hardcodedQueue[currentCycle - 1]?.section ?? null,
       })
     }
 
@@ -1018,6 +1021,7 @@ export default function SoMiRoutineScreen({ navigation }) {
             isInitial: false,
             savedInitialValue,
             savedInitialState,
+            finalOrderIndex: currentCycle + 1,
           })
         } else {
           // Skip body scan, go straight to closing check-in

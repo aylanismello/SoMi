@@ -9,7 +9,7 @@ export async function POST(request) {
 
   try {
     const body = await request.json()
-    const { routineType, blockCount, polyvagalState, intensity, durationMinutes, localHour } = body
+    const { routineType, blockCount, polyvagalState, intensity, durationMinutes, localHour, timezone } = body
 
     // ── AI path ──────────────────────────────────────────────────────────────
     // Use AI when state is given, or when blockCount > 10 (longer sessions need dynamic selection)
@@ -37,6 +37,7 @@ export async function POST(request) {
             blockCount: body.blockCount,  // precise count from client formula
             availableBlocks: availableBlockNames,
             localHour: localHour ?? null,
+            timezone: timezone ?? null,
           })
 
           // Build a lookup map for fast access
@@ -72,6 +73,7 @@ export async function POST(request) {
             polyvagalState,
             intensity,
             durationMinutes: minutes,
+            reasoning: aiResult.reasoning ?? null,
           })
         } catch (aiError) {
           console.error('AI routine generation failed, falling back to hardcoded:', aiError)

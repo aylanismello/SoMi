@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useMemo, useCallback } from 'react'
 import { useFocusEffect } from '@react-navigation/native'
-import { StyleSheet, View, Text, TouchableOpacity, ScrollView, Switch, ActivityIndicator, Animated, PanResponder } from 'react-native'
+import { StyleSheet, View, Text, TouchableOpacity, ScrollView, Switch, ActivityIndicator, Animated, PanResponder, Modal, Easing, useWindowDimensions } from 'react-native'
 import { LinearGradient } from 'expo-linear-gradient'
 import { Ionicons } from '@expo/vector-icons'
 import * as Haptics from 'expo-haptics'
@@ -44,8 +44,6 @@ function getSectionLabel(name) {
 const SNAP_POINTS = [5, 10, 15, 20]
 
 // ─── Block count formula ───────────────────────────────────────────────────────
-// Structure: [BodyScan?] [Block] [20s interstitial] [Block] ... [Block] [BodyScan?]
-// N blocks + (N-1) interstitials: exerciseTime = 80N - 20  →  N = (exerciseTime + 20) / 80
 function computeBlockCount(totalMinutes, scanStart, scanEnd) {
   const totalSeconds = totalMinutes * 60
   const bodyScanSeconds = (scanStart ? 60 : 0) + (scanEnd ? 60 : 0)
@@ -74,7 +72,6 @@ function DurationSlider({ selectedMinutes, onSelect, onDragStart, onDragEnd }) {
   onDragStartRef.current = onDragStart
   onDragEndRef.current = onDragEnd
 
-  // Map minute value → x position (thumb center), accounting for thumb radius padding
   const minToX = (min, w) =>
     w > 0 ? THUMB_R + ((min - MIN_MINUTES) / TOTAL_RANGE) * (w - 2 * THUMB_R) : THUMB_R
 
@@ -89,6 +86,7 @@ function DurationSlider({ selectedMinutes, onSelect, onDragStart, onDragEnd }) {
       Math.abs(curr - min) < Math.abs(prev - min) ? curr : prev
     )
 
+  // Sync thumb position when selectedMinutes changes externally (e.g. screen re-open reset)
   useEffect(() => {
     if (trackW > 0 && !isDraggingRef.current) {
       setDisplayMin(selectedMinutes)
@@ -99,7 +97,6 @@ function DurationSlider({ selectedMinutes, onSelect, onDragStart, onDragEnd }) {
 
   const panResponder = useMemo(() => {
     const clamp = (x) => Math.max(0, Math.min(trackWRef.current, x))
-    const isHoriz = (gs) => Math.abs(gs.dx) > Math.abs(gs.dy) && Math.abs(gs.dx) > 4
     return PanResponder.create({
       onStartShouldSetPanResponder:        () => true,
       onStartShouldSetPanResponderCapture: () => true,
@@ -158,13 +155,10 @@ function DurationSlider({ selectedMinutes, onSelect, onDragStart, onDragEnd }) {
 
   return (
     <View>
-      {/* Big value display */}
       <View style={sliderStyles.valueRow}>
         <Text style={sliderStyles.valueNum}>{displayMin}</Text>
         <Text style={sliderStyles.valueUnit}> min</Text>
       </View>
-
-      {/* Track hit area */}
       <View
         {...panResponder.panHandlers}
         onLayout={e => {
@@ -175,9 +169,7 @@ function DurationSlider({ selectedMinutes, onSelect, onDragStart, onDragEnd }) {
         }}
         style={sliderStyles.hitArea}
       >
-        {/* Track line */}
         <View pointerEvents="none" style={sliderStyles.track} />
-        {/* Thumb */}
         <Animated.View
           pointerEvents="none"
           style={[sliderStyles.thumb, {
@@ -188,8 +180,6 @@ function DurationSlider({ selectedMinutes, onSelect, onDragStart, onDragEnd }) {
           }]}
         />
       </View>
-
-      {/* Snap point labels — absolutely positioned to align with thumb snap positions */}
       <View style={sliderStyles.labelsRow}>
         {trackW > 0 && SNAP_POINTS.map((m) => (
           <Text
@@ -222,7 +212,7 @@ const sliderStyles = StyleSheet.create({
   },
   thumb: {
     position: 'absolute',
-    top: 9,  // (44 - THUMB_R*2) / 2
+    top: 9,
     width: THUMB_R * 2,
     height: THUMB_R * 2,
     borderRadius: THUMB_R,
@@ -243,6 +233,7 @@ const sliderStyles = StyleSheet.create({
 
 export default function DailyFlowSetup({ navigation }) {
   const { bodyScanStart, bodyScanEnd, setBodyScanStart, setBodyScanEnd } = useSettingsStore()
+  const { height: screenH } = useWindowDimensions()
 
   const [selectedMinutes, setSelectedMinutes] = useState(10)
   const [sliderValue, setSliderValue] = useState(0)
@@ -250,6 +241,36 @@ export default function DailyFlowSetup({ navigation }) {
   const [scrollEnabled, setScrollEnabled] = useState(true)
   const [isGenerating, setIsGenerating] = useState(false)
   const [previewQueue, setPreviewQueue] = useState(null)
+  const [reasoning, setReasoning] = useState(null)
+  const [showReasoningSheet, setShowReasoningSheet] = useState(false)
+
+  // ─── Focus phase ─────────────────────────────────────────────────────────────
+  // 'centered'     → picker is vertically + horizontally centered, rest hidden
+  // 'transitioning'→ picker animates up, scroll content fades in
+  // 'settled'      → normal full layout
+  const [focusPhase, setFocusPhase] = useState('centered')
+  const focusPhaseRef = useRef('centered')
+  const transitionFiredRef = useRef(false)
+
+  // Stable refs so animation callbacks read current values without stale closures
+  const polyvagalStateRef = useRef(null)
+  const sliderValueRef = useRef(0)
+
+  // Animated values for the focus → settled transition
+  const pickerOverlayTransY = useRef(new Animated.Value(0)).current
+  const pickerOverlayOpacity = useRef(new Animated.Value(1)).current
+  const contentRevealOpacity = useRef(new Animated.Value(0)).current
+  const headerExtrasFade = useRef(new Animated.Value(0)).current
+  // ─────────────────────────────────────────────────────────────────────────────
+
+  const lastGeneratedParamsRef = useRef(null)
+  const hasDiff = lastGeneratedParamsRef.current !== null && (
+    lastGeneratedParamsRef.current.state !== polyvagalState ||
+    lastGeneratedParamsRef.current.intensity !== sliderValue ||
+    lastGeneratedParamsRef.current.minutes !== selectedMinutes ||
+    lastGeneratedParamsRef.current.scanStart !== bodyScanStart ||
+    lastGeneratedParamsRef.current.scanEnd !== bodyScanEnd
+  )
 
   const hasInitializedRef = useRef(false)
   const isReadyForInputRef = useRef(false)
@@ -258,7 +279,6 @@ export default function DailyFlowSetup({ navigation }) {
   const [isToastVisible, setIsToastVisible] = useState(false)
   const isToastShownRef = useRef(false)
   const toastDismissTimerRef = useRef(null)
-  const generateDebounceRef = useRef(null)
 
   const hideToast = useCallback(() => {
     clearTimeout(toastDismissTimerRef.current)
@@ -313,17 +333,26 @@ export default function DailyFlowSetup({ navigation }) {
     setIsGenerating(true)
     try {
       const stateTarget = state ? STATE_CODE_TO_TARGET[state] : null
-      // Compute precise block count: subtract body scan time, account for interstitials
       const { bodyScanStart: scanStart, bodyScanEnd: scanEnd } = useSettingsStore.getState()
       const blockCount = computeBlockCount(durationMinutes, scanStart, scanEnd)
       const localHour = new Date().getHours()
+      const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone
       const result = await api.generateRoutine(
         routineType,
         blockCount,
-        stateTarget ? { polyvagalState: stateTarget, intensity: Math.round(intensity), durationMinutes, blockCount, localHour } : { durationMinutes, blockCount, localHour }
+        stateTarget ? { polyvagalState: stateTarget, intensity: Math.round(intensity), durationMinutes, blockCount, localHour, timezone } : { durationMinutes, blockCount, localHour, timezone }
       )
       if (result.queue && result.queue.length > 0) {
         setPreviewQueue(result.queue)
+        if (result.reasoning) setReasoning(result.reasoning)
+        const { bodyScanStart: scanStart, bodyScanEnd: scanEnd } = useSettingsStore.getState()
+        lastGeneratedParamsRef.current = {
+          state,
+          intensity,
+          minutes: durationMinutes,
+          scanStart,
+          scanEnd,
+        }
         if (!isInitial) showUpdatedToast()
       }
     } catch (err) {
@@ -334,30 +363,98 @@ export default function DailyFlowSetup({ navigation }) {
     }
   }, [showUpdatedToast])
 
-  const debouncedGenerate = useCallback((routineType, durationMinutes, state, intensity) => {
-    if (!isReadyForInputRef.current) return
-    clearTimeout(generateDebounceRef.current)
-    generateDebounceRef.current = setTimeout(() => {
-      doGeneratePreview(routineType, durationMinutes, state, intensity, false)
-    }, 700)
-  }, [doGeneratePreview])
+  // ─── Triggered when user releases on the centered overlay picker ─────────────
+  const handleOverlayDragEnd = useCallback(() => {
+    setScrollEnabled(true)
+    if (transitionFiredRef.current) return
+    transitionFiredRef.current = true
 
-  // First focus: reset to defaults. Subsequent re-focuses (e.g. returning from Edit): keep user selections.
+    const stateId = polyvagalStateRef.current
+    const intensity = sliderValueRef.current
+
+    // Immediately switch to transitioning so the scroll picker mounts
+    // (inheriting the already-selected state) and starts fading in
+    setFocusPhase('transitioning')
+    focusPhaseRef.current = 'transitioning'
+
+    // Kick off API call straight away — runs in parallel with the animation
+    doGeneratePreview(getAutoRoutineType(), 10, stateId, intensity, true)
+
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy)
+
+    // Distance to translate the overlay picker upward so it lands approximately
+    // where the picker sits in the normal scroll layout
+    const availableH = screenH - 100 // subtract approx header height
+    const pickerNormalCenterFromTop = 160 // approx: paddingTop + label + half pickerH
+    const translateTarget = -(availableH / 2 - pickerNormalCenterFromTop)
+
+    Animated.parallel([
+      // Picker content slides up and fades
+      Animated.timing(pickerOverlayTransY, {
+        toValue: translateTarget,
+        duration: 560,
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: true,
+      }),
+      Animated.timing(pickerOverlayOpacity, {
+        toValue: 0,
+        duration: 380,
+        easing: Easing.in(Easing.ease),
+        useNativeDriver: true,
+      }),
+      // Scroll content and header extras fade in after a brief beat
+      Animated.timing(contentRevealOpacity, {
+        toValue: 1,
+        duration: 500,
+        delay: 200,
+        easing: Easing.out(Easing.ease),
+        useNativeDriver: true,
+      }),
+      Animated.timing(headerExtrasFade, {
+        toValue: 1,
+        duration: 340,
+        delay: 120,
+        useNativeDriver: true,
+      }),
+    ]).start(() => {
+      setFocusPhase('settled')
+      focusPhaseRef.current = 'settled'
+    })
+  }, [doGeneratePreview, screenH])
+
+  const handleRefresh = useCallback(() => {
+    if (!isReadyForInputRef.current || isGenerating) return
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium)
+    doGeneratePreview(getAutoRoutineType(), selectedMinutes, polyvagalState, sliderValue, false)
+  }, [doGeneratePreview, selectedMinutes, polyvagalState, sliderValue, isGenerating])
+
   useFocusEffect(useCallback(() => {
     if (!hasInitializedRef.current) {
       hasInitializedRef.current = true
       isReadyForInputRef.current = false
+      transitionFiredRef.current = false
+      focusPhaseRef.current = 'centered'
+
+      // Reset animation values
+      pickerOverlayTransY.setValue(0)
+      pickerOverlayOpacity.setValue(1)
+      contentRevealOpacity.setValue(0)
+      headerExtrasFade.setValue(0)
+
+      setFocusPhase('centered')
       setSelectedMinutes(10)
       setSliderValue(0)
-      setPolyvagalState(4) // Default: Steady (middle state)
+      setPolyvagalState(null)
+      polyvagalStateRef.current = null
+      sliderValueRef.current = 0
       setScrollEnabled(true)
       setPreviewQueue(null)
-      setBodyScanStart(true) // Always reset to blank-slate defaults
+      setReasoning(null)
+      lastGeneratedParamsRef.current = null
+      setBodyScanStart(true)
       setBodyScanEnd(true)
-      clearTimeout(generateDebounceRef.current)
-      doGeneratePreview(getAutoRoutineType(), 10, 4, 0, true)
+      // No auto-generate — waits for user to select state in the centered picker
     } else if (didEditRef.current) {
-      // Returning from RoutineQueuePreview edit — sync edited queue back into previewQueue
       didEditRef.current = false
       const { hardcodedQueue } = useRoutineStore.getState()
       if (hardcodedQueue && hardcodedQueue.length > 0) {
@@ -368,7 +465,7 @@ export default function DailyFlowSetup({ navigation }) {
 
   const handleClose = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium)
-    hasInitializedRef.current = false // Reset so re-open gets blank-slate defaults
+    hasInitializedRef.current = false
     const tabNavigator = navigation.getParent()
     if (tabNavigator) tabNavigator.navigate('Home')
   }
@@ -414,12 +511,15 @@ export default function DailyFlowSetup({ navigation }) {
     }
   }
 
+  const isCentered = focusPhase === 'centered'
+  const isTransitioning = focusPhase === 'transitioning'
+
   return (
     <LinearGradient
       colors={[colors.background.primary, colors.background.secondary, colors.background.primary]}
       style={styles.container}
     >
-      {/* Flow Updated toast — swipe up to dismiss */}
+      {/* Flow Updated toast */}
       <Animated.View
         {...toastPanResponder.panHandlers}
         pointerEvents={isToastVisible ? 'auto' : 'none'}
@@ -431,205 +531,354 @@ export default function DailyFlowSetup({ navigation }) {
         <Text style={styles.toastText}>Flow Updated</Text>
       </Animated.View>
 
-      {/* Header: pencil edit (left) | title (center) | X close (right) */}
+      {/* Header: pencil + title fade in after transition; X always visible */}
       <View style={styles.header}>
-        <TouchableOpacity onPress={handleEditRoutine} style={styles.iconButton} activeOpacity={0.7}>
-          <Ionicons name="pencil-outline" size={20} color={colors.accent.primary} />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Daily Flow</Text>
+        <Animated.View style={{ opacity: headerExtrasFade }}>
+          <TouchableOpacity onPress={handleEditRoutine} style={styles.iconButton} activeOpacity={0.7}>
+            <Ionicons name="pencil-outline" size={20} color={colors.accent.primary} />
+          </TouchableOpacity>
+        </Animated.View>
+        <Animated.View style={{ opacity: headerExtrasFade }}>
+          <Text style={styles.headerTitle}>Daily Flow</Text>
+        </Animated.View>
         <TouchableOpacity onPress={handleClose} style={styles.iconButton} activeOpacity={0.7}>
           <Text style={styles.closeText}>✕</Text>
         </TouchableOpacity>
       </View>
 
-      <ScrollView
-        style={styles.scrollView}
-        contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}
-        scrollEnabled={scrollEnabled}
-      >
-        {/* How do you feel? */}
-        <View style={styles.section}>
-          <Text style={styles.sectionLabel}>How do you feel?</Text>
-          <StateXYPicker
-            selectedStateId={polyvagalState}
-            onStateChange={(id) => {
-              setPolyvagalState(id)
-              debouncedGenerate(getAutoRoutineType(), selectedMinutes, id, sliderValue)
-            }}
-            intensityValue={sliderValue}
-            onIntensityChange={(v) => {
-              setSliderValue(v)
-              debouncedGenerate(getAutoRoutineType(), selectedMinutes, polyvagalState, v)
-            }}
-            onDragStart={() => setScrollEnabled(false)}
-            onDragEnd={() => setScrollEnabled(true)}
-          />
-        </View>
-
-        {/* Duration */}
-        <View style={styles.section}>
-          <Text style={styles.sectionLabel}>Duration</Text>
-          <DurationSlider
-            selectedMinutes={selectedMinutes}
-            onSelect={(min) => {
-              if (min === selectedMinutes) return
-              setSelectedMinutes(min)
-              debouncedGenerate(getAutoRoutineType(), min, polyvagalState, sliderValue)
-            }}
-            onDragStart={() => setScrollEnabled(false)}
-            onDragEnd={() => setScrollEnabled(true)}
-          />
-        </View>
-
-        {/* Your Routine */}
-        <View style={styles.section}>
-          <View style={styles.routineHeaderRow}>
-            <Text style={styles.sectionLabel}>Your Routine</Text>
-            <TouchableOpacity onPress={handleEditRoutine} activeOpacity={0.7}>
-              <Text style={styles.editLink}>Edit</Text>
-            </TouchableOpacity>
-          </View>
-
-          <View style={styles.routineList}>
-            {isGenerating && !previewQueue ? (
-              <ActivityIndicator color={colors.accent.primary} style={styles.loader} />
-            ) : previewQueue && previewQueue.length > 0 ? (() => {
-              const hasSections = !!previewQueue[0]?.section
-              const renderBodyScanStart = () => (
-                <View style={styles.routineToggleItem}>
-                  <View style={styles.routineItemIndex}>
-                    <Text style={styles.routineItemIndexText}>~</Text>
-                  </View>
-                  <Text style={[styles.routineItemName, !bodyScanStart && styles.routineItemNameDisabled]}>Body Scan</Text>
-                  <Switch
-                    value={bodyScanStart}
-                    onValueChange={(val) => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setBodyScanStart(val); debouncedGenerate(getAutoRoutineType(), selectedMinutes, polyvagalState, sliderValue) }}
-                    trackColor={{ false: 'rgba(255,255,255,0.15)', true: colors.accent.primary + '60' }}
-                    thumbColor={bodyScanStart ? '#ffffff' : 'rgba(255,255,255,0.5)'}
-                    style={styles.routineSwitch}
+      {/* Main scrollable area — invisible until transition, blocked from touches in centered */}
+      <View style={{ flex: 1 }}>
+        <View style={{ flex: 1 }} pointerEvents={isCentered ? 'none' : 'auto'}>
+          <Animated.View style={{ flex: 1, opacity: contentRevealOpacity }}>
+            <ScrollView
+              style={styles.scrollView}
+              contentContainerStyle={styles.scrollContent}
+              showsVerticalScrollIndicator={false}
+              scrollEnabled={scrollEnabled}
+            >
+              {/* How do you feel? — only mount picker after centered phase so there's
+                  exactly one picker instance at a time (avoids double mount effects) */}
+              {!isCentered && (
+                <View style={styles.section}>
+                  <Text style={styles.sectionLabel}>How do you feel in your body?</Text>
+                  <StateXYPicker
+                    selectedStateId={polyvagalState}
+                    onStateChange={(id) => {
+                      polyvagalStateRef.current = id
+                      setPolyvagalState(id)
+                    }}
+                    intensityValue={sliderValue}
+                    onIntensityChange={(v) => {
+                      sliderValueRef.current = v
+                      setSliderValue(v)
+                    }}
+                    onDragStart={() => setScrollEnabled(false)}
+                    onDragEnd={() => setScrollEnabled(true)}
                   />
                 </View>
-              )
-              const renderBodyScanEnd = () => (
-                <View style={styles.routineToggleItem}>
-                  <View style={styles.routineItemIndex}>
-                    <Text style={styles.routineItemIndexText}>~</Text>
-                  </View>
-                  <Text style={[styles.routineItemName, !bodyScanEnd && styles.routineItemNameDisabled]}>Body Scan</Text>
-                  <Switch
-                    value={bodyScanEnd}
-                    onValueChange={(val) => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setBodyScanEnd(val); debouncedGenerate(getAutoRoutineType(), selectedMinutes, polyvagalState, sliderValue) }}
-                    trackColor={{ false: 'rgba(255,255,255,0.15)', true: colors.accent.primary + '60' }}
-                    thumbColor={bodyScanEnd ? '#ffffff' : 'rgba(255,255,255,0.5)'}
-                    style={styles.routineSwitch}
-                  />
+              )}
+
+              {/* Duration */}
+              <View style={styles.section}>
+                <Text style={styles.sectionLabel}>Duration</Text>
+                <DurationSlider
+                  selectedMinutes={selectedMinutes}
+                  onSelect={(min) => {
+                    if (min === selectedMinutes) return
+                    setSelectedMinutes(min)
+                  }}
+                  onDragStart={() => setScrollEnabled(false)}
+                  onDragEnd={() => setScrollEnabled(true)}
+                />
+              </View>
+
+              {/* Your Routine */}
+              <View style={styles.section}>
+                <View style={styles.routineHeaderRow}>
+                  <Text style={styles.sectionLabel}>Your Routine</Text>
+                  <TouchableOpacity onPress={handleEditRoutine} activeOpacity={0.7}>
+                    <Text style={styles.editLink}>Edit</Text>
+                  </TouchableOpacity>
                 </View>
-              )
 
-              if (hasSections) {
-                const groups = []
-                let currentName = null
-                previewQueue.forEach((item) => {
-                  const name = item.section || 'main'
-                  if (name !== currentName) {
-                    currentName = name
-                    groups.push({ name, items: [] })
-                  }
-                  groups[groups.length - 1].items.push(item)
-                })
-
-                return groups.map((group, groupIdx) => (
-                  <View key={group.name} style={styles.routineSectionGroup}>
-                    <Text style={styles.routineSectionHeader}>{getSectionLabel(group.name)}</Text>
-                    {groupIdx === 0 && renderBodyScanStart()}
-                    {group.items.map((item, i) => {
-                      const globalIndex = previewQueue.indexOf(item)
-                      return (
-                        <View key={item.canonical_name + globalIndex} style={[styles.routineItem, isGenerating && { opacity: 0.4 }]}>
-                          <View style={styles.routineItemIndex}>
-                            <Text style={styles.routineItemIndexText}>{globalIndex + 1}</Text>
-                          </View>
-                          <Text style={styles.routineItemName}>{item.name}</Text>
-                          {STATE_EMOJIS[item.state_target] && (
-                            <Text style={styles.routineItemEmoji}>{STATE_EMOJIS[item.state_target]}</Text>
-                          )}
+                <View style={styles.routineList}>
+                  {isGenerating && !previewQueue ? (
+                    <ActivityIndicator color={colors.accent.primary} style={styles.loader} />
+                  ) : previewQueue && previewQueue.length > 0 ? (() => {
+                    const hasSections = !!previewQueue[0]?.section
+                    const renderBodyScanStart = () => (
+                      <View style={styles.routineToggleItem}>
+                        <View style={styles.routineItemIndex}>
+                          <Text style={styles.routineItemIndexText}>~</Text>
                         </View>
-                      )
-                    })}
-                    {groupIdx === groups.length - 1 && renderBodyScanEnd()}
-                  </View>
-                ))
-              }
-
-              // Flat fallback
-              return (
-                <>
-                  {renderBodyScanStart()}
-                  {previewQueue.map((item, index) => (
-                    <View key={item.canonical_name + index} style={[styles.routineItem, isGenerating && { opacity: 0.4 }]}>
-                      <View style={styles.routineItemIndex}>
-                        <Text style={styles.routineItemIndexText}>{index + 1}</Text>
+                        <Text style={[styles.routineItemName, !bodyScanStart && styles.routineItemNameDisabled]}>Body Scan</Text>
+                        <Switch
+                          value={bodyScanStart}
+                          onValueChange={(val) => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setBodyScanStart(val) }}
+                          trackColor={{ false: 'rgba(255,255,255,0.15)', true: colors.accent.primary + '60' }}
+                          thumbColor={bodyScanStart ? '#ffffff' : 'rgba(255,255,255,0.5)'}
+                          style={styles.routineSwitch}
+                        />
                       </View>
-                      <Text style={styles.routineItemName}>{item.name}</Text>
-                      {STATE_EMOJIS[item.state_target] && (
-                        <Text style={styles.routineItemEmoji}>{STATE_EMOJIS[item.state_target]}</Text>
-                      )}
-                    </View>
-                  ))}
-                  {renderBodyScanEnd()}
-                </>
-              )
-            })() : (
+                    )
+                    const renderBodyScanEnd = () => (
+                      <View style={styles.routineToggleItem}>
+                        <View style={styles.routineItemIndex}>
+                          <Text style={styles.routineItemIndexText}>~</Text>
+                        </View>
+                        <Text style={[styles.routineItemName, !bodyScanEnd && styles.routineItemNameDisabled]}>Body Scan</Text>
+                        <Switch
+                          value={bodyScanEnd}
+                          onValueChange={(val) => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setBodyScanEnd(val) }}
+                          trackColor={{ false: 'rgba(255,255,255,0.15)', true: colors.accent.primary + '60' }}
+                          thumbColor={bodyScanEnd ? '#ffffff' : 'rgba(255,255,255,0.5)'}
+                          style={styles.routineSwitch}
+                        />
+                      </View>
+                    )
+
+                    if (hasSections) {
+                      const groups = []
+                      let currentName = null
+                      previewQueue.forEach((item) => {
+                        const name = item.section || 'main'
+                        if (name !== currentName) {
+                          currentName = name
+                          groups.push({ name, items: [] })
+                        }
+                        groups[groups.length - 1].items.push(item)
+                      })
+
+                      return groups.map((group, groupIdx) => (
+                        <View key={group.name} style={styles.routineSectionGroup}>
+                          <Text style={styles.routineSectionHeader}>{getSectionLabel(group.name)}</Text>
+                          {groupIdx === 0 && renderBodyScanStart()}
+                          {group.items.map((item) => {
+                            const globalIndex = previewQueue.indexOf(item)
+                            return (
+                              <View key={item.canonical_name + globalIndex} style={[styles.routineItem, isGenerating && { opacity: 0.4 }]}>
+                                <View style={styles.routineItemIndex}>
+                                  <Text style={styles.routineItemIndexText}>{globalIndex + 1}</Text>
+                                </View>
+                                <Text style={styles.routineItemName}>{item.name}</Text>
+                                {STATE_EMOJIS[item.state_target] && (
+                                  <Text style={styles.routineItemEmoji}>{STATE_EMOJIS[item.state_target]}</Text>
+                                )}
+                              </View>
+                            )
+                          })}
+                          {groupIdx === groups.length - 1 && renderBodyScanEnd()}
+                        </View>
+                      ))
+                    }
+
+                    return (
+                      <>
+                        {renderBodyScanStart()}
+                        {previewQueue.map((item, index) => (
+                          <View key={item.canonical_name + index} style={[styles.routineItem, isGenerating && { opacity: 0.4 }]}>
+                            <View style={styles.routineItemIndex}>
+                              <Text style={styles.routineItemIndexText}>{index + 1}</Text>
+                            </View>
+                            <Text style={styles.routineItemName}>{item.name}</Text>
+                            {STATE_EMOJIS[item.state_target] && (
+                              <Text style={styles.routineItemEmoji}>{STATE_EMOJIS[item.state_target]}</Text>
+                            )}
+                          </View>
+                        ))}
+                        {renderBodyScanEnd()}
+                      </>
+                    )
+                  })() : (
+                    <>
+                      <View style={styles.routineToggleItem}>
+                        <View style={styles.routineItemIndex}>
+                          <Text style={styles.routineItemIndexText}>~</Text>
+                        </View>
+                        <Text style={[styles.routineItemName, !bodyScanStart && styles.routineItemNameDisabled]}>Body Scan</Text>
+                        <Switch
+                          value={bodyScanStart}
+                          onValueChange={(val) => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setBodyScanStart(val) }}
+                          trackColor={{ false: 'rgba(255,255,255,0.15)', true: colors.accent.primary + '60' }}
+                          thumbColor={bodyScanStart ? '#ffffff' : 'rgba(255,255,255,0.5)'}
+                          style={styles.routineSwitch}
+                        />
+                      </View>
+                      <Text style={styles.noBlocksText}>No exercises found</Text>
+                      <View style={styles.routineToggleItem}>
+                        <View style={styles.routineItemIndex}>
+                          <Text style={styles.routineItemIndexText}>~</Text>
+                        </View>
+                        <Text style={[styles.routineItemName, !bodyScanEnd && styles.routineItemNameDisabled]}>Body Scan</Text>
+                        <Switch
+                          value={bodyScanEnd}
+                          onValueChange={(val) => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setBodyScanEnd(val) }}
+                          trackColor={{ false: 'rgba(255,255,255,0.15)', true: colors.accent.primary + '60' }}
+                          thumbColor={bodyScanEnd ? '#ffffff' : 'rgba(255,255,255,0.5)'}
+                          style={styles.routineSwitch}
+                        />
+                      </View>
+                    </>
+                  )}
+                </View>
+              </View>
+
+              {reasoning && previewQueue && previewQueue.length > 0 && (
+                <TouchableOpacity
+                  onPress={() => {
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
+                    setShowReasoningSheet(true)
+                  }}
+                  activeOpacity={0.7}
+                  style={styles.whyButton}
+                >
+                  <Text style={styles.whyButtonIcon}>✦</Text>
+                  <Text style={styles.whyButtonText}>Why did SoMi make the flow this way?</Text>
+                  <Ionicons name="chevron-forward" size={14} color="rgba(255,255,255,0.3)" />
+                </TouchableOpacity>
+              )}
+
+              <View style={{ height: 160 }} />
+            </ScrollView>
+          </Animated.View>
+        </View>
+
+        {/* ── Centered overlay picker — visible during 'centered' and 'transitioning' ── */}
+        {!isCentered ? null : (
+          <View style={StyleSheet.absoluteFillObject} pointerEvents="box-none">
+            {/* Dark backdrop fades out in place */}
+            <Animated.View
+              pointerEvents="none"
+              style={[StyleSheet.absoluteFillObject, styles.overlayBackdrop, { opacity: pickerOverlayOpacity }]}
+            />
+            {/* Picker content slides up and fades */}
+            <Animated.View
+              style={[
+                StyleSheet.absoluteFill,
+                styles.overlayContent,
+                {
+                  opacity: pickerOverlayOpacity,
+                  transform: [{ translateY: pickerOverlayTransY }],
+                },
+              ]}
+            >
+              <Text style={styles.focusPrompt}>How do you feel{'\n'}in your body?</Text>
+              <View style={{ width: '100%', paddingHorizontal: _H_PAD }}>
+                <StateXYPicker
+                  selectedStateId={polyvagalState}
+                  onStateChange={(id) => {
+                    polyvagalStateRef.current = id
+                    setPolyvagalState(id)
+                  }}
+                  intensityValue={sliderValue}
+                  onIntensityChange={(v) => {
+                    sliderValueRef.current = v
+                    setSliderValue(v)
+                  }}
+                  onDragStart={() => setScrollEnabled(false)}
+                  onDragEnd={handleOverlayDragEnd}
+                />
+              </View>
+            </Animated.View>
+          </View>
+        )}
+
+        {/* Transitioning: same overlay but now fading out while scroll fades in */}
+        {isTransitioning && (
+          <View style={StyleSheet.absoluteFillObject} pointerEvents="none">
+            <Animated.View
+              pointerEvents="none"
+              style={[StyleSheet.absoluteFillObject, styles.overlayBackdrop, { opacity: pickerOverlayOpacity }]}
+            />
+            <Animated.View
+              style={[
+                StyleSheet.absoluteFill,
+                styles.overlayContent,
+                {
+                  opacity: pickerOverlayOpacity,
+                  transform: [{ translateY: pickerOverlayTransY }],
+                },
+              ]}
+            >
+              <Text style={styles.focusPrompt}>How do you feel{'\n'}in your body?</Text>
+              <View style={{ width: '100%', paddingHorizontal: _H_PAD }}>
+                <StateXYPicker
+                  selectedStateId={polyvagalState}
+                  onStateChange={(id) => {
+                    polyvagalStateRef.current = id
+                    setPolyvagalState(id)
+                  }}
+                  intensityValue={sliderValue}
+                  onIntensityChange={(v) => {
+                    sliderValueRef.current = v
+                    setSliderValue(v)
+                  }}
+                  onDragStart={() => {}}
+                  onDragEnd={() => {}}
+                />
+              </View>
+            </Animated.View>
+          </View>
+        )}
+      </View>
+
+      {/* Sticky Start — fades in with the rest of the content */}
+      <Animated.View
+        style={[styles.stickyBottom, { opacity: contentRevealOpacity }]}
+        pointerEvents={focusPhase === 'settled' ? 'auto' : 'none'}
+      >
+        <View style={styles.startRow}>
+          <TouchableOpacity onPress={handleStartFlow} activeOpacity={0.75} style={styles.startButton} disabled={isGenerating}>
+            {isGenerating ? (
+              <ActivityIndicator color="rgba(255,255,255,0.7)" style={{ flex: 1 }} />
+            ) : (
               <>
-                <View style={styles.routineToggleItem}>
-                  <View style={styles.routineItemIndex}>
-                    <Text style={styles.routineItemIndexText}>~</Text>
-                  </View>
-                  <Text style={[styles.routineItemName, !bodyScanStart && styles.routineItemNameDisabled]}>Body Scan</Text>
-                  <Switch
-                    value={bodyScanStart}
-                    onValueChange={(val) => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setBodyScanStart(val) }}
-                    trackColor={{ false: 'rgba(255,255,255,0.15)', true: colors.accent.primary + '60' }}
-                    thumbColor={bodyScanStart ? '#ffffff' : 'rgba(255,255,255,0.5)'}
-                    style={styles.routineSwitch}
-                  />
-                </View>
-                <Text style={styles.noBlocksText}>No exercises found</Text>
-                <View style={styles.routineToggleItem}>
-                  <View style={styles.routineItemIndex}>
-                    <Text style={styles.routineItemIndexText}>~</Text>
-                  </View>
-                  <Text style={[styles.routineItemName, !bodyScanEnd && styles.routineItemNameDisabled]}>Body Scan</Text>
-                  <Switch
-                    value={bodyScanEnd}
-                    onValueChange={(val) => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setBodyScanEnd(val) }}
-                    trackColor={{ false: 'rgba(255,255,255,0.15)', true: colors.accent.primary + '60' }}
-                    thumbColor={bodyScanEnd ? '#ffffff' : 'rgba(255,255,255,0.5)'}
-                    style={styles.routineSwitch}
-                  />
-                </View>
+                <Text style={styles.startButtonText}>Start Flow</Text>
+                <Text style={styles.startButtonArrow}>›</Text>
               </>
             )}
-          </View>
+          </TouchableOpacity>
+          <TouchableOpacity
+            onPress={handleRefresh}
+            activeOpacity={hasDiff ? 0.7 : 1}
+            style={[styles.refreshButton, !hasDiff && styles.refreshButtonDisabled]}
+            disabled={!hasDiff || isGenerating}
+          >
+            <Ionicons
+              name="refresh"
+              size={20}
+              color={hasDiff ? colors.accent.primary : 'rgba(255,255,255,0.2)'}
+            />
+          </TouchableOpacity>
         </View>
+      </Animated.View>
 
-        <View style={{ height: 100 }} />
-      </ScrollView>
-
-      {/* Sticky Start */}
-      <View style={styles.stickyBottom}>
-        <TouchableOpacity onPress={handleStartFlow} activeOpacity={0.75} style={styles.startButton} disabled={isGenerating}>
-          {isGenerating ? (
-            <ActivityIndicator color="rgba(255,255,255,0.7)" style={{ flex: 1 }} />
-          ) : (
-            <>
-              <Text style={styles.startButtonText}>Start Flow</Text>
-              <Text style={styles.startButtonArrow}>›</Text>
-            </>
-          )}
+      {/* Reasoning Sheet Modal */}
+      <Modal
+        visible={showReasoningSheet}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={() => setShowReasoningSheet(false)}
+      >
+        <TouchableOpacity
+          style={styles.reasoningOverlay}
+          activeOpacity={1}
+          onPress={() => setShowReasoningSheet(false)}
+        >
+          <TouchableOpacity activeOpacity={1} style={styles.reasoningSheet} onPress={() => {}}>
+            <View style={styles.reasoningHandle} />
+            <Text style={styles.reasoningTitle}>Why this flow?</Text>
+            <Text style={styles.reasoningBody}>{reasoning}</Text>
+            <TouchableOpacity
+              onPress={() => setShowReasoningSheet(false)}
+              style={styles.reasoningDismiss}
+              activeOpacity={0.7}
+            >
+              <Text style={styles.reasoningDismissText}>Got it</Text>
+            </TouchableOpacity>
+          </TouchableOpacity>
         </TouchableOpacity>
-      </View>
+      </Modal>
     </LinearGradient>
   )
 }
@@ -652,6 +901,27 @@ const styles = StyleSheet.create({
   },
   closeText: { color: colors.text.primary, fontSize: 24, fontWeight: '300' },
   headerTitle: { color: colors.text.primary, fontSize: 20, fontWeight: '700', letterSpacing: 0.5 },
+
+  // ─── Centered overlay ───────────────────────────────────────────────────────
+  overlayBackdrop: {
+  },
+  overlayContent: {
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingBottom: 120,
+  },
+  focusPrompt: {
+    color: '#ffffff',
+    fontSize: 28,
+    fontWeight: '700',
+    letterSpacing: 0.2,
+    textAlign: 'center',
+    lineHeight: 36,
+    marginBottom: 28,
+    paddingHorizontal: _H_PAD,
+  },
+  // ───────────────────────────────────────────────────────────────────────────
+
   scrollView: { flex: 1 },
   scrollContent: { paddingHorizontal: _H_PAD, paddingTop: 8 },
   section: { marginBottom: 32 },
@@ -706,7 +976,13 @@ const styles = StyleSheet.create({
     paddingHorizontal: _H_PAD, paddingBottom: 40, paddingTop: 16,
     backgroundColor: colors.background.primary + 'F0',
   },
+  startRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
   startButton: {
+    flex: 1,
     height: 68,
     borderRadius: 34,
     backgroundColor: 'rgba(255,255,255,0.1)',
@@ -727,6 +1003,89 @@ const styles = StyleSheet.create({
     color: 'rgba(255,255,255,0.45)',
     fontSize: 28,
     fontWeight: '300',
+  },
+  refreshButton: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: 'rgba(255,255,255,0.08)',
+    borderWidth: 1,
+    borderColor: colors.accent.primary + '50',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  refreshButtonDisabled: {
+    borderColor: 'rgba(255,255,255,0.1)',
+    backgroundColor: 'rgba(255,255,255,0.04)',
+  },
+  whyButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    marginTop: 8,
+    borderRadius: 16,
+    backgroundColor: 'rgba(255,255,255,0.04)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.08)',
+  },
+  whyButtonIcon: {
+    color: colors.accent.primary,
+    fontSize: 14,
+  },
+  whyButtonText: {
+    flex: 1,
+    color: 'rgba(255,255,255,0.5)',
+    fontSize: 13,
+    fontWeight: '500',
+    letterSpacing: 0.1,
+  },
+  reasoningOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    justifyContent: 'flex-end',
+  },
+  reasoningSheet: {
+    backgroundColor: '#111827',
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+    paddingTop: 12,
+    paddingBottom: 52,
+    paddingHorizontal: 24,
+  },
+  reasoningHandle: {
+    width: 36,
+    height: 4,
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    borderRadius: 2,
+    alignSelf: 'center',
+    marginBottom: 24,
+  },
+  reasoningTitle: {
+    color: '#ffffff',
+    fontSize: 20,
+    fontWeight: '700',
+    marginBottom: 16,
+    letterSpacing: 0.2,
+  },
+  reasoningBody: {
+    color: 'rgba(255,255,255,0.7)',
+    fontSize: 15,
+    lineHeight: 24,
+    fontWeight: '400',
+    marginBottom: 28,
+  },
+  reasoningDismiss: {
+    backgroundColor: 'rgba(255,255,255,0.08)',
+    borderRadius: 20,
+    paddingVertical: 16,
+    alignItems: 'center',
+  },
+  reasoningDismissText: {
+    color: 'rgba(255,255,255,0.7)',
+    fontSize: 16,
+    fontWeight: '600',
   },
   toast: {
     position: 'absolute',

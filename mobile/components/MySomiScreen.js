@@ -11,6 +11,7 @@ import { POLYVAGAL_STATE_MAP, STATE_DESCRIPTIONS } from './EmbodimentSlider'
 import { colors } from '../constants/theme'
 import { useChains, useDeleteChain } from '../hooks/useSupabaseQueries'
 import { useAuthStore } from '../stores/authStore'
+import { X_STATE_ORDER, intensityWord } from './StateXYPicker'
 
 // Match polyvagal states from SoMeCheckIn (new code-based system)
 const POLYVAGAL_STATES = [
@@ -30,6 +31,10 @@ const STATE_EMOJIS = {
   4: '🌤',
   5: '☀️',
 }
+
+// Same gradient colors as StateXYPicker for visual consistency in read-only check-in display
+const MINI_GRAD_COLORS = ['#091321', '#1C3058', '#2575AA', '#38C4D4', '#7050CC']
+const MINI_GRAD_LOCS = [0, 0.25, 0.5, 0.75, 1]
 
 // Calendar/Streak View Component
 function CalendarStreakView({ chains }) {
@@ -1049,113 +1054,146 @@ export default function MySomiScreen({ navigation }) {
                 {/* Expanded content */}
                 {isExpanded && (
                   <View style={styles.chainExpandedContent}>
-                    {/* Merged Timeline: Interleave checks and blocks chronologically */}
                     {(() => {
-                      // Combine checks and blocks with their timestamps
-                      const checks = chain.embodiment_checks.map(c => ({
-                        type: 'check',
-                        timestamp: new Date(c.created_at),
-                        data: c
-                      }))
-                      const blocks = chain.somi_chain_entries.map(b => ({
-                        type: 'block',
-                        timestamp: new Date(b.created_at),
-                        data: b
-                      }))
+                      // Opening = earliest check, closing = latest check
+                      const sortedChecks = [...chain.embodiment_checks].sort(
+                        (a, b) => new Date(a.created_at) - new Date(b.created_at)
+                      )
+                      const openingCheck = sortedChecks[0] ?? null
+                      const closingCheck = sortedChecks.length > 1 ? sortedChecks[sortedChecks.length - 1] : null
 
-                      // Merge and sort by timestamp
-                      const timeline = [...checks, ...blocks].sort((a, b) => a.timestamp - b.timestamp)
-
-                      return timeline.map((item, index) => {
-                        if (item.type === 'check') {
-                          const check = item.data
-                          const stateInfo = getStateInfo(check.polyvagal_state_code)
-                          const fillLevel = check.embodiment_level / 100
-
-                          return (
-                            <View key={`check-${check.id}`} style={styles.timelineItem}>
-                              <Text style={styles.timelineItemLabel}>Check-in</Text>
-                              <View style={styles.chainCheckItem}>
-                                <View style={[styles.stateChip, {
-                                  backgroundColor: stateInfo?.color + '33',
-                                  borderColor: stateInfo?.color,
-                                }]}>
-                                  <Text style={styles.stateEmojiSmall}>
-                                    {STATE_EMOJIS[check.polyvagal_state_code]}
-                                  </Text>
-                                  <Text style={styles.stateLabel}>
-                                    {stateInfo?.label}
-                                  </Text>
-                                </View>
-
-                                <View style={styles.checkRightSide}>
-                                  {check.journal_entry && (
-                                    <TouchableOpacity
-                                      onPress={() => handleViewJournal(check.journal_entry)}
-                                      activeOpacity={0.7}
-                                      style={styles.journalIconButton}
-                                    >
-                                      <Text style={styles.journalIcon}>📝</Text>
-                                    </TouchableOpacity>
-                                  )}
-
-                                  <Svg width={28} height={28}>
-                                    <Circle
-                                      cx={14}
-                                      cy={14}
-                                      r={11}
-                                      stroke={stateInfo?.color + '30'}
-                                      strokeWidth={3}
-                                      fill="none"
-                                    />
-                                    <Circle
-                                      cx={14}
-                                      cy={14}
-                                      r={11}
-                                      stroke={stateInfo?.color}
-                                      strokeWidth={3}
-                                      fill="none"
-                                      strokeDasharray={2 * Math.PI * 11}
-                                      strokeDashoffset={2 * Math.PI * 11 * (1 - fillLevel)}
-                                      strokeLinecap="round"
-                                      transform={`rotate(-90 14 14)`}
-                                    />
-                                  </Svg>
-                                </View>
-                              </View>
-                            </View>
-                          )
-                        } else {
-                          const block = item.data
-                          const blockName = block.somi_blocks?.name || block.somi_blocks?.canonical_name || 'Unknown Block'
-                          const minutes = Math.floor(block.seconds_elapsed / 60)
-                          const seconds = block.seconds_elapsed % 60
-                          const timeStr = `${minutes}:${seconds.toString().padStart(2, '0')}`
-
-                          return (
-                            <View key={`block-${block.id}`} style={styles.timelineItem}>
-                              <Text style={styles.timelineItemLabel}>Exercise</Text>
-                              <TouchableOpacity
-                                style={styles.chainBlockItem}
-                                onPress={() => handlePlayBlock(block)}
-                                activeOpacity={0.7}
-                              >
-                                <View style={styles.blockLeftSide}>
-                                  <TouchableOpacity
-                                    onPress={() => handlePlayBlock(block)}
-                                    style={styles.playIconButton}
-                                    activeOpacity={0.7}
-                                  >
-                                    <Text style={styles.playIcon}>▶</Text>
-                                  </TouchableOpacity>
-                                  <Text style={styles.blockName}>{blockName}</Text>
-                                </View>
-                                <Text style={styles.blockTime}>{timeStr}</Text>
-                              </TouchableOpacity>
-                            </View>
-                          )
+                      // Group blocks by section, sort by order_index within each
+                      const SECTION_ORDER = ['warm-up', 'main', 'integration']
+                      const blocksBySection = {}
+                      chain.somi_chain_entries.forEach(b => {
+                        const sec = b.section || 'main'
+                        if (!blocksBySection[sec]) blocksBySection[sec] = []
+                        blocksBySection[sec].push(b)
+                      })
+                      SECTION_ORDER.forEach(sec => {
+                        if (blocksBySection[sec]) {
+                          blocksBySection[sec].sort((a, b) => (a.order_index || 0) - (b.order_index || 0))
                         }
                       })
+
+                      const renderCheck = (check, label) => {
+                        const xStateIdx = X_STATE_ORDER.findIndex(s => s.id === check.polyvagal_state_code)
+                        const xStateInfo = xStateIdx >= 0 ? X_STATE_ORDER[xStateIdx] : null
+                        const legacyStateInfo = getStateInfo(check.polyvagal_state_code)
+                        const displayIcon = xStateInfo?.icon || STATE_EMOJIS[check.polyvagal_state_code] || '❓'
+                        const displayLabel = xStateInfo?.label || legacyStateInfo?.label || 'Unknown'
+                        const displayColor = xStateInfo?.color || legacyStateInfo?.color || '#888'
+                        const xFrac = xStateIdx >= 0 ? (xStateIdx + 0.5) / X_STATE_ORDER.length : 0.5
+                        const intensity = check.embodiment_level || 0
+                        const iWord = intensityWord(intensity)
+                        const dimOpacity = 1 - (intensity / 100) * 0.8
+                        const hasTags = check.tags && check.tags.length > 0
+                        return (
+                          <View key={`check-${check.id}`} style={styles.timelineItem}>
+                            <Text style={styles.timelineItemLabel}>{label}</Text>
+                            <View style={styles.miniPickerCard}>
+                              <View style={styles.miniBarWrap}>
+                                <LinearGradient
+                                  colors={MINI_GRAD_COLORS}
+                                  locations={MINI_GRAD_LOCS}
+                                  start={{ x: 0, y: 0.5 }}
+                                  end={{ x: 1, y: 0.5 }}
+                                  style={StyleSheet.absoluteFillObject}
+                                />
+                                <View style={[StyleSheet.absoluteFillObject, { backgroundColor: '#040812', opacity: dimOpacity, borderRadius: 10 }]} />
+                                {xStateIdx >= 0 && (
+                                  <View style={[styles.miniBarMarker, {
+                                    left: `${xFrac * 100}%`,
+                                    backgroundColor: displayColor,
+                                  }]} />
+                                )}
+                                <View style={styles.miniBarReadout}>
+                                  <Text style={styles.miniBarIcon}>{displayIcon}</Text>
+                                  <Text style={styles.miniBarStateName}>{displayLabel}</Text>
+                                  <Text style={styles.miniBarDot}>·</Text>
+                                  <Text style={styles.miniBarIntensityWord}>{iWord}</Text>
+                                </View>
+                                {check.journal_entry && (
+                                  <TouchableOpacity
+                                    onPress={() => handleViewJournal(check.journal_entry)}
+                                    activeOpacity={0.7}
+                                    style={styles.miniBarJournalBtn}
+                                  >
+                                    <Text style={styles.miniBarJournalIcon}>📝</Text>
+                                  </TouchableOpacity>
+                                )}
+                              </View>
+                              {hasTags && (
+                                <View style={styles.checkTagsRow}>
+                                  {check.tags.map(tag => (
+                                    <View key={tag} style={styles.checkTag}>
+                                      <Text style={styles.checkTagText}>{tag}</Text>
+                                    </View>
+                                  ))}
+                                </View>
+                              )}
+                            </View>
+                          </View>
+                        )
+                      }
+
+                      return (
+                        <React.Fragment>
+                          {/* Opening check-in */}
+                          {openingCheck && renderCheck(openingCheck, 'opening check-in')}
+
+                          {/* Sections */}
+                          {SECTION_ORDER.map(sec => {
+                            const blocks = blocksBySection[sec]
+                            if (!blocks || blocks.length === 0) return null
+                            return (
+                              <View key={sec}>
+                                <View style={styles.flowSectionDivider}>
+                                  <View style={styles.flowSectionLine} />
+                                  <Text style={styles.flowSectionLabel}>{sec}</Text>
+                                  <View style={styles.flowSectionLine} />
+                                </View>
+                                {blocks.map(block => {
+                                  const blockName = block.somi_blocks?.name || block.somi_blocks?.canonical_name || 'Unknown'
+                                  const minutes = Math.floor(block.seconds_elapsed / 60)
+                                  const seconds = block.seconds_elapsed % 60
+                                  const timeStr = `${minutes}:${seconds.toString().padStart(2, '0')}`
+                                  const hasMedia = !!block.somi_blocks?.media_url
+                                  return (
+                                    <View key={`block-${block.id}`} style={styles.timelineItem}>
+                                      <View style={styles.chainBlockItem}>
+                                        <View style={styles.blockLeftSide}>
+                                          {hasMedia ? (
+                                            <TouchableOpacity
+                                              onPress={() => handlePlayBlock(block)}
+                                              style={styles.playIconButton}
+                                              activeOpacity={0.7}
+                                            >
+                                              <Text style={styles.playIcon}>▶</Text>
+                                            </TouchableOpacity>
+                                          ) : (
+                                            <View style={styles.blockNoPlaySpacer} />
+                                          )}
+                                          <Text style={styles.blockName}>{blockName}</Text>
+                                        </View>
+                                        <Text style={styles.blockTime}>{timeStr}</Text>
+                                      </View>
+                                    </View>
+                                  )
+                                })}
+                              </View>
+                            )
+                          })}
+
+                          {/* Closing check-in */}
+                          {closingCheck && (
+                            <React.Fragment>
+                              <View style={styles.flowSectionDividerLine} />
+                              {renderCheck(closingCheck, 'closing check-in')}
+                            </React.Fragment>
+                          )}
+                        </React.Fragment>
+                      )
                     })()}
                   </View>
                 )}
@@ -1958,6 +1996,111 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '400',
     lineHeight: 28,
+    letterSpacing: 0.2,
+  },
+  miniPickerCard: {
+    marginBottom: 2,
+  },
+  miniBarWrap: {
+    height: 50,
+    borderRadius: 10,
+    overflow: 'hidden',
+    flexDirection: 'row',
+    alignItems: 'center',
+    position: 'relative',
+  },
+  miniBarMarker: {
+    position: 'absolute',
+    top: 8,
+    bottom: 8,
+    width: 2.5,
+    borderRadius: 1.5,
+    marginLeft: -1.5,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.7,
+    shadowRadius: 4,
+  },
+  miniBarReadout: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingLeft: 12,
+    flex: 1,
+  },
+  miniBarIcon: {
+    fontSize: 12,
+  },
+  miniBarStateName: {
+    color: 'rgba(255,255,255,0.9)',
+    fontSize: 12,
+    fontWeight: '700',
+    letterSpacing: 0.4,
+  },
+  miniBarDot: {
+    color: 'rgba(255,255,255,0.3)',
+    fontSize: 12,
+  },
+  miniBarIntensityWord: {
+    color: 'rgba(255,255,255,0.55)',
+    fontSize: 11,
+    fontWeight: '500',
+    letterSpacing: 0.3,
+  },
+  miniBarJournalBtn: {
+    paddingHorizontal: 12,
+    height: '100%',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  miniBarJournalIcon: {
+    fontSize: 15,
+  },
+  flowSectionDivider: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginVertical: 10,
+  },
+  flowSectionLine: {
+    flex: 1,
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: 'rgba(255,255,255,0.1)',
+  },
+  flowSectionLabel: {
+    color: 'rgba(255,255,255,0.28)',
+    fontSize: 9,
+    fontWeight: '700',
+    letterSpacing: 1.5,
+    textTransform: 'uppercase',
+  },
+  flowSectionDividerLine: {
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: 'rgba(255,255,255,0.1)',
+    marginVertical: 10,
+  },
+  blockNoPlaySpacer: {
+    width: 28,
+    height: 28,
+  },
+  checkTagsRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+    marginTop: 8,
+  },
+  checkTag: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.12)',
+    backgroundColor: 'rgba(255,255,255,0.05)',
+  },
+  checkTagText: {
+    color: 'rgba(255,255,255,0.5)',
+    fontSize: 11,
+    fontWeight: '500',
     letterSpacing: 0.2,
   },
   calendarCard: {

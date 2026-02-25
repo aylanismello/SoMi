@@ -22,6 +22,7 @@ export default function BodyScanCountdown({ route, navigation }) {
     savedInitialState,
     skipToRoutine,
     fromCheckIn,
+    finalOrderIndex,
   } = route.params
 
   const oceanPlayer = useVideoPlayer(OCEAN_VIDEO_URI, (player) => {
@@ -125,7 +126,8 @@ export default function BodyScanCountdown({ route, navigation }) {
     const elapsedMs = Date.now() - startTimeRef.current
     const elapsedSeconds = Math.round(elapsedMs / 1000)
     const BODY_SCAN_BLOCK_ID = 20
-    await chainService.saveCompletedBlock(BODY_SCAN_BLOCK_ID, elapsedSeconds, 0, null, flowType)
+    const section = isInitial ? 'warm-up' : 'integration'
+    await chainService.saveCompletedBlock(BODY_SCAN_BLOCK_ID, elapsedSeconds, isInitial ? 0 : finalOrderIndex, null, flowType, section)
 
     if (skipToRoutine) {
       navigation.replace('SoMiRoutine')

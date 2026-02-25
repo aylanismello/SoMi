@@ -98,14 +98,15 @@ export function useSaveEmbodimentCheck() {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: async ({ sliderValue, polyvagalStateCode, journalEntry = null, flowType = null }) => {
+    mutationFn: async ({ sliderValue, polyvagalStateCode, journalEntry = null, flowType = null, tags = null }) => {
       // Get flowType from routine store if not provided
       const finalFlowType = flowType || useRoutineStore.getState().flowType
       return await chainService.saveEmbodimentCheck(
         sliderValue,
         polyvagalStateCode,
         journalEntry,
-        finalFlowType
+        finalFlowType,
+        tags
       )
     },
     onSuccess: (data, variables) => {
@@ -128,7 +129,7 @@ export function useSaveChainEntry() {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: async ({ somiBlockId, secondsElapsed, orderIndex = 0, chainId = null, flowType = null }) => {
+    mutationFn: async ({ somiBlockId, secondsElapsed, orderIndex = 0, chainId = null, flowType = null, section = null }) => {
       // Get flowType from routine store if not provided
       const finalFlowType = flowType || useRoutineStore.getState().flowType
       return await chainService.saveCompletedBlock(
@@ -136,7 +137,8 @@ export function useSaveChainEntry() {
         secondsElapsed,
         orderIndex,
         chainId,
-        finalFlowType
+        finalFlowType,
+        section
       )
     },
     onSuccess: (data, variables) => {

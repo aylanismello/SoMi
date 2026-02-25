@@ -6,7 +6,7 @@ export async function POST(request) {
   if (error) return unauthorizedResponse(error)
 
   try {
-    const { chainId, blockId, secondsElapsed, sessionOrder } = await request.json()
+    const { chainId, blockId, secondsElapsed, sessionOrder, section } = await request.json()
 
     if (!chainId || !blockId) {
       return NextResponse.json(
@@ -23,6 +23,7 @@ export async function POST(request) {
         seconds_elapsed: secondsElapsed || 0,
         order_index: sessionOrder || 0,
         user_id: user.id,
+        ...(section ? { section } : {}),
       })
       .select()
       .single()

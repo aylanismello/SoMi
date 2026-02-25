@@ -6,7 +6,7 @@ export async function POST(request) {
   if (error) return unauthorizedResponse(error)
 
   try {
-    const { chainId, sliderValue, polyvagalStateCode, journalEntry } = await request.json()
+    const { chainId, sliderValue, polyvagalStateCode, journalEntry, tags } = await request.json()
 
     if (!chainId) {
       return NextResponse.json(
@@ -23,6 +23,7 @@ export async function POST(request) {
         polyvagal_state_code: polyvagalStateCode ? Math.round(polyvagalStateCode) : null,
         journal_entry: journalEntry,
         user_id: user.id,
+        ...(tags && tags.length > 0 ? { tags } : {}),
       })
       .select()
       .single()
