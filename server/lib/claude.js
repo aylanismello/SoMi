@@ -70,10 +70,10 @@ Your routines should be inspired by:
 - **Trauma-informed care**: never imply guaranteed outcomes; offer options that are non-demanding and consent-based.
 
 ### Phase Guidelines
-- **Warm-up**: gentle, non-demanding, vagal-toning exercises to ease the nervous system in (e.g. vagus_reset, eye_covering, humming). Never start with intense proprioceptive input. Keep this section SHORT — ideally 1–2 blocks.
+- **Warm-up**: gentle, non-demanding, vagal-toning exercises to ease the nervous system in (e.g. vagus_reset, eye_covering, humming). Never start with intense proprioceptive input. **ALWAYS exactly 1 block — never more, never less.**
 - **Main**: progressive proprioceptive and movement blocks that engage the body more fully (e.g. body_tapping, shaking, heart_opener, self_havening, ear_stretch, upward_gaze, freeze_roll,
-arm_shoulder_hand_circles, squeeze_hands_release). **The main section MUST contain at least 70% of the total blocks.** This is non-negotiable — the session is primarily about the main work.
-- **Integration**: slow, integrative, grounding exercises to close the session (e.g. self_hug, self_hug_swaying, brain_hold). Always end with something settling. Keep this section SHORT — ideally 1 block.
+arm_shoulder_hand_circles, squeeze_hands_release). **Contains ALL remaining blocks after assigning 1 warm-up and 1 integration.** Repeat blocks as needed to hit the exact count.
+- **Integration**: slow, integrative, grounding exercises to close the session (e.g. self_hug, self_hug_swaying, brain_hold). Always end with something settling. **ALWAYS exactly 1 block — never more, never less.**
 
 ### State-Specific Guidance
 - **withdrawn** (dorsal vagal shutdown — collapsed, frozen): Start with very gentle vagal tone (vagus_reset, eye_covering). Avoid shaking or intense activation early. Gently build upward 
@@ -86,9 +86,10 @@ grounding.
 discharge movements (shaking, freeze_roll) after the system has partially settled. End with strong integration phase.
 
 ### Intensity Scaling
-- **Low intensity (0-33)**: Longer warm-up and integration relative to main. Prefer gentle blocks.
-- **Medium intensity (34-66)**: Balanced distribution across phases.
-- **High intensity (67-100)**: Shorter warm-up, more activating main blocks, still close with proper integration.
+Intensity affects which blocks you choose within each fixed phase, not the phase sizes (those are always exactly 1 warm-up + N main + 1 integration):
+- **Low intensity (0-33)**: Prefer gentler blocks across all phases.
+- **Medium intensity (34-66)**: Balanced block selection.
+- **High intensity (67-100)**: Lean toward more activating blocks in main.
 
 ### Time of Day
 Use time of day as a soft background signal — the nervous system state and intensity always take precedence.
@@ -136,6 +137,11 @@ export async function generateAIRoutine({ polyvagalState, intensity, durationMin
   // Use client-computed count if provided (accounts for body scan time); fallback to 1 block/min
   const blockCount = explicitBlockCount ?? Math.round(durationMinutes)
 
+  // Always 1 warm-up + 1 integration; main gets the rest.
+  // For short sessions (blockCount ≤ 2) guarantee at least 1 main block.
+  const mainBlocks = Math.max(1, blockCount - 2)
+  const effectiveBlockCount = mainBlocks + 2  // 1 warm-up + mainBlocks + 1 integration
+
   const timeOfDayStr = localHour != null
     ? (() => {
         if (localHour >= 5 && localHour < 12) return `morning (${localHour}:00)`
@@ -147,15 +153,16 @@ export async function generateAIRoutine({ polyvagalState, intensity, durationMin
 
   const season = timezone ? getSeason(timezone) : null
 
-  const mainMinBlocks = Math.max(1, Math.ceil(blockCount * 0.7))
-  const userPrompt = `Design a ${durationMinutes}-minute somatic routine (exactly ${blockCount} exercise blocks at ~60 seconds each) for someone who feels: ${polyvagalState} at intensity
-  ${intensity}/100.${timeOfDayStr ? ` It is currently ${timeOfDayStr} for this person.` : ''}${season ? ` The season is ${season}.` : ''}
+  const userPrompt = `Design a ${durationMinutes}-minute somatic routine for someone who feels: ${polyvagalState} at intensity ${intensity}/100.${timeOfDayStr ? ` It is currently ${timeOfDayStr} for this person.` : ''}${season ? ` The season is ${season}.` : ''}
 
-Available blocks (use only these canonical names — repetition is allowed and encouraged for longer routines):
+Available blocks (use only these canonical names — repetition is allowed):
 ${availableBlocks.join(', ')}
 
-You MUST include exactly ${blockCount} blocks total across warm-up, main, and integration phases. Repeat blocks as needed to reach exactly ${blockCount}.
-CRITICAL CONSTRAINT: The main section must contain AT LEAST ${mainMinBlocks} blocks (≥70% of total). Warm-up: 1–2 blocks max. Integration: 1 block.
+EXACT STRUCTURE REQUIRED — no exceptions:
+- warm-up: EXACTLY 1 block
+- main: EXACTLY ${mainBlocks} block${mainBlocks !== 1 ? 's' : ''}
+- integration: EXACTLY 1 block
+Total: EXACTLY ${effectiveBlockCount} blocks. Repeat blocks if needed to reach the exact counts.
 Apply polyvagal principles for the ${polyvagalState} state at intensity ${intensity}.`
 
   console.log('[claude] system prompt:\n', SYSTEM_PROMPT)
