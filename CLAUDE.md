@@ -14,12 +14,12 @@ Docs live in `/docs/` and are derived from the repo. They describe what the code
 
 | Change | Update |
 |--------|--------|
-| Add/remove/rename a screen or route | `docs/PRODUCT.md`, `docs/FLOWS.md` |
-| Change navigation flow or screen transitions | `docs/FLOWS.md` |
-| Change Supabase schema, add/remove columns or tables | `docs/DATA_MODEL.md` |
-| Change API endpoints or payloads | `docs/ARCHITECTURE.md`, `docs/DATA_MODEL.md` |
-| Change routine generation logic (AI prompt, hardcoded configs, selection algorithm) | `docs/ROUTINE_ENGINE.md` |
-| Add/remove a service, provider, or deployment target | `docs/ARCHITECTURE.md` |
+| Add/remove/rename a screen or route | `docs/01_product.md`, `docs/02_flows.md` |
+| Change navigation flow or screen transitions | `docs/02_flows.md` |
+| Change Supabase schema, add/remove columns or tables | `docs/04_data_model.md` |
+| Change API endpoints or payloads | `docs/03_architecture.md`, `docs/04_data_model.md` |
+| Change routine generation logic (AI prompt, hardcoded configs, selection algorithm) | `docs/05_routine_engine.md` |
+| Add/remove a service, provider, or deployment target | `docs/03_architecture.md` |
 | Any meaningful doc update | Add short entry to `docs/CHANGELOG.md` |
 
 ### End-of-task checklist

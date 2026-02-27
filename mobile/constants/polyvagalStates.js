@@ -43,11 +43,6 @@ export function deriveStateFromDeltas(energy_delta, safety_delta) {
   return POLYVAGAL_STATES.wired  // e >= 0, s < 0
 }
 
-// Helper to get state info by name
-export const getStateByName = (name) => {
-  return POLYVAGAL_STATES[name] || POLYVAGAL_STATES.steady
-}
-
 // ─── 8-Zone Polyvagal Explanations ────────────────────────────────────────────
 // Divides the 2D space into 8 zones (2 safety bands × 4 energy bands)
 // energy: 0-100 (0=low, 100=high)
@@ -110,5 +105,3 @@ export function getPolyvagalExplanation(energy, safety) {
   return { title: zone.title, body: zone.body }
 }
 
-// Export as array
-export const POLYVAGAL_STATES_ARRAY = Object.values(POLYVAGAL_STATES)

@@ -1,5 +1,4 @@
 import { supabase } from '../supabase'
-import { selectNextVideo, selectSOSVideo } from './videoSelectionAlgorithm'
 import { getRoutineConfig } from './routineConfig'
 
 // Cache for video blocks to avoid redundant fetches
@@ -68,49 +67,6 @@ function blockToMedia(block) {
     canonical_name: block.canonical_name,
     name: block.name,
   }
-}
-
-/**
- * Get media for the SoMi routine based on user's current state
- *
- * Uses the video selection algorithm to pick the next video
- * based on polyvagal state and embodiment score.
- *
- * @param {string} polyvagalState - Current polyvagal state
- * @param {number} sliderValue - Embodiment score (0-100)
- */
-export async function getMediaForSliderValue(polyvagalState = 'withdrawn', sliderValue = 50) {
-  const blocks = await fetchVideoBlocks()
-
-  // Use the algorithm to select the next video
-  const selectedBlock = selectNextVideo(blocks, polyvagalState, sliderValue)
-
-  // Convert to media player format
-  return blockToMedia(selectedBlock)
-}
-
-/**
- * Get SOS media (emergency intervention video)
- *
- * Always returns the vagus reset video for emergency calming.
- */
-export async function getSOSMedia() {
-  const blocks = await fetchVideoBlocks()
-
-  // Use the algorithm to select the SOS video
-  const sosBlock = selectSOSVideo(blocks)
-
-  // Convert to media player format
-  return blockToMedia(sosBlock)
-}
-
-// Body scan audio
-// TODO: HARDCODED BULLSHIT - This should come from somi_blocks table
-// Currently hardcoded because body scan is audio and we're only fetching videos
-export const BODY_SCAN_MEDIA = {
-  url: 'https://qujifwhwntqxziymqdwu.supabase.co/storage/v1/object/public/test/5%20Min.%20Body%20Scan%20Meditation_CW2%201.mp3',
-  type: 'audio',
-  somi_block_id: null, // Body scans don't create completed blocks
 }
 
 // Prefetch video blocks on app startup (optional, for better UX)

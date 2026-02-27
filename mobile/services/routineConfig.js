@@ -50,14 +50,3 @@ export function getRoutineConfig(routineType, blockCount) {
   return canonicalNames
 }
 
-// Get friendly labels for routine types
-export const ROUTINE_TYPE_LABELS = {
-  [ROUTINE_TYPES.MORNING]: 'Morning',
-  [ROUTINE_TYPES.NIGHT]: 'Night',
-}
-
-// Get routine type emoji/icon
-export const ROUTINE_TYPE_EMOJIS = {
-  [ROUTINE_TYPES.MORNING]: '☀️',
-  [ROUTINE_TYPES.NIGHT]: '🌙',
-}

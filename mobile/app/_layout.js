@@ -1,7 +1,7 @@
 import { Stack } from 'expo-router'
 import { StatusBar } from 'expo-status-bar'
 import { useEffect } from 'react'
-import { useAudioPlayer } from 'expo-audio'
+import { useAudioPlayer, setAudioModeAsync } from 'expo-audio'
 import React from 'react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { useAuthStore } from '../stores/authStore'
@@ -38,6 +38,13 @@ export default function RootLayout() {
   }, [flowAudioPlayer])
 
   useEffect(() => {
+    // Configure iOS audio session: play sounds even when silent switch is on,
+    // and mix with other audio (e.g. flow music + sound effects together)
+    setAudioModeAsync({
+      playsInSilentMode: true,
+      shouldPlayInBackground: false,
+      interruptionMode: 'mixWithOthers',
+    })
     prefetchVideoBlocks()
     soundManager.preloadSounds()
   }, [])
@@ -52,7 +59,6 @@ export default function RootLayout() {
         {/* Flow journey — tab bar hidden automatically */}
         <Stack.Screen name="DailyFlowSetup" options={{ gestureEnabled: false }} />
         <Stack.Screen name="SoMiCheckIn" options={{ gestureEnabled: false }} />
-        <Stack.Screen name="SoMiTimer" options={{ gestureEnabled: false }} />
         <Stack.Screen name="RoutineQueuePreview" />
         <Stack.Screen name="SoMiRoutine" options={{ presentation: 'fullScreenModal', gestureEnabled: false }} />
         <Stack.Screen name="BodyScanCountdown" options={{ presentation: 'fullScreenModal', gestureEnabled: false }} />

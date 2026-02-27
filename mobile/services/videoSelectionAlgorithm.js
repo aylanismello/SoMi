@@ -13,54 +13,7 @@
 //   steady    — centre                    → any block
 //
 
-// Select the next video based on user's current state
-//
-// Inputs:
-//   - availableBlocks: all active video blocks from database
-//   - polyvagalState: 'shutdown' | 'restful' | 'wired' | 'glowing' | 'steady'
-//   - sliderValue: embodiment score 0-100 (reserved for future use)
-//
-// Returns: selected video block with media_url, id, name, etc.
-//
-export function selectNextVideo(availableBlocks, polyvagalState, sliderValue) {
-  if (!availableBlocks || availableBlocks.length === 0) {
-    console.warn('No video blocks available for selection')
-    return null
-  }
-
-  const matchingBlocks = filterBlocksForState(availableBlocks, polyvagalState)
-
-  const pool = matchingBlocks.length > 0 ? matchingBlocks : availableBlocks
-
-  const randomIndex = Math.floor(Math.random() * pool.length)
-  const selectedBlock = pool[randomIndex]
-
-  console.log(
-    `Selected video: "${selectedBlock.name}" ` +
-    `(state: ${polyvagalState}, ${pool.length} options available)`
-  )
-
-  return selectedBlock
-}
-
-// Select the SOS video (emergency intervention)
-//
-// Always returns the vagus reset video for emergency calming.
-//
-export function selectSOSVideo(availableBlocks) {
-  const sosBlock = availableBlocks.find(
-    block => block.canonical_name === 'vagus_reset_lying_down'
-  )
-
-  if (!sosBlock) {
-    console.error('SOS video (vagus_reset_lying_down) not found in database!')
-    return availableBlocks[0] || null
-  }
-
-  return sosBlock
-}
-
-// Select video for routine (with repeat avoidance)
+// Select video for routine (with repeat avoidance), avoiding immediate repeat of previousBlockId
 //
 // Inputs:
 //   - availableBlocks: all active video blocks from database
