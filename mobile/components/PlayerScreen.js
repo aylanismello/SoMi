@@ -4,6 +4,7 @@ import { useEvent } from 'expo'
 import { useVideoPlayer, VideoView } from 'expo-video'
 import { useAudioPlayer } from 'expo-audio'
 import { StyleSheet, View, TouchableOpacity, Text, Pressable, Animated } from 'react-native'
+import PlayerControls from './PlayerControls'
 import * as Haptics from 'expo-haptics'
 import { BACKGROUND_VIDEO } from '../constants/media'
 import { chainService } from '../services/chainService'
@@ -167,7 +168,7 @@ export default function PlayerScreen() {
   useEffect(() => {
     Animated.timing(controlsOpacity, {
       toValue: showControls ? 1 : 0,
-      duration: 300,
+      duration: 500,
       useNativeDriver: true,
     }).start()
   }, [showControls, controlsOpacity])
@@ -305,18 +306,19 @@ export default function PlayerScreen() {
             </Text>
           </TouchableOpacity>
         </View>
-
-        {/* Skip Block bar */}
-        <Pressable onPress={handleSkipToNext} style={styles.barWrapper}>
-          <View style={styles.barTrack}>
-            <View style={[styles.barFill, { width: `${progress * 100}%` }]} />
-            <View style={styles.barContent}>
-              <Text style={styles.barLabel}>Skip Block</Text>
-              <Text style={styles.barArrow}>›</Text>
-            </View>
-          </View>
-        </Pressable>
       </Animated.View>
+
+      <PlayerControls
+        isPaused={!isPlayingState}
+        onPause={handlePlayPause}
+        onPlay={handlePlayPause}
+        onStop={() => navigation.goBack()}
+        onOpenSettings={handleOpenSettings}
+        skipLabel="Skip Block"
+        onSkip={handleSkipToNext}
+        fillWidth={`${progress * 100}%`}
+        showControls={showControls}
+      />
 
       <CustomizationModal visible={showSettingsModal} onClose={handleCloseSettings} />
     </View>
@@ -391,50 +393,5 @@ const styles = StyleSheet.create({
   playPauseText: {
     color: '#000000',
     fontSize: 36,
-  },
-  barWrapper: {
-    paddingHorizontal: 20,
-    paddingBottom: 52,
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-  },
-  barTrack: {
-    height: 68,
-    borderRadius: 34,
-    backgroundColor: 'rgba(255,255,255,0.1)',
-    overflow: 'hidden',
-    position: 'relative',
-  },
-  barFill: {
-    position: 'absolute',
-    left: 0,
-    top: 0,
-    bottom: 0,
-    backgroundColor: 'rgba(255,255,255,0.18)',
-    borderRadius: 34,
-  },
-  barContent: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    top: 0,
-    bottom: 0,
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 28,
-  },
-  barLabel: {
-    flex: 1,
-    color: '#ffffff',
-    fontSize: 17,
-    fontWeight: '600',
-    letterSpacing: 0.3,
-  },
-  barArrow: {
-    color: 'rgba(255,255,255,0.45)',
-    fontSize: 28,
-    fontWeight: '300',
   },
 })

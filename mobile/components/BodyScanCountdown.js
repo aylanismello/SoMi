@@ -5,13 +5,12 @@ import { StyleSheet, View, Text, Animated, Pressable, Modal, TouchableOpacity } 
 import { useVideoPlayer, VideoView } from 'expo-video'
 import { useEvent } from 'expo'
 import * as Haptics from 'expo-haptics'
-import { colors } from '../constants/theme'
 import { chainService } from '../services/chainService'
 import { useSettingsStore } from '../stores/settingsStore'
 import { useFlowMusicStore } from '../stores/flowMusicStore'
 import { useRoutineStore } from '../stores/routineStore'
 import FlowProgressHeader from './FlowProgressHeader'
-import FlowTransportBar from './FlowTransportBar'
+import PlayerControls from './PlayerControls'
 import CustomizationModal from './CustomizationModal'
 
 const COUNTDOWN_DURATION_SECONDS = 60
@@ -219,7 +218,7 @@ export default function BodyScanCountdown() {
     ? "how do you feel in the body?\nnotice any sensations\ngoing into this flow"
     : "how do you feel those sensations\ncoming out of this flow"
 
-  const barWidth = progressAnim.interpolate({
+  const fillWidth = progressAnim.interpolate({
     inputRange: [0, 1],
     outputRange: ['0%', '100%'],
   })
@@ -247,27 +246,16 @@ export default function BodyScanCountdown() {
         <Text style={styles.message}>{message}</Text>
       </Pressable>
 
-      {/* Loading bar — tap to skip */}
-      {showControls && (
-        <Pressable onPress={handleSkipBlock} style={styles.barWrapper}>
-          <View style={styles.barTrack}>
-            <Animated.View style={[styles.barFill, { width: barWidth }]} />
-            <View style={styles.barContent}>
-              <Text style={styles.barLabel}>Skip Body Scan</Text>
-              <Text style={styles.barArrow}>›</Text>
-            </View>
-          </View>
-        </Pressable>
-      )}
-
-      <FlowTransportBar
+      <PlayerControls
         isPaused={isPaused}
         onPause={handlePauseResume}
         onPlay={handlePauseResume}
         onStop={handleEndFlow}
         onOpenSettings={handleOpenSettings}
+        skipLabel="Skip Body Scan"
+        onSkip={handleSkipBlock}
+        fillWidth={fillWidth}
         showControls={showControls}
-        containerStyle={{ bottom: 140 }}
       />
 
       <CustomizationModal visible={showSettingsModal} onClose={handleCloseSettings} />
@@ -323,51 +311,6 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     lineHeight: 40,
     letterSpacing: 0.2,
-  },
-  barWrapper: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    paddingHorizontal: 20,
-    paddingBottom: 52,
-  },
-  barTrack: {
-    height: 68,
-    borderRadius: 34,
-    backgroundColor: 'rgba(255,255,255,0.1)',
-    overflow: 'hidden',
-    position: 'relative',
-  },
-  barFill: {
-    position: 'absolute',
-    left: 0,
-    top: 0,
-    bottom: 0,
-    backgroundColor: 'rgba(255,255,255,0.18)',
-    borderRadius: 34,
-  },
-  barContent: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    top: 0,
-    bottom: 0,
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 28,
-  },
-  barLabel: {
-    flex: 1,
-    color: '#ffffff',
-    fontSize: 17,
-    fontWeight: '600',
-    letterSpacing: 0.3,
-  },
-  barArrow: {
-    color: 'rgba(255,255,255,0.45)',
-    fontSize: 28,
-    fontWeight: '300',
   },
   sheetOverlay: {
     flex: 1,

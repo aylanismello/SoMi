@@ -3,7 +3,7 @@ import { useEvent } from 'expo'
 import { useVideoPlayer, VideoView } from 'expo-video'
 import { StyleSheet, View, TouchableOpacity, Text, ScrollView, Animated, Pressable, Modal } from 'react-native'
 import { LinearGradient } from 'expo-linear-gradient'
-import { GlassView } from 'expo-glass-effect'
+import PlayerControls from './PlayerControls'
 import Svg, { Circle } from 'react-native-svg'
 import * as Haptics from 'expo-haptics'
 import { useFocusEffect, useNavigation } from '@react-navigation/native'
@@ -19,7 +19,6 @@ import { useFlowMusicStore } from '../stores/flowMusicStore'
 import { useRoutineStore } from '../stores/routineStore'
 import CustomizationModal from './CustomizationModal'
 import FlowProgressHeader from './FlowProgressHeader'
-import FlowTransportBar from './FlowTransportBar'
 import { useSettingsStore as useSettingsStoreForBodyScan } from '../stores/settingsStore'
 import { useSaveChainEntry } from '../hooks/useSupabaseQueries'
 
@@ -1270,29 +1269,17 @@ export default function SoMiRoutineScreen() {
           )}
         </Pressable>
 
-        {/* Loading bar — tap to skip */}
-        {showOverlay && (
-          <Pressable onPress={handleSkipInterstitial} style={styles.barWrapper}>
-            <View style={styles.barTrack}>
-              <Animated.View style={[styles.barFill, { width: barWidth }]} />
-              <View style={styles.barContent}>
-                <Text style={styles.barLabel}>Skip Integration</Text>
-                <Text style={styles.barArrow}>›</Text>
-              </View>
-            </View>
-          </Pressable>
-        )}
-
-        {showOverlay && (
-          <FlowTransportBar
-            isPaused={interstitialPaused}
-            onPause={handleInterstitialPauseResume}
-            onPlay={handleInterstitialPauseResume}
-            onStop={handleExit}
-            onOpenSettings={handleOpenSettings}
-            containerStyle={{ bottom: 140 }}
-          />
-        )}
+        <PlayerControls
+          isPaused={interstitialPaused}
+          onPause={handleInterstitialPauseResume}
+          onPlay={handleInterstitialPauseResume}
+          onStop={handleExit}
+          onOpenSettings={handleOpenSettings}
+          skipLabel="Skip Integration"
+          onSkip={handleSkipInterstitial}
+          fillWidth={barWidth}
+          showControls={showOverlay}
+        />
 
         <Modal
           visible={showExitModal}
@@ -1351,36 +1338,17 @@ export default function SoMiRoutineScreen() {
         )}
       </Pressable>
 
-      <FlowTransportBar
+      <PlayerControls
         isPaused={!isPlayingState}
         onPause={handlePlayPause}
         onPlay={handlePlayPause}
         onStop={handleExit}
         onOpenSettings={handleOpenSettings}
+        skipLabel="Skip Block"
+        onSkip={handleVideoComplete}
+        fillWidth={`${Math.min(100, (videoCurrentTime / Math.max(1, cappedDuration)) * 100)}%`}
         showControls={showOverlay}
-        containerStyle={{ bottom: 140 }}
       />
-
-      {showOverlay && (
-        <Pressable onPress={handleVideoComplete} style={styles.barWrapper}>
-          <LinearGradient
-            colors={['transparent', 'rgba(0,0,0,0.55)']}
-            style={styles.barScrim}
-            pointerEvents="none"
-          />
-          <GlassView
-            glassEffectStyle="regular"
-            colorScheme="dark"
-            style={styles.barTrack}
-          >
-            <View style={[styles.barFill, { width: `${Math.min(100, (videoCurrentTime / Math.max(1, cappedDuration)) * 100)}%` }]} />
-            <View style={styles.barContent}>
-              <Text style={styles.barLabel}>Skip Block</Text>
-              <Text style={styles.barArrow}>›</Text>
-            </View>
-          </GlassView>
-        </Pressable>
-      )}
 
       {/* Exit Bottom Sheet */}
       <Modal
@@ -1530,58 +1498,6 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     letterSpacing: 0.2,
     lineHeight: 20,
-  },
-  barWrapper: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    paddingHorizontal: 20,
-    paddingBottom: 44,
-  },
-  barScrim: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    height: 160,
-  },
-  barTrack: {
-    height: 64,
-    borderRadius: 32,
-    overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.22)',
-  },
-  barFill: {
-    position: 'absolute',
-    left: 0,
-    top: 0,
-    bottom: 0,
-    backgroundColor: 'rgba(255,255,255,0.14)',
-    borderRadius: 32,
-  },
-  barContent: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    top: 0,
-    bottom: 0,
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 26,
-  },
-  barLabel: {
-    flex: 1,
-    color: '#ffffff',
-    fontSize: 16,
-    fontWeight: '700',
-    letterSpacing: 0.4,
-  },
-  barArrow: {
-    color: 'rgba(255,255,255,0.75)',
-    fontSize: 26,
-    fontWeight: '300',
   },
   circleContainer: {
     position: 'relative',

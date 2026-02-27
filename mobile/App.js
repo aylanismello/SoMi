@@ -145,7 +145,7 @@ function MainTabs() {
 // Root navigator: tabs + flow journey + player rendered above tabs
 function AppNavigator() {
   return (
-    <RootStack.Navigator screenOptions={{ headerShown: false }}>
+    <RootStack.Navigator screenOptions={{ headerShown: false, cardStyle: { backgroundColor: '#000000' } }}>
       <RootStack.Screen name="Main" component={MainTabs} />
       {/* Flow journey — rendered above tabs, tab bar hidden automatically */}
       <RootStack.Screen
