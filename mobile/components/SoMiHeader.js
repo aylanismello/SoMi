@@ -34,27 +34,29 @@ export default function SoMiHeader({ onRightPress, rightIcon = 'heart', style })
   }
 
   return (
-    <View style={[styles.header, style]}>
-      <View style={styles.streakPill}>
-        <Ionicons name="flame" size={15} color="#FF6B35" />
-        <Text style={styles.streakText}>{streak}</Text>
+    <View style={style}>
+      <View style={styles.row}>
+        <View style={styles.streakPill}>
+          <Ionicons name="flame" size={15} color="#FF6B35" />
+          <Text style={styles.streakText}>{streak}</Text>
+        </View>
+
+        <Text style={styles.logoText}>SoMi</Text>
+
+        <TouchableOpacity style={styles.iconBtn} activeOpacity={0.7} onPress={handleRight}>
+          <Ionicons
+            name={rightIcon === 'settings' ? 'settings-outline' : 'heart'}
+            size={17}
+            color="rgba(255,255,255,0.82)"
+          />
+        </TouchableOpacity>
       </View>
-
-      <Text style={styles.logoText}>SoMi</Text>
-
-      <TouchableOpacity style={styles.iconBtn} activeOpacity={0.7} onPress={handleRight}>
-        <Ionicons
-          name={rightIcon === 'settings' ? 'settings-outline' : 'heart'}
-          size={17}
-          color="rgba(255,255,255,0.82)"
-        />
-      </TouchableOpacity>
     </View>
   )
 }
 
 const styles = StyleSheet.create({
-  header: {
+  row: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',

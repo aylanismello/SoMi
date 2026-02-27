@@ -360,6 +360,7 @@ export default function MySomiScreen() {
     recentTrend: null,
     totalSessions: 0,
     totalMinutes: 0,
+    totalExercises: 0,
     daysActive: 0,
     currentStreak: 0,
   })
@@ -389,6 +390,7 @@ export default function MySomiScreen() {
         recentTrend: null,
         totalSessions: 0,
         totalMinutes: 0,
+        totalExercises: 0,
         daysActive: 0,
         currentStreak: 0,
       })
@@ -426,6 +428,9 @@ export default function MySomiScreen() {
 
     // Calculate total sessions
     const totalSessions = chains.length
+
+    // Calculate total exercises (blocks completed across all sessions)
+    const totalExercises = chains.reduce((sum, chain) => sum + chain.somi_chain_entries.length, 0)
 
     // Calculate total minutes
     const totalSeconds = chains.reduce((sum, chain) => {
@@ -490,6 +495,7 @@ export default function MySomiScreen() {
       recentTrend,
       totalSessions,
       totalMinutes,
+      totalExercises,
       daysActive,
       currentStreak,
     })
@@ -812,51 +818,26 @@ export default function MySomiScreen() {
         </BlurView>
         */}
 
-        {/* My Stats - Featured Dashboard */}
-        <Text style={styles.myStatsTitle}>my stats</Text>
-        <BlurView intensity={20} tint="dark" style={styles.myStatsCard}>
-          {/* Featured Stat - Days Active */}
-          <View style={styles.featuredStat}>
-            <View style={styles.featuredStatBadge}>
-              <Text style={styles.featuredStatNumber}>{stats.daysActive}</Text>
-            </View>
-            <Text style={styles.featuredStatLabel}>days present</Text>
+        {/* Stats Row - Breathwork style */}
+        <View style={styles.statsRow}>
+          <View style={styles.statsRowItem}>
+            <Text style={styles.statsRowNumber}>{stats.currentStreak}</Text>
+            <Text style={styles.statsRowLabel}>Top Streak</Text>
           </View>
-
-          {/* Bottom Stats Grid */}
-          <View style={styles.bottomStatsGrid}>
-            <View style={styles.bottomStatItem}>
-              <Text style={styles.bottomStatIcon}>🔗</Text>
-              <Text style={styles.bottomStatValue}>{stats.totalSessions}</Text>
-              <Text style={styles.bottomStatLabel}>sessions</Text>
-            </View>
-
-            <View style={styles.bottomStatDivider} />
-
-            <View style={styles.bottomStatItem}>
-              <Text style={styles.bottomStatIcon}>⏱</Text>
-              <Text style={styles.bottomStatValue}>
-                {Math.floor(stats.totalMinutes / 60) > 0
-                  ? `${Math.floor(stats.totalMinutes / 60)}h ${stats.totalMinutes % 60}m`
-                  : `${stats.totalMinutes}m`}
-              </Text>
-              <Text style={styles.bottomStatLabel}>total time</Text>
-            </View>
-
-            <View style={styles.bottomStatDivider} />
-
-            <View style={styles.bottomStatItem}>
-              <Text style={styles.bottomStatIcon}>🔥</Text>
-              <Text style={styles.bottomStatValue}>
-                {stats.currentStreak} {stats.currentStreak === 1 ? 'day' : 'days'}
-              </Text>
-              <Text style={styles.bottomStatLabel}>streak</Text>
-            </View>
+          <View style={styles.statsRowDivider} />
+          <View style={styles.statsRowItem}>
+            <Text style={styles.statsRowNumber}>{stats.totalExercises}</Text>
+            <Text style={styles.statsRowLabel}>Exercises</Text>
           </View>
-        </BlurView>
+          <View style={styles.statsRowDivider} />
+          <View style={styles.statsRowItem}>
+            <Text style={styles.statsRowNumber}>{stats.totalMinutes}</Text>
+            <Text style={styles.statsRowLabel}>Minutes</Text>
+          </View>
+        </View>
 
         {/* Calendar/Streak View */}
-        <Text style={styles.sectionTitle}>activity calendar</Text>
+        <Text style={styles.sectionTitle}>flow calendar</Text>
         <BlurView intensity={20} tint="dark" style={styles.calendarCard}>
           <CalendarStreakView chains={somiChains} />
           <View style={styles.calendarLegend}>
@@ -1433,49 +1414,34 @@ const styles = StyleSheet.create({
     fontSize: 32,
     marginBottom: 4,
   },
-  myStatsTitle: {
-    color: colors.text.primary,
-    fontSize: 22,
-    fontWeight: '700',
-    letterSpacing: 0.5,
-    marginBottom: 16,
-  },
-  myStatsCard: {
-    borderRadius: 24,
-    overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: colors.border.subtle,
-    padding: 32,
-    marginBottom: 40,
+  statsRow: {
+    flexDirection: 'row',
     alignItems: 'center',
-  },
-  featuredStat: {
-    alignItems: 'center',
+    justifyContent: 'space-around',
+    paddingVertical: 20,
     marginBottom: 32,
   },
-  featuredStatBadge: {
-    width: 120,
-    height: 120,
-    borderRadius: 60,
-    backgroundColor: colors.accent.primary + '20',
-    borderWidth: 3,
-    borderColor: colors.accent.primary,
+  statsRowItem: {
+    flex: 1,
     alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 16,
   },
-  featuredStatNumber: {
-    color: colors.accent.primary,
-    fontSize: 52,
+  statsRowNumber: {
+    color: colors.text.primary,
+    fontSize: 36,
     fontWeight: '700',
-    letterSpacing: -1,
+    letterSpacing: -0.5,
+    marginBottom: 4,
   },
-  featuredStatLabel: {
-    color: colors.text.secondary,
-    fontSize: 16,
-    fontWeight: '600',
-    letterSpacing: 0.5,
-    textTransform: 'lowercase',
+  statsRowLabel: {
+    color: colors.text.muted,
+    fontSize: 13,
+    fontWeight: '500',
+    letterSpacing: 0.3,
+  },
+  statsRowDivider: {
+    width: 1,
+    height: 40,
+    backgroundColor: colors.border.subtle,
   },
   bottomStatsGrid: {
     flexDirection: 'row',
