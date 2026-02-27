@@ -18,7 +18,7 @@ export async function POST(request) {
       // Fetch all active blocks from the database
       const { data: allBlocks, error: dbError } = await supabase
         .from('somi_blocks')
-        .select('id, canonical_name, name, description, state_target, media_url')
+        .select('id, canonical_name, name, description, energy_delta, safety_delta, media_url')
         .eq('active', true)
         .eq('block_type', 'vagal_toning')
 
@@ -61,7 +61,8 @@ export async function POST(request) {
                 type: 'video',
                 order: order++,
                 description: block.description,
-                state_target: block.state_target,
+                energy_delta: block.energy_delta,
+                safety_delta: block.safety_delta,
                 section: section.name,
               })
             }
@@ -98,7 +99,7 @@ export async function POST(request) {
     // Fetch blocks from database - blocks are global content
     const { data: blocks, error: dbError } = await supabase
       .from('somi_blocks')
-      .select('id, canonical_name, name, description, state_target, media_url')
+      .select('id, canonical_name, name, description, energy_delta, safety_delta, media_url')
       .in('canonical_name', canonicalNames)
 
     if (dbError) {
@@ -123,7 +124,8 @@ export async function POST(request) {
       type: 'video',
       order: index,
       description: block.description,
-      state_target: block.state_target,
+      energy_delta: block.energy_delta,
+      safety_delta: block.safety_delta,
     }))
 
     return NextResponse.json({

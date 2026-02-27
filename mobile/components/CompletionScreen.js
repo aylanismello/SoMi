@@ -1,4 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
+import { useNavigation } from '@react-navigation/native'
+import { router } from 'expo-router'
 import { StyleSheet, View, Text, TouchableOpacity, Animated, Dimensions, Easing } from 'react-native'
 import { LinearGradient } from 'expo-linear-gradient'
 import { BlurView } from 'expo-blur'
@@ -23,7 +25,8 @@ const generateConfetti = (count) => {
   }))
 }
 
-export default function CompletionScreen({ route, navigation }) {
+export default function CompletionScreen() {
+  const navigation = useNavigation()
   const { data: latestChain } = useLatestChain()
   const [confetti] = useState(generateConfetti(20))
   const { stopFlowMusic } = useFlowMusicStore()
@@ -230,7 +233,7 @@ export default function CompletionScreen({ route, navigation }) {
     console.log('🎵 CompletionScreen: Fading out flow music on Continue...')
     stopFlowMusic()
 
-    navigation.navigate('(tabs)')
+    router.dismissAll()
   }
 
   const badgeRotateInterpolate = badgeRotate.interpolate({

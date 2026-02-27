@@ -1,4 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
+import { useNavigation, useRoute } from '@react-navigation/native'
+import { router } from 'expo-router'
 import { StyleSheet, View, Text, Animated, Pressable, Modal, TouchableOpacity } from 'react-native'
 import { useVideoPlayer, VideoView } from 'expo-video'
 import { useEvent } from 'expo'
@@ -15,7 +17,9 @@ import CustomizationModal from './CustomizationModal'
 const COUNTDOWN_DURATION_SECONDS = 60
 const OCEAN_VIDEO_URI = 'https://qujifwhwntqxziymqdwu.supabase.co/storage/v1/object/public/test/somi%20videos/ocean_loop_final.mp4'
 
-export default function BodyScanCountdown({ route, navigation }) {
+export default function BodyScanCountdown() {
+  const navigation = useNavigation()
+  const route = useRoute()
   const flowType = useRoutineStore(state => state.flowType)
   const {
     isInitial,
@@ -24,7 +28,7 @@ export default function BodyScanCountdown({ route, navigation }) {
     skipToRoutine,
     fromCheckIn,
     finalOrderIndex,
-  } = route.params
+  } = route.params ?? {}
 
   const oceanPlayer = useVideoPlayer(OCEAN_VIDEO_URI, (player) => {
     player.loop = true
@@ -203,7 +207,7 @@ export default function BodyScanCountdown({ route, navigation }) {
     } else {
       await chainService.endActiveChain()
     }
-    navigation.navigate('(tabs)')
+    router.dismissAll()
   }
 
   const handleCancelExit = () => {

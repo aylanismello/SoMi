@@ -76,14 +76,12 @@ arm_shoulder_hand_circles, squeeze_hands_release). **Contains ALL remaining bloc
 - **Integration**: slow, integrative, grounding exercises to close the session (e.g. self_hug, self_hug_swaying, brain_hold). Always end with something settling. **ALWAYS exactly 1 block — never more, never less.**
 
 ### State-Specific Guidance
-- **withdrawn** (dorsal vagal shutdown — collapsed, frozen): Start with very gentle vagal tone (vagus_reset, eye_covering). Avoid shaking or intense activation early. Gently build upward 
-arousal in main. Cool-down with warmth and containment (self_hug_swaying, brain_hold).
-- **foggy** (mild dorsal / blended — hazy, numb): Similar to withdrawn but can tolerate slightly more movement in main. Use humming and gentle touch to bring the system online. End with 
-grounding.
-- **steady** (ventral vagal — window of tolerance): Balanced routine. Any sequence works. Mix activation and settling freely.
-- **glowing** (high-vitality ventral vagal — warm, connected): Can lean into joyful movement and heart-openers. Keep warm-up brief. Celebrate the state with expansive main blocks.
-- **wired** (sympathetic — fight/flight, tense, over-activated): Start with calming, parasympathetic-activating blocks (vagus_reset, eye_covering, brain_hold) in warm-up. Only introduce
-discharge movements (shaking, freeze_roll) after the system has partially settled. End with strong integration phase.
+States are derived from a 2D energy × safety space:
+- **shutdown** (low energy + low safety — collapsed, frozen, disconnected): Start with the gentlest vagal tone (vagus_reset, eye_covering, brain_hold). Avoid anything intense or demanding early. Gently build upward arousal in main. Close with warmth and containment (self_hug_swaying, brain_hold).
+- **restful** (low energy + safe — calm, quiet, unhurried): System is settled and safe; needs gentle energising. Use humming and soft movement in warm-up. Introduce moderate activation in main. End with grounding.
+- **steady** (centred — window of tolerance): Balanced routine. Any sequence works. Mix activation and settling freely.
+- **glowing** (high energy + safe — warm, expansive, connected): Can lean into joyful movement and heart-openers. Keep warm-up brief. Celebrate the state with expansive main blocks.
+- **wired** (high energy + low safety — fight/flight, tense, over-activated): Start with calming, parasympathetic-activating blocks (vagus_reset, eye_covering, brain_hold) in warm-up. Only introduce discharge movements (shaking, freeze_roll) after the system has partially settled. End with strong integration phase.
 
 ### Intensity Scaling
 Intensity affects which blocks you choose within each fixed phase, not the phase sizes (those are always exactly 1 warm-up + N main + 1 integration):

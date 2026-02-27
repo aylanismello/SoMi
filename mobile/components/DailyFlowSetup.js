@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect, useMemo, useCallback } from 'react'
-import { useFocusEffect } from '@react-navigation/native'
+import { useFocusEffect, useNavigation } from '@react-navigation/native'
+import { router } from 'expo-router'
 import { StyleSheet, View, Text, Image, TouchableOpacity, ScrollView, ActivityIndicator, Animated, PanResponder, Modal } from 'react-native'
 import { LinearGradient } from 'expo-linear-gradient'
 import { BlurView } from 'expo-blur'
@@ -13,18 +14,19 @@ import { getAutoRoutineType } from '../services/routineConfig'
 import StateXYPicker from './StateXYPicker'
 import CustomizationModal from './CustomizationModal'
 import { api } from '../services/api'
-import { deriveState, deriveIntensity } from '../constants/polyvagalStates'
+import { deriveState, deriveIntensity, deriveStateFromDeltas } from '../constants/polyvagalStates'
 
 const _H_PAD = 20
 const MIN_DURATION = 1
 const MAX_DURATION = 60
 
+// Polyvagal state emojis (new 2D model)
 const STATE_EMOJIS = {
-  withdrawn: '🌧',
-  stirring:  '🌫',
-  activated: '🌪',
-  settling:  '🌤',
-  connected: '☀️',
+  shutdown: '🌑',
+  restful:  '🌦',
+  wired:    '🌪',
+  glowing:  '☀️',
+  steady:   '⛅',
 }
 
 const SECTION_LABELS = {
@@ -193,7 +195,8 @@ const dpStyles = StyleSheet.create({
 })
 
 // ─── Main Component ───────────────────────────────────────────────────────────
-export default function DailyFlowSetup({ navigation }) {
+export default function DailyFlowSetup() {
+  const navigation = useNavigation()
   const { bodyScanStart, bodyScanEnd, setBodyScanStart, setBodyScanEnd } = useSettingsStore()
 
   const [selectedMinutes, setSelectedMinutes] = useState(10)
@@ -346,7 +349,7 @@ export default function DailyFlowSetup({ navigation }) {
   const handleClose = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium)
     hasInitializedRef.current = false
-    navigation.navigate('(tabs)')
+    router.dismissAll()
   }
 
   const handleEditRoutine = () => {
@@ -540,8 +543,8 @@ export default function DailyFlowSetup({ navigation }) {
                         <Text style={styles.planItemNumberText}>{globalIndex + 1}</Text>
                       </View>
                       <Text style={styles.planItemName}>{block.name}</Text>
-                      {STATE_EMOJIS[block.state_target] ? (
-                        <Text style={styles.planItemEmoji}>{STATE_EMOJIS[block.state_target]}</Text>
+                      {STATE_EMOJIS[deriveStateFromDeltas(block.energy_delta, block.safety_delta)?.name] ? (
+                        <Text style={styles.planItemEmoji}>{STATE_EMOJIS[deriveStateFromDeltas(block.energy_delta, block.safety_delta)?.name]}</Text>
                       ) : null}
                     </View>
                   )

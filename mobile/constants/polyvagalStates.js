@@ -30,6 +30,19 @@ export function deriveIntensity(energy, safety) {
   return Math.min(100, Math.sqrt(Math.pow(e - 50, 2) + Math.pow(s - 50, 2)) / 50 * 100)
 }
 
+// Derive target polyvagal state from a block's energy/safety deltas.
+// Positive energy_delta = block energises; negative = calms.
+// Positive safety_delta = block grounds/connects; negative = activates/destabilises.
+export function deriveStateFromDeltas(energy_delta, safety_delta) {
+  const e = energy_delta ?? 0
+  const s = safety_delta ?? 0
+  if (e === 0 && s === 0) return POLYVAGAL_STATES.steady
+  if (e >= 0 && s >= 0) return POLYVAGAL_STATES.glowing
+  if (e < 0 && s >= 0) return POLYVAGAL_STATES.restful
+  if (e < 0 && s < 0) return POLYVAGAL_STATES.shutdown
+  return POLYVAGAL_STATES.wired  // e >= 0, s < 0
+}
+
 // Helper to get state info by name
 export const getStateByName = (name) => {
   return POLYVAGAL_STATES[name] || POLYVAGAL_STATES.steady

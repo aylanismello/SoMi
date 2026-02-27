@@ -1,4 +1,6 @@
 import React, { useState, useRef } from 'react'
+import { useNavigation } from '@react-navigation/native'
+import { router } from 'expo-router'
 import { StyleSheet, Text, View, TouchableOpacity, Modal, TextInput, Keyboard, KeyboardAvoidingView, Platform, TouchableWithoutFeedback, ScrollView, ActivityIndicator } from 'react-native'
 import { LinearGradient } from 'expo-linear-gradient'
 import * as Haptics from 'expo-haptics'
@@ -18,7 +20,8 @@ const PRESET_TAGS = [
   'tingling', 'warmth', 'spontaneous movement', 'laughter',
 ]
 
-export default function SoMiCheckIn({ navigation, route }) {
+export default function SoMiCheckIn() {
+  const navigation = useNavigation()
   const [energyLevel, setEnergyLevel] = useState(50)
   const [safetyLevel, setSafetyLevel] = useState(50)
   const [scrollEnabled, setScrollEnabled] = useState(true)
@@ -104,7 +107,7 @@ export default function SoMiCheckIn({ navigation, route }) {
     if (isDaily) {
       navigation.navigate('CompletionScreen')
     } else {
-      navigation.navigate('(tabs)')
+      router.dismissAll()
     }
   }
 
@@ -126,7 +129,7 @@ export default function SoMiCheckIn({ navigation, route }) {
     stopFlowMusic()
     routineStore.resetRoutine()
 
-    navigation.navigate('(tabs)')
+    router.dismissAll()
   }
 
   const handleCancelExit = () => {

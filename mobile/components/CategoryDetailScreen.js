@@ -3,31 +3,32 @@ import { StyleSheet, View, Text, TouchableOpacity, ScrollView, ActivityIndicator
 import { LinearGradient } from 'expo-linear-gradient'
 import * as Haptics from 'expo-haptics'
 import { supabase } from '../supabase'
+import { deriveStateFromDeltas } from '../constants/polyvagalStates'
 
-// Polyvagal states in order from most withdrawn to most connected
+// Polyvagal states (new 2D model) — order: shutdown → restful → steady → wired → glowing
 const POLYVAGAL_STATES = [
-  { id: 'withdrawn', label: 'Withdrawn', color: '#7b68ee', emoji: '🌑' },
-  { id: 'stirring', label: 'Stirring', color: '#9d7be8', emoji: '🌘' },
-  { id: 'activated', label: 'Activated', color: '#b88ddc', emoji: '⚡' },
-  { id: 'settling', label: 'Settling', color: '#68c9ba', emoji: '🌤' },
-  { id: 'connected', label: 'Connected', color: '#4ecdc4', emoji: '🌕' },
+  { id: 'shutdown', label: 'Shutdown', color: '#4A5A72', emoji: '🌑' },
+  { id: 'restful',  label: 'Restful',  color: '#4ECDC4', emoji: '🌦' },
+  { id: 'steady',   label: 'Steady',   color: '#7DBCE7', emoji: '⛅' },
+  { id: 'wired',    label: 'Wired',    color: '#8B5CF6', emoji: '🌪' },
+  { id: 'glowing',  label: 'Glowing',  color: '#F4B942', emoji: '☀️' },
 ]
 
-// Function to get state info by state ID
-const getStateInfo = (stateId) => {
-  return POLYVAGAL_STATES.find(s => s.id === stateId) || null
+// Derive state info for a video from its energy/safety deltas
+const getStateInfo = (video) => {
+  const state = deriveStateFromDeltas(video.energy_delta, video.safety_delta)
+  return POLYVAGAL_STATES.find(s => s.id === state?.name) || null
 }
 
-// Function to sort videos by state_target (for vagal toning category)
+// Sort videos by derived polyvagal state (for vagal toning category)
 const sortByStateTarget = (videos) => {
-  return videos.sort((a, b) => {
-    const aIndex = POLYVAGAL_STATES.findIndex(s => s.id === a.state_target)
-    const bIndex = POLYVAGAL_STATES.findIndex(s => s.id === b.state_target)
-
-    // If state not found, put it at the end
+  return videos.slice().sort((a, b) => {
+    const aState = deriveStateFromDeltas(a.energy_delta, a.safety_delta)
+    const bState = deriveStateFromDeltas(b.energy_delta, b.safety_delta)
+    const aIndex = POLYVAGAL_STATES.findIndex(s => s.id === aState?.name)
+    const bIndex = POLYVAGAL_STATES.findIndex(s => s.id === bState?.name)
     if (aIndex === -1) return 1
     if (bIndex === -1) return -1
-
     return aIndex - bIndex
   })
 }
@@ -137,11 +138,13 @@ export default function CategoryDetailScreen({ navigation, route }) {
         ) : (
           <View style={styles.videoGrid}>
             {videos.map((video, index) => {
-              const stateInfo = getStateInfo(video.state_target)
+              const stateInfo = getStateInfo(video)
+              const derivedStateName = deriveStateFromDeltas(video.energy_delta, video.safety_delta)?.name
 
               // Check if we need to show a state header (for vagal toning only)
+              const prevStateName = index > 0 ? deriveStateFromDeltas(videos[index - 1]?.energy_delta, videos[index - 1]?.safety_delta)?.name : null
               const showStateHeader = categoryId === 'vagal_toning' &&
-                (index === 0 || videos[index - 1]?.state_target !== video.state_target)
+                (index === 0 || prevStateName !== derivedStateName)
 
               return (
                 <View key={video.id}>
@@ -186,21 +189,18 @@ export default function CategoryDetailScreen({ navigation, route }) {
                               {video.description}
                             </Text>
                           )}
-                          {categoryId === 'vagal_toning' && video.state_target && (
+                          {categoryId === 'vagal_toning' && stateInfo && (
                             <View style={styles.videoMetadata}>
                               <View style={[
                                 styles.metadataBadge,
-                                stateInfo && {
+                                {
                                   backgroundColor: `${stateInfo.color}30`,
                                   borderColor: stateInfo.color,
                                   borderWidth: 1,
                                 }
                               ]}>
-                                <Text style={[
-                                  styles.metadataText,
-                                  stateInfo && { color: stateInfo.color }
-                                ]}>
-                                  {stateInfo?.label || video.state_target.charAt(0).toUpperCase() + video.state_target.slice(1)}
+                                <Text style={[styles.metadataText, { color: stateInfo.color }]}>
+                                  {stateInfo.label}
                                 </Text>
                               </View>
                               {video.intensity && (

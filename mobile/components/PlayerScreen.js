@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
+import { useNavigation, useRoute } from '@react-navigation/native'
 import { useEvent } from 'expo'
 import { useVideoPlayer, VideoView } from 'expo-video'
 import { useAudioPlayer } from 'expo-audio'
@@ -11,7 +12,9 @@ import { useSettingsStore } from '../stores/settingsStore'
 import { useRoutineStore } from '../stores/routineStore'
 import CustomizationModal from './CustomizationModal'
 
-export default function PlayerScreen({ navigation, route }) {
+export default function PlayerScreen() {
+  const navigation = useNavigation()
+  const route = useRoute()
   const flowType = useRoutineStore(state => state.flowType)
   const {
     media,
@@ -22,7 +25,7 @@ export default function PlayerScreen({ navigation, route }) {
     savedSliderValue,
     savedPolyvagalState,
     fromExplore = false, // New param to track if we came from Explore
-  } = route.params
+  } = route.params ?? {}
   const isAudio = media.type === 'audio'
   const [showControls, setShowControls] = useState(false)
   const [currentTime, setCurrentTime] = useState(0)

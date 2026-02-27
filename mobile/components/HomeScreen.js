@@ -4,6 +4,7 @@ import { LinearGradient } from 'expo-linear-gradient'
 import { BlurView } from 'expo-blur'
 import Svg, { Circle } from 'react-native-svg'
 import { useFocusEffect } from '@react-navigation/native'
+import { router } from 'expo-router'
 import { colors } from '../constants/theme'
 import * as Haptics from 'expo-haptics'
 import CustomizationModal from './CustomizationModal'
@@ -59,7 +60,7 @@ function WeekDay({ label, percentage, isToday, isFuture }) {
   )
 }
 
-export default function HomeScreen({ navigation }) {
+export default function HomeScreen() {
   const glowAnim = useRef(new Animated.Value(0)).current
   const [showSettingsModal, setShowSettingsModal] = useState(false)
   const user = useAuthStore((state) => state.user)
@@ -132,7 +133,7 @@ export default function HomeScreen({ navigation }) {
 
   const handleStartFlow = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium)
-    navigation.navigate('DailyFlowSetup')
+    router.push('/DailyFlowSetup')
   }
 
   const handleOpenSettings = () => {

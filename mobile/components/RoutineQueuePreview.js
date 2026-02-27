@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { useNavigation, useRoute } from '@react-navigation/native'
 import { StyleSheet, View, Text, TouchableOpacity, ScrollView, ActivityIndicator, Modal } from 'react-native'
 import { LinearGradient } from 'expo-linear-gradient'
 import { BlurView } from 'expo-blur'
@@ -20,16 +21,20 @@ function getSectionLabel(name) {
   return SECTION_LABELS[name] || name.toUpperCase()
 }
 
-// Polyvagal state emojis and colors
+import { deriveStateFromDeltas } from '../constants/polyvagalStates'
+
+// Polyvagal state emojis and colors (new 2D model)
 const STATE_EMOJIS = {
-  withdrawn: { emoji: '🌧', color: '#4A5F8C', label: 'Withdrawn' },
-  stirring: { emoji: '🌫', color: '#5B7BB4', label: 'Stirring' },
-  activated: { emoji: '🌪', color: '#6B9BD1', label: 'Activated' },
-  settling: { emoji: '🌤', color: '#7DBCE7', label: 'Settling' },
-  connected: { emoji: '☀️', color: '#90DDF0', label: 'Connected' },
+  shutdown: { emoji: '🌑', color: '#4A5A72', label: 'Shutdown' },
+  restful:  { emoji: '🌦', color: '#4ECDC4', label: 'Restful' },
+  wired:    { emoji: '🌪', color: '#8B5CF6', label: 'Wired' },
+  glowing:  { emoji: '☀️', color: '#F4B942', label: 'Glowing' },
+  steady:   { emoji: '⛅', color: '#7DBCE7', label: 'Steady' },
 }
 
-export default function RoutineQueuePreview({ navigation, route }) {
+export default function RoutineQueuePreview() {
+  const navigation = useNavigation()
+  const route = useRoute()
   // Get routine config from store
   const {
     totalBlocks,
@@ -77,7 +82,8 @@ export default function RoutineQueuePreview({ navigation, route }) {
           type: 'video',
           order: index,
           description: block.description,
-          state_target: block.state_target,
+          energy_delta: block.energy_delta,
+          safety_delta: block.safety_delta,
         }))
       }
 
@@ -98,11 +104,10 @@ export default function RoutineQueuePreview({ navigation, route }) {
     const loadLibrary = async () => {
       const { data: library } = await supabase
         .from('somi_blocks')
-        .select('id, name, description, state_target, canonical_name, media_url')
+        .select('id, name, description, energy_delta, safety_delta, canonical_name, media_url')
         .eq('media_type', 'video')
         .eq('active', true)
         .eq('block_type', 'vagal_toning')
-        .or('is_routine.is.null,is_routine.eq.false')
         .not('media_url', 'is', null)
 
       setLibraryBlocks(library || [])
@@ -144,7 +149,8 @@ export default function RoutineQueuePreview({ navigation, route }) {
       url: libraryBlock.media_url,
       type: 'video',
       description: libraryBlock.description,
-      state_target: libraryBlock.state_target,
+      energy_delta: libraryBlock.energy_delta,
+      safety_delta: libraryBlock.safety_delta,
     }
 
     // Update both local state and store immediately
@@ -228,7 +234,8 @@ export default function RoutineQueuePreview({ navigation, route }) {
               )
 
               const renderBlock = (block, index) => {
-                const stateInfo = STATE_EMOJIS[block.state_target]
+                const derivedState = deriveStateFromDeltas(block.energy_delta, block.safety_delta)
+                const stateInfo = STATE_EMOJIS[derivedState?.name]
                 const isPastBlock = isEditMode && index < currentCycle - 1
                 const isCurrentBlock = isEditMode && index === currentCycle - 1
                 return (
@@ -344,7 +351,10 @@ export default function RoutineQueuePreview({ navigation, route }) {
             >
               {Object.entries(STATE_EMOJIS).map(([stateId, stateInfo], sectionIndex) => {
                 // Filter blocks for this state
-                const blocksForState = libraryBlocks.filter(b => b.state_target === stateId)
+                const blocksForState = libraryBlocks.filter(b => {
+                  const blockState = deriveStateFromDeltas(b.energy_delta, b.safety_delta)
+                  return blockState?.name === stateId
+                })
 
                 if (blocksForState.length === 0) return null
 

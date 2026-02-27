@@ -6,7 +6,8 @@ import { LinearGradient } from 'expo-linear-gradient'
 import { GlassView } from 'expo-glass-effect'
 import Svg, { Circle } from 'react-native-svg'
 import * as Haptics from 'expo-haptics'
-import { useFocusEffect } from '@react-navigation/native'
+import { useFocusEffect, useNavigation } from '@react-navigation/native'
+import { router } from 'expo-router'
 import { chainService } from '../services/chainService'
 import { api } from '../services/api'
 import { selectRoutineVideo } from '../services/videoSelectionAlgorithm'
@@ -36,15 +37,6 @@ const OCEAN_VIDEO_URI = 'https://qujifwhwntqxziymqdwu.supabase.co/storage/v1/obj
 const VIDEO_DURATION_CAP_SECONDS = 60
 const INTERSTITIAL_DURATION_SECONDS = 20
 
-// Map new polyvagal state codes to old database state_target values
-const STATE_CODE_TO_TARGET = {
-  1: 'withdrawn', // Drained
-  2: 'stirring',  // Foggy
-  3: 'activated', // Wired
-  4: 'settling',  // Steady
-  5: 'connected', // Glowing
-}
-
 // Integration messages that rotate every 10 seconds
 const INTEGRATION_MESSAGES = [
   "sense your body...\nnotice what's present",
@@ -55,16 +47,17 @@ const INTEGRATION_MESSAGES = [
   "notice without\njudging",
 ]
 
-// Polyvagal state emojis and colors (matching SoMiCheckIn)
+// Polyvagal state emojis and colors (new 2D model)
 const STATE_EMOJIS = {
-  withdrawn: { emoji: '🌧', color: '#4A5F8C' },
-  stirring: { emoji: '🌫', color: '#5B7BB4' },
-  activated: { emoji: '🌪', color: '#6B9BD1' },
-  settling: { emoji: '🌤', color: '#7DBCE7' },
-  connected: { emoji: '☀️', color: '#90DDF0' },
+  shutdown: { emoji: '🌑', color: '#4A5A72' },
+  restful:  { emoji: '🌦', color: '#4ECDC4' },
+  wired:    { emoji: '🌪', color: '#8B5CF6' },
+  glowing:  { emoji: '☀️', color: '#F4B942' },
+  steady:   { emoji: '⛅', color: '#7DBCE7' },
 }
 
-export default function SoMiRoutineScreen({ navigation }) {
+export default function SoMiRoutineScreen() {
+  const navigation = useNavigation()
   // Get all routine state from store
   const {
     currentCycle,
@@ -442,7 +435,8 @@ export default function SoMiRoutineScreen({ navigation }) {
           id: nextBlock.somi_block_id,
           name: nextBlock.name,
           description: nextBlock.description,
-          state_target: nextBlock.state_target,
+          energy_delta: nextBlock.energy_delta,
+          safety_delta: nextBlock.safety_delta,
           media_url: nextBlock.url,
           canonical_name: nextBlock.canonical_name,
         }
@@ -843,7 +837,7 @@ export default function SoMiRoutineScreen({ navigation }) {
         resetRoutine()
 
         // Go home
-        navigation.navigate('(tabs)')
+        router.dismissAll()
       } else {
         // Daily flow: check bodyScanEnd setting
         if (bodyScanEnd) {
@@ -953,7 +947,7 @@ export default function SoMiRoutineScreen({ navigation }) {
         resetRoutine()
 
         // Go home
-        navigation.navigate('(tabs)')
+        router.dismissAll()
       } else {
         // Daily flow: check bodyScanEnd setting
         if (bodyScanEnd) {
@@ -1027,7 +1021,7 @@ export default function SoMiRoutineScreen({ navigation }) {
     // Reset routine store
     resetRoutine()
 
-    navigation.navigate('(tabs)')
+    router.dismissAll()
   }
 
   const handleCancelExit = () => {

@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react'
+import { useNavigation } from '@react-navigation/native'
 import { StyleSheet, Text, View, TouchableOpacity, Animated, AppState } from 'react-native'
 import { LinearGradient } from 'expo-linear-gradient'
 import { BlurView } from 'expo-blur'
@@ -8,7 +9,8 @@ import { chainService } from '../services/chainService'
 import { soundManager } from '../utils/SoundManager'
 import { useRoutineStore } from '../stores/routineStore'
 
-export default function SoMiTimer({ navigation, route }) {
+export default function SoMiTimer() {
+  const navigation = useNavigation()
   const flowType = useRoutineStore(state => state.flowType)
   const [seconds, setSeconds] = useState(0)
   const [isPaused, setIsPaused] = useState(false)

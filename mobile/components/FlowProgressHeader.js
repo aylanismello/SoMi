@@ -5,14 +5,15 @@ import * as Haptics from 'expo-haptics'
 import { colors } from '../constants/theme'
 import { useRoutineStore } from '../stores/routineStore'
 import { useSettingsStore } from '../stores/settingsStore'
+import { deriveStateFromDeltas } from '../constants/polyvagalStates'
 
-// Polyvagal state emojis for the queue display
+// Polyvagal state emojis for the queue display (new 2D model)
 const STATE_EMOJIS = {
-  withdrawn: '🌧',
-  stirring: '🌫',
-  activated: '🌪',
-  settling: '🌤',
-  connected: '☀️',
+  shutdown: '🌑',
+  restful:  '🌦',
+  wired:    '🌪',
+  glowing:  '☀️',
+  steady:   '⛅',
 }
 
 const SECTION_LABELS = {
@@ -107,7 +108,8 @@ export default function FlowProgressHeader() {
                   const renderBlock = (block, globalIndex) => {
                     const isCompleted = globalIndex < displayCompleted
                     const isCurrent = globalIndex === displayCompleted
-                    const stateEmoji = STATE_EMOJIS[block.state_target] || ''
+                    const derivedState = deriveStateFromDeltas(block.energy_delta, block.safety_delta)
+                    const stateEmoji = STATE_EMOJIS[derivedState?.name] || ''
                     return (
                       <View
                         key={`${block.somi_block_id}-${globalIndex}`}

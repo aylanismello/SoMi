@@ -2,71 +2,45 @@
 // VIDEO SELECTION ALGORITHM
 // ============================================================================
 //
-// This file contains the core algorithm for selecting the next video
-// based on the user's current polyvagal state and embodiment score.
+// Selects the next video based on the user's current polyvagal state and the
+// block's energy_delta / safety_delta values.
 //
-// Tweak this logic to change how videos are recommended.
+// State model (2D energy × safety):
+//   shutdown  — low energy, low safety   → want blocks that raise both
+//   restful   — low energy, safe          → want blocks that raise energy
+//   wired     — high energy, low safety   → want blocks that raise safety / lower energy
+//   glowing   — high energy, safe         → any block that maintains safety
+//   steady    — centre                    → any block
 //
 
 // Select the next video based on user's current state
 //
 // Inputs:
 //   - availableBlocks: all active video blocks from database
-//   - polyvagalState: 'withdrawn', 'stirring', 'activated', 'settling', 'connected'
-//   - sliderValue: embodiment score 0-100 (not used yet, but available for future logic)
+//   - polyvagalState: 'shutdown' | 'restful' | 'wired' | 'glowing' | 'steady'
+//   - sliderValue: embodiment score 0-100 (reserved for future use)
 //
 // Returns: selected video block with media_url, id, name, etc.
 //
 export function selectNextVideo(availableBlocks, polyvagalState, sliderValue) {
-  // Safety check: if no blocks available, return null
   if (!availableBlocks || availableBlocks.length === 0) {
     console.warn('No video blocks available for selection')
     return null
   }
 
-  // ============================================================================
-  // ALGORITHM V1: EXACT STATE MATCHING WITH RANDOM FALLBACK
-  // ============================================================================
-  //
-  // Strategy:
-  // 1. Try to find videos that match the user's current polyvagal state
-  // 2. If matches found, pick one randomly
-  // 3. If no matches, fall back to any random video
-  //
-  // Future improvements could include:
-  // - Weighted selection based on intensity levels
-  // - Prefer videos user hasn't seen recently
-  // - Consider routine_role (warmup, main, cooldown)
-  // - Use slider value to fine-tune selection
-  // ============================================================================
+  const matchingBlocks = filterBlocksForState(availableBlocks, polyvagalState)
 
-  // Filter blocks that match the current state
-  const matchingBlocks = availableBlocks.filter(
-    block => block.state_target === polyvagalState
-  )
+  const pool = matchingBlocks.length > 0 ? matchingBlocks : availableBlocks
 
-  // If we found matching videos, pick one randomly
-  if (matchingBlocks.length > 0) {
-    const randomIndex = Math.floor(Math.random() * matchingBlocks.length)
-    const selectedBlock = matchingBlocks[randomIndex]
+  const randomIndex = Math.floor(Math.random() * pool.length)
+  const selectedBlock = pool[randomIndex]
 
-    console.log(
-      `Selected video: "${selectedBlock.name}" ` +
-      `(state match: ${polyvagalState}, ` +
-      `${matchingBlocks.length} options available)`
-    )
-
-    return selectedBlock
-  }
-
-  // Fallback: No state matches found, pick any random video
   console.log(
-    `No videos found for state "${polyvagalState}", ` +
-    `selecting random from ${availableBlocks.length} videos`
+    `Selected video: "${selectedBlock.name}" ` +
+    `(state: ${polyvagalState}, ${pool.length} options available)`
   )
 
-  const randomIndex = Math.floor(Math.random() * availableBlocks.length)
-  return availableBlocks[randomIndex]
+  return selectedBlock
 }
 
 // Select the SOS video (emergency intervention)
@@ -80,7 +54,6 @@ export function selectSOSVideo(availableBlocks) {
 
   if (!sosBlock) {
     console.error('SOS video (vagus_reset_lying_down) not found in database!')
-    // Return first available video as emergency fallback
     return availableBlocks[0] || null
   }
 
@@ -91,80 +64,79 @@ export function selectSOSVideo(availableBlocks) {
 //
 // Inputs:
 //   - availableBlocks: all active video blocks from database
-//   - polyvagalState: 'withdrawn', 'stirring', 'activated', 'settling', 'connected'
+//   - polyvagalState: 'shutdown' | 'restful' | 'wired' | 'glowing' | 'steady'
 //   - previousBlockId: ID of the last played video to avoid immediate repeats
 //
 // Returns: selected video block with media_url, id, name, etc.
 //
 export function selectRoutineVideo(availableBlocks, polyvagalState, previousBlockId = null) {
-  // Safety check: if no blocks available, return null
   if (!availableBlocks || availableBlocks.length === 0) {
     console.warn('No video blocks available for routine selection')
     return null
   }
 
-  // Filter out the previous video to avoid immediate repeats
   let candidateBlocks = availableBlocks
   if (previousBlockId) {
     candidateBlocks = availableBlocks.filter(block => block.id !== previousBlockId)
-    // If we filtered out everything, fall back to all blocks
-    if (candidateBlocks.length === 0) {
-      candidateBlocks = availableBlocks
-    }
+    if (candidateBlocks.length === 0) candidateBlocks = availableBlocks
   }
 
-  // Try to find videos that match the current polyvagal state
-  const matchingBlocks = candidateBlocks.filter(
-    block => block.state_target === polyvagalState
-  )
+  const matchingBlocks = filterBlocksForState(candidateBlocks, polyvagalState)
+  const pool = matchingBlocks.length > 0 ? matchingBlocks : candidateBlocks
 
-  // If we found matching videos, pick one randomly
-  if (matchingBlocks.length > 0) {
-    const randomIndex = Math.floor(Math.random() * matchingBlocks.length)
-    const selectedBlock = matchingBlocks[randomIndex]
+  const randomIndex = Math.floor(Math.random() * pool.length)
+  const selectedBlock = pool[randomIndex]
 
-    console.log(
-      `Routine video selected: "${selectedBlock.name}" ` +
-      `(state match: ${polyvagalState}, ` +
-      `${matchingBlocks.length} options available, ` +
-      `avoided: ${previousBlockId || 'none'})`
-    )
-
-    return selectedBlock
-  }
-
-  // Fallback: No state matches found, pick any random video from candidates
   console.log(
-    `No videos found for state "${polyvagalState}", ` +
-    `selecting random from ${candidateBlocks.length} videos`
+    `Routine video selected: "${selectedBlock.name}" ` +
+    `(state: ${polyvagalState}, ${pool.length} options, avoided: ${previousBlockId || 'none'})`
   )
 
-  const randomIndex = Math.floor(Math.random() * candidateBlocks.length)
-  return candidateBlocks[randomIndex]
+  return selectedBlock
+}
+
+// ============================================================================
+// PRIVATE HELPERS
+// ============================================================================
+
+// Returns blocks whose energy/safety deltas are therapeutic for the given state.
+// Falls back to all blocks if nothing matches.
+function filterBlocksForState(blocks, polyvagalState) {
+  switch (polyvagalState) {
+    case 'shutdown':
+      // Need to raise both energy and safety — prefer blocks with positive deltas on both axes
+      return blocks.filter(b => (b.energy_delta ?? 0) >= 0 && (b.safety_delta ?? 0) >= 0)
+
+    case 'restful':
+      // Already safe, need more energy
+      return blocks.filter(b => (b.energy_delta ?? 0) > 0)
+
+    case 'wired':
+      // Over-activated — need to raise safety (grounding) and/or lower energy
+      return blocks.filter(b => (b.safety_delta ?? 0) > 0)
+
+    case 'glowing':
+      // Great state — prefer blocks that don't destabilise safety
+      return blocks.filter(b => (b.safety_delta ?? 0) >= 0)
+
+    case 'steady':
+    default:
+      return blocks
+  }
 }
 
 // ============================================================================
 // FUTURE ALGORITHM IDEAS (not yet implemented)
 // ============================================================================
 //
-// 1. PROGRESSIVE INTENSITY
-//    - Start with low intensity videos
-//    - Gradually increase based on user progress
-//
-// 2. AVOID RECENT VIDEOS
+// 1. AVOID RECENT VIDEOS
 //    - Track recently played videos in session
 //    - Prefer videos user hasn't seen in last N plays
 //
-// 3. ROUTINE SEQUENCING
-//    - Use routine_role field (warmup → main → cooldown)
-//    - Create intelligent exercise sequences
+// 2. SLIDER-AWARE SELECTION
+//    - Use sliderValue to weight delta magnitude (e.g. higher intensity → larger deltas)
 //
-// 4. SLIDER-AWARE SELECTION
-//    - Lower slider values → more gentle/grounding exercises
-//    - Higher slider values → more energizing exercises
-//
-// 5. STATE TRANSITION TARGETING
-//    - If withdrawn → show videos targeting stirring (move up one level)
-//    - If activated → show videos targeting settling (move down)
-//    - Guide users toward 'connected' state
+// 3. STATE TRANSITION TARGETING
+//    - shutdown → prefer blocks with highest combined energy_delta + safety_delta
+//    - wired    → prefer blocks with highest safety_delta - energy_delta ratio
 //
