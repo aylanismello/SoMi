@@ -27,9 +27,6 @@ const QUAD_LABELS = [
 ]
 
 // ─── 2D Energy × Safety Picker ────────────────────────────────────────────────
-// X axis: energy (left=low, right=high)
-// Y axis: safety (top=safe/connected, bottom=unsafe)
-// Exports energy_level (0-100) and safety_level (0-100) via callbacks
 export default function StateXYPicker({
   energyLevel,
   safetyLevel,
@@ -42,8 +39,6 @@ export default function StateXYPicker({
   const [padSize, setPadSize] = useState(defaultW)
   const padSizeRef = useRef(defaultW)
 
-  // cursor.x = energy/100 (0=left, 1=right)
-  // cursor.y = 1 - safety/100 (0=top=safe, 1=bottom=unsafe)
   const [cursor, setCursor] = useState({
     x: (energyLevel != null ? energyLevel : 50) / 100,
     y: 1 - (safetyLevel != null ? safetyLevel : 50) / 100,
@@ -58,7 +53,6 @@ export default function StateXYPicker({
   onDragStartRef.current = onDragStart
   onDragEndRef.current = onDragEnd
 
-  // Fire initial values on mount
   useEffect(() => {
     const energy = Math.round(cursor.x * 100)
     const safety = Math.round((1 - cursor.y) * 100)
@@ -115,59 +109,58 @@ export default function StateXYPicker({
         }}
         style={[styles.pad, { height: padHeight }]}
       >
-        {/* Dark base — anchors the Shutdown quadrant (bottom-left) */}
+        {/* Deep ocean abyss base */}
         <View style={[StyleSheet.absoluteFillObject, styles.padBase]} />
 
-        {/* Restful: cyan-teal from top-left */}
+        {/* RESTFUL 🌦 — cool rain, calm lake surface: aquamarine from top-left */}
         <LinearGradient
-          colors={['rgba(20,210,200,0.62)', 'rgba(20,210,200,0)']}
+          colors={['rgba(0,215,195,0.75)', 'rgba(20,160,220,0.30)', 'rgba(0,215,195,0)']}
           start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
+          end={{ x: 0.85, y: 1 }}
           style={StyleSheet.absoluteFillObject}
         />
 
-        {/* Glowing: vivid orange from top-right — dominant feature */}
+        {/* GLOWING ☀️ — sun blazing on tropical water: golden amber from top-right */}
         <LinearGradient
-          colors={['rgba(255,138,20,0.88)', 'rgba(255,138,20,0)']}
+          colors={['rgba(255,200,30,0.92)', 'rgba(255,100,20,0.35)', 'rgba(255,200,30,0)']}
           start={{ x: 1, y: 0 }}
-          end={{ x: 0.1, y: 1 }}
+          end={{ x: 0.05, y: 1 }}
           style={StyleSheet.absoluteFillObject}
         />
 
-        {/* Wired: deep indigo-purple from bottom-right */}
+        {/* WIRED 🌪 — underwater electric storm: vivid indigo-violet from bottom-right */}
         <LinearGradient
-          colors={['rgba(110,40,220,0.75)', 'rgba(110,40,220,0)']}
+          colors={['rgba(90,50,255,0.88)', 'rgba(190,30,240,0.45)', 'rgba(90,50,255,0)']}
           start={{ x: 1, y: 1 }}
-          end={{ x: 0, y: 0 }}
+          end={{ x: 0.08, y: 0.08 }}
           style={StyleSheet.absoluteFillObject}
         />
 
-        {/* Unsafe zone: bottom darkening */}
+        {/* SHUTDOWN 🌑 — cold deep abyss: dark navy from bottom-left */}
         <LinearGradient
-          colors={['rgba(0,0,0,0)', 'rgba(0,0,0,0.55)']}
-          start={{ x: 0.5, y: 0.25 }}
+          colors={['rgba(5,10,70,0.70)', 'rgba(5,10,70,0)']}
+          start={{ x: 0, y: 1 }}
+          end={{ x: 0.75, y: 0.1 }}
+          style={StyleSheet.absoluteFillObject}
+        />
+
+        {/* Depth vignette: bottom darkens into the unsafe deep */}
+        <LinearGradient
+          colors={['rgba(0,0,0,0)', 'rgba(0,2,18,0.65)']}
+          start={{ x: 0.5, y: 0.15 }}
           end={{ x: 0.5, y: 1 }}
           style={StyleSheet.absoluteFillObject}
         />
 
-        {/* Low energy: left-side darkening */}
+        {/* Bioluminescence: subtle cyan shimmer through the center */}
         <LinearGradient
-          colors={['rgba(0,0,0,0.5)', 'rgba(0,0,0,0)']}
-          start={{ x: 0, y: 0.5 }}
-          end={{ x: 0.5, y: 0.5 }}
+          colors={['rgba(0,210,255,0)', 'rgba(0,210,255,0.14)', 'rgba(0,210,255,0)']}
+          start={{ x: 0.15, y: 0.45 }}
+          end={{ x: 0.85, y: 0.55 }}
           style={StyleSheet.absoluteFillObject}
         />
 
-        {/* Crosshair grid */}
-        <View style={styles.dividerH} />
-        <View style={styles.dividerV} />
-
-        {/* Axis labels */}
-        <Text style={styles.axisTop} pointerEvents="none">Safe · Connected</Text>
-        <Text style={styles.axisBottomLeft} pointerEvents="none">Low Energy</Text>
-        <Text style={styles.axisBottomRight} pointerEvents="none">High Energy</Text>
-
-        {/* Quadrant state labels */}
+        {/* State zone labels — floating, no dividers */}
         {QUAD_LABELS.map(ql => {
           const isActive = curState.name === ql.name
           return (
@@ -180,7 +173,7 @@ export default function StateXYPicker({
                   left: ql.cx * padSize,
                   top: ql.cy * padHeight,
                   transform: [{ translateX: -28 }, { translateY: -22 }],
-                  opacity: isActive ? 1 : 0.28,
+                  opacity: isActive ? 1 : 0.20,
                 },
               ]}
             >
@@ -194,13 +187,13 @@ export default function StateXYPicker({
           )
         })}
 
-        {/* Cursor orb */}
+        {/* Cursor: bioluminescent water orb */}
         <View
           pointerEvents="none"
           style={[styles.cursor, { left: curLeft, top: curTop }]}
         />
 
-        {/* Readout: top-left */}
+        {/* Readout: ocean glass pill */}
         <View style={styles.readout} pointerEvents="none">
           <Text style={{ fontSize: 13 }}>{curState.icon}</Text>
           <Text style={styles.readoutState}>{curState.label}</Text>
@@ -217,49 +210,7 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   padBase: {
-    backgroundColor: '#091525',
-  },
-  dividerH: {
-    position: 'absolute',
-    left: 0, right: 0,
-    top: '50%',
-    height: StyleSheet.hairlineWidth,
-    backgroundColor: 'rgba(255,255,255,0.15)',
-  },
-  dividerV: {
-    position: 'absolute',
-    top: 0, bottom: 0,
-    left: '50%',
-    width: StyleSheet.hairlineWidth,
-    backgroundColor: 'rgba(255,255,255,0.15)',
-  },
-  axisTop: {
-    position: 'absolute',
-    top: 8,
-    left: 0, right: 0,
-    textAlign: 'center',
-    color: 'rgba(255,255,255,0.28)',
-    fontSize: 8,
-    fontWeight: '600',
-    letterSpacing: 0.5,
-  },
-  axisBottomLeft: {
-    position: 'absolute',
-    bottom: 8,
-    left: 12,
-    color: 'rgba(255,255,255,0.2)',
-    fontSize: 8,
-    fontWeight: '600',
-    letterSpacing: 0.3,
-  },
-  axisBottomRight: {
-    position: 'absolute',
-    bottom: 8,
-    right: 12,
-    color: 'rgba(255,255,255,0.2)',
-    fontSize: 8,
-    fontWeight: '600',
-    letterSpacing: 0.3,
+    backgroundColor: '#020B18',
   },
   stateLabel: {
     position: 'absolute',
@@ -274,7 +225,7 @@ const styles = StyleSheet.create({
     fontSize: 20,
   },
   stateLabelText: {
-    color: 'rgba(255,255,255,0.6)',
+    color: 'rgba(180,235,255,0.55)',
     fontSize: 8,
     fontWeight: '600',
     letterSpacing: 0.3,
@@ -289,13 +240,13 @@ const styles = StyleSheet.create({
     width: CURSOR_R * 2,
     height: CURSOR_R * 2,
     borderRadius: CURSOR_R,
-    borderWidth: 2.5,
-    borderColor: 'rgba(160,220,240,0.9)',
-    backgroundColor: 'rgba(10,20,40,0.65)',
-    shadowColor: 'rgba(160,220,240,0.8)',
+    borderWidth: 2,
+    borderColor: 'rgba(100,240,255,0.95)',
+    backgroundColor: 'rgba(0,180,230,0.22)',
+    shadowColor: '#00E8FF',
     shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.9,
-    shadowRadius: 8,
+    shadowOpacity: 1,
+    shadowRadius: 14,
   },
   readout: {
     position: 'absolute',
@@ -303,24 +254,17 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 5,
-    backgroundColor: 'rgba(0,0,0,0.35)',
+    backgroundColor: 'rgba(0,15,35,0.55)',
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 10,
+    borderWidth: 0.5,
+    borderColor: 'rgba(0,210,255,0.28)',
   },
   readoutState: {
-    color: 'rgba(255,255,255,0.85)',
+    color: 'rgba(190,240,255,0.92)',
     fontSize: 12,
     fontWeight: '700',
     letterSpacing: 0.4,
-  },
-  readoutDot: {
-    color: 'rgba(255,255,255,0.3)',
-    fontSize: 12,
-  },
-  readoutIntensity: {
-    color: 'rgba(255,255,255,0.5)',
-    fontSize: 11,
-    fontWeight: '500',
   },
 })
