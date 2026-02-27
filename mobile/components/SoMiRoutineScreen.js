@@ -841,7 +841,7 @@ export default function SoMiRoutineScreen() {
         // Daily flow: check bodyScanEnd setting
         if (bodyScanEnd) {
           // Flow music continues playing into final body scan
-          navigation.navigate('BodyScanCountdown', {
+          navigation.replace('BodyScanCountdown', {
             isInitial: false,
             savedInitialValue,
             savedInitialState,
@@ -951,7 +951,7 @@ export default function SoMiRoutineScreen() {
         // Daily flow: check bodyScanEnd setting
         if (bodyScanEnd) {
           // Flow music continues playing into final body scan
-          navigation.navigate('BodyScanCountdown', {
+          navigation.replace('BodyScanCountdown', {
             isInitial: false,
             savedInitialValue,
             savedInitialState,
