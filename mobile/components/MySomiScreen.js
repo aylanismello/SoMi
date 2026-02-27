@@ -1,6 +1,6 @@
 import React, { useState, useCallback, useRef, useMemo } from 'react'
 import { StyleSheet, Text, View, ScrollView, ActivityIndicator, TouchableOpacity, Animated, Modal } from 'react-native'
-import { useFocusEffect } from '@react-navigation/native'
+import { useFocusEffect, useNavigation } from '@react-navigation/native'
 import { LinearGradient } from 'expo-linear-gradient'
 import { BlurView } from 'expo-blur'
 import Svg, { Circle, Line } from 'react-native-svg'
@@ -326,7 +326,8 @@ function FloatingOrb({ check, index, onPress, isSelected, formatDate }) {
   )
 }
 
-export default function MySomiScreen({ navigation }) {
+export default function MySomiScreen() {
+  const navigation = useNavigation()
   const scrollViewRef = useRef(null)
 
   // Use React Query for chains data

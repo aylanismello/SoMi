@@ -479,7 +479,7 @@ export default function DailyFlowSetup() {
             <TouchableOpacity style={styles.flowBtn} onPress={handleStartFlow} activeOpacity={0.88} disabled={isGenerating}>
               {isGenerating
                 ? <ActivityIndicator color="rgba(0,0,0,0.8)" />
-                : <Text style={styles.flowBtnText}>Flow</Text>
+                : <Text style={styles.flowBtnText}>Start</Text>
               }
             </TouchableOpacity>
           </View>

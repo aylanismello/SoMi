@@ -29,16 +29,16 @@ function WeekDay({ label, percentage, isToday, isFuture }) {
             cx={SIZE / 2}
             cy={SIZE / 2}
             r={RADIUS}
-            stroke={isToday ? 'rgba(255,255,255,0.35)' : 'rgba(255,255,255,0.12)'}
+            stroke={isToday ? 'rgba(255,255,255,0.6)' : 'rgba(255,255,255,0.12)'}
             strokeWidth={2}
-            fill={isToday ? 'rgba(255,255,255,0.08)' : 'none'}
+            fill={isToday ? 'rgba(255,255,255,0.92)' : 'none'}
           />
-          {percentage > 0 && (
+          {percentage > 0 && !isToday && (
             <Circle
               cx={SIZE / 2}
               cy={SIZE / 2}
               r={RADIUS}
-              stroke={isToday ? '#FFFFFF' : colors.accent.primary}
+              stroke={colors.accent.primary}
               strokeWidth={2}
               fill="none"
               strokeDasharray={`${progressLength} ${CIRCUMFERENCE}`}
@@ -55,7 +55,6 @@ function WeekDay({ label, percentage, isToday, isFuture }) {
           {label}
         </Text>
       </View>
-      {isToday && <View style={styles.todayDot} />}
     </View>
   )
 }
@@ -146,11 +145,12 @@ export default function HomeScreen() {
 
   return (
     <View style={styles.container}>
-      {/* Water background */}
+      {/* Water background — blurred for text readability */}
       <Image
         source={{ uri: 'https://qujifwhwntqxziymqdwu.supabase.co/storage/v1/object/public/test/home%20screen%20backgrounds/water_1.jpg' }}
         style={StyleSheet.absoluteFillObject}
         resizeMode="cover"
+        blurRadius={3}
       />
 
       {/* Gradient overlay — darker at bottom for button contrast */}
@@ -278,8 +278,6 @@ const styles = StyleSheet.create({
   dayItem: {
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 4,
-    height: 48,
   },
   dayLabel: {
     color: 'rgba(255,255,255,0.45)',
@@ -287,17 +285,11 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   dayLabelToday: {
-    color: '#FFFFFF',
+    color: '#111111',
     fontWeight: '700',
   },
   dayLabelFuture: {
     color: 'rgba(255,255,255,0.22)',
-  },
-  todayDot: {
-    width: 5,
-    height: 5,
-    borderRadius: 2.5,
-    backgroundColor: colors.accent.primary,
   },
 
   // ── Greeting text ────────────────────────────────────────
