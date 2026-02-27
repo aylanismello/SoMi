@@ -1,90 +1,22 @@
-import { StyleSheet, View, Text, TouchableOpacity, ScrollView } from 'react-native'
+import { StyleSheet, View, Text } from 'react-native'
 import { LinearGradient } from 'expo-linear-gradient'
-import * as Haptics from 'expo-haptics'
+import { BlurView } from 'expo-blur'
+import { colors } from '../constants/theme'
 
-const CATEGORIES = [
-  {
-    id: 'vagal_toning',
-    name: 'Vagal Toning',
-    colors: ['#FF6B6B', '#FF8E53'],
-    emoji: '✨',
-  },
-  {
-    id: 'qigong',
-    name: 'Qigong',
-    colors: ['#4ECDC4', '#44A08D'],
-    emoji: '🍃',
-  },
-  {
-    id: 'felt_sense',
-    name: 'Felt Sense',
-    colors: ['#A8DADC', '#457B9D'],
-    emoji: '💫',
-  },
-  {
-    id: 'meditation',
-    name: 'Meditation',
-    colors: ['#9D84B7', '#7B68A6'],
-    emoji: '🌙',
-  },
-]
-
-export default function ExploreScreen({ navigation }) {
-  const handleCategoryPress = (category) => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium)
-    navigation.navigate('CategoryDetail', {
-      categoryId: category.id,
-      categoryName: category.name,
-      categoryColors: category.colors,
-    })
-  }
-
+export default function ExploreScreen() {
   return (
     <LinearGradient
-      colors={['#0f0c29', '#302b63', '#24243e']}
+      colors={[colors.background.primary, colors.background.secondary, colors.background.primary]}
       style={styles.container}
+      start={{ x: 0.5, y: 0 }}
+      end={{ x: 0.5, y: 1 }}
     >
-      {/* Sticky Header */}
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>Explore</Text>
-        <Text style={styles.headerSubtitle}>Choose your practice</Text>
-      </View>
-
-      {/* Temporarily hidden - coming back later
-      <ScrollView
-        style={styles.scrollView}
-        contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}
-      >
-        <View style={styles.categoryGrid}>
-          {CATEGORIES.map((category, index) => (
-            <TouchableOpacity
-              key={category.id}
-              activeOpacity={0.85}
-              onPress={() => handleCategoryPress(category)}
-              style={styles.categoryWrapper}
-            >
-              <LinearGradient
-                colors={category.colors}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
-                style={styles.categoryCard}
-              >
-                <View style={styles.categoryContent}>
-                  <Text style={styles.categoryEmoji}>{category.emoji}</Text>
-                  <Text style={styles.categoryName}>{category.name}</Text>
-                </View>
-              </LinearGradient>
-            </TouchableOpacity>
-          ))}
-        </View>
-      </ScrollView>
-      */}
-
-      {/* Coming soon placeholder */}
-      <View style={styles.comingSoonContainer}>
-        <Text style={styles.comingSoonEmoji}>🌱</Text>
-        <Text style={styles.comingSoonText}>Coming Soon</Text>
+      <View style={styles.card}>
+        <BlurView intensity={40} tint="systemUltraThinMaterialDark" style={StyleSheet.absoluteFill} />
+        <View style={styles.borderOverlay} />
+        <Text style={styles.icon}>🚧</Text>
+        <Text style={styles.title}>Under Construction</Text>
+        <Text style={styles.subtitle}>Something interesting is coming here.</Text>
       </View>
     </LinearGradient>
   )
@@ -93,80 +25,45 @@ export default function ExploreScreen({ navigation }) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    paddingTop: 60,
-  },
-  header: {
-    paddingHorizontal: 24,
-    paddingBottom: 20,
-    paddingTop: 10,
-  },
-  headerTitle: {
-    color: '#f7f9fb',
-    fontSize: 32,
-    fontWeight: '700',
-    letterSpacing: 0.5,
-    marginBottom: 4,
-  },
-  headerSubtitle: {
-    color: 'rgba(247, 249, 251, 0.6)',
-    fontSize: 15,
-    fontWeight: '500',
-    letterSpacing: 0.3,
-  },
-  scrollView: {
-    flex: 1,
-  },
-  scrollContent: {
-    paddingHorizontal: 24,
-    paddingBottom: 100,
-  },
-  categoryGrid: {
-    gap: 16,
-  },
-  categoryWrapper: {
-    width: '100%',
-    aspectRatio: 2.5,
-    borderRadius: 20,
-    overflow: 'hidden',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 8,
-  },
-  categoryCard: {
-    flex: 1,
-    padding: 24,
-    justifyContent: 'center',
-  },
-  categoryContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 16,
-  },
-  categoryEmoji: {
-    fontSize: 40,
-  },
-  categoryName: {
-    fontSize: 24,
-    fontWeight: '700',
-    color: '#ffffff',
-    letterSpacing: 0.5,
-  },
-  comingSoonContainer: {
-    flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
     paddingHorizontal: 40,
   },
-  comingSoonEmoji: {
-    fontSize: 64,
+  card: {
+    overflow: 'hidden',
+    borderRadius: 24,
+    alignItems: 'center',
+    paddingVertical: 40,
+    paddingHorizontal: 36,
+    width: '100%',
+  },
+  borderOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    borderRadius: 24,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: 'rgba(255,255,255,0.18)',
+  },
+  icon: {
+    fontSize: 48,
     marginBottom: 16,
   },
-  comingSoonText: {
-    color: 'rgba(247, 249, 251, 0.6)',
-    fontSize: 22,
-    fontWeight: '600',
+  title: {
+    color: '#ffffff',
+    fontSize: 24,
+    fontWeight: '700',
     letterSpacing: 0.3,
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  subtitle: {
+    color: 'rgba(255,255,255,0.5)',
+    fontSize: 15,
+    fontWeight: '500',
+    textAlign: 'center',
+    letterSpacing: 0.2,
   },
 })

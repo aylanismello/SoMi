@@ -6,7 +6,7 @@ export async function POST(request) {
   if (error) return unauthorizedResponse(error)
 
   try {
-    const { chainId, sliderValue, polyvagalStateCode, journalEntry, tags } = await request.json()
+    const { chainId, energyLevel, safetyLevel, journalEntry, tags } = await request.json()
 
     if (!chainId) {
       return NextResponse.json(
@@ -19,8 +19,8 @@ export async function POST(request) {
       .from('embodiment_checks')
       .insert({
         somi_chain_id: chainId,
-        embodiment_level: sliderValue ? Math.round(sliderValue) : null,
-        polyvagal_state_code: polyvagalStateCode ? Math.round(polyvagalStateCode) : null,
+        energy_level: energyLevel != null ? Math.round(energyLevel) : null,
+        safety_level: safetyLevel != null ? Math.round(safetyLevel) : null,
         journal_entry: journalEntry,
         user_id: user.id,
         ...(tags && tags.length > 0 ? { tags } : {}),

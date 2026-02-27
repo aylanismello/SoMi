@@ -44,9 +44,13 @@
       "expo-video",
       "expo-audio",
       "expo-apple-authentication",
-      ["@react-native-google-signin/google-signin", {
-        "iosUrlScheme": "com.googleusercontent.apps.142962859647-9lnhsgdi79vs57b2guh87kbrob3dab8k.apps.googleusercontent.com"
-      }]
+      [
+        "@react-native-google-signin/google-signin",
+        {
+          "iosUrlScheme": "com.googleusercontent.apps.142962859647-9lnhsgdi79vs57b2guh87kbrob3dab8k.apps.googleusercontent.com"
+        }
+      ],
+      "expo-router"
     ],
     "extra": {
       "eas": {

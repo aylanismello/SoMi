@@ -8,14 +8,14 @@ const SESSION_BLOCKS_KEY = 'session_completed_blocks'
 
 export const chainService = {
   // Session storage for checks and blocks (before chain creation)
-  async saveCheckToSession(sliderValue, polyvagalStateCode, journalEntry = null, tags = null) {
+  async saveCheckToSession(energyLevel, safetyLevel, journalEntry = null, tags = null) {
     try {
       const existing = await AsyncStorage.getItem(SESSION_CHECKS_KEY)
       const checks = existing ? JSON.parse(existing) : []
 
       checks.push({
-        sliderValue,
-        polyvagalStateCode,
+        energyLevel,
+        safetyLevel,
         journalEntry,
         tags: tags && tags.length > 0 ? tags : null,
         timestamp: Date.now(),
@@ -95,8 +95,8 @@ export const chainService = {
       for (const check of checks) {
         await api.saveEmbodimentCheck(
           chainId,
-          check.sliderValue,
-          check.polyvagalStateCode,
+          check.energyLevel,
+          check.safetyLevel,
           check.journalEntry,
           check.tags || null
         )
@@ -202,11 +202,11 @@ export const chainService = {
   },
 
   // Save embodiment check - now saves to session for daily flows
-  async saveEmbodimentCheck(sliderValue, polyvagalStateCode, journalEntry = null, flowType = 'daily_flow', tags = null) {
+  async saveEmbodimentCheck(energyLevel, safetyLevel, journalEntry = null, flowType = 'daily_flow', tags = null) {
     try {
       // For daily flows, save to session (will upload when flow completes)
       if (flowType === 'daily_flow') {
-        return await this.saveCheckToSession(sliderValue, polyvagalStateCode, journalEntry, tags)
+        return await this.saveCheckToSession(energyLevel, safetyLevel, journalEntry, tags)
       }
 
       // For quick routines, use old behavior
@@ -219,8 +219,8 @@ export const chainService = {
 
       const { check } = await api.saveEmbodimentCheck(
         chainId,
-        sliderValue,
-        polyvagalStateCode,
+        energyLevel,
+        safetyLevel,
         journalEntry
       )
 

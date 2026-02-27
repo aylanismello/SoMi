@@ -1,486 +1,223 @@
-import { useState, useCallback, useRef } from 'react'
-import { StyleSheet, View, Text, ScrollView, Image, TouchableOpacity, Modal, Animated } from 'react-native'
+import { useState, useCallback, useRef, useEffect } from 'react'
+import { StyleSheet, View, Text, Image, TouchableOpacity, Animated } from 'react-native'
 import { LinearGradient } from 'expo-linear-gradient'
 import { BlurView } from 'expo-blur'
 import Svg, { Circle } from 'react-native-svg'
-import { api } from '../services/api'
 import { useFocusEffect } from '@react-navigation/native'
 import { colors } from '../constants/theme'
 import * as Haptics from 'expo-haptics'
-import SettingsModal from './SettingsModal'
-import EmbodimentSlider from './EmbodimentSlider'
-import { useSettingsStore } from '../stores/settingsStore'
-import { useRoutineStore } from '../stores/routineStore'
-import { useLatestChain, useLatestDailyFlow, useSaveEmbodimentCheck } from '../hooks/useSupabaseQueries'
+import CustomizationModal from './CustomizationModal'
+import { useAuthStore } from '../stores/authStore'
+import { useWeeklyFlows } from '../hooks/useSupabaseQueries'
+import { Ionicons } from '@expo/vector-icons'
 
-// Polyvagal states with colors and emojis (new code-based system)
-const POLYVAGAL_STATES = {
-  0: { label: 'SOS', color: '#ff6b9d', emoji: '🆘' },
-  1: { label: 'Drained', color: '#4A5F8C', emoji: '🌧' },
-  2: { label: 'Foggy', color: '#5B7BB4', emoji: '🌫' },
-  3: { label: 'Wired', color: '#6B9BD1', emoji: '🌪' },
-  4: { label: 'Steady', color: '#7DBCE7', emoji: '🌤' },
-  5: { label: 'Glowing', color: '#90DDF0', emoji: '☀️' },
+const DAY_LABELS = ['S', 'M', 'T', 'W', 'T', 'F', 'S']
+const FLOW_TARGET_SECONDS = 300 // 5 minutes = full circle
+
+function WeekDay({ label, percentage, isToday, isFuture }) {
+  const SIZE = 38
+  const RADIUS = 15
+  const CIRCUMFERENCE = 2 * Math.PI * RADIUS
+  const progressLength = (percentage / 100) * CIRCUMFERENCE
+
+  return (
+    <View style={styles.dayItem}>
+      <View style={{ width: SIZE, height: SIZE, alignItems: 'center', justifyContent: 'center' }}>
+        <Svg width={SIZE} height={SIZE} style={StyleSheet.absoluteFillObject}>
+          <Circle
+            cx={SIZE / 2}
+            cy={SIZE / 2}
+            r={RADIUS}
+            stroke={isToday ? 'rgba(255,255,255,0.35)' : 'rgba(255,255,255,0.12)'}
+            strokeWidth={2}
+            fill={isToday ? 'rgba(255,255,255,0.08)' : 'none'}
+          />
+          {percentage > 0 && (
+            <Circle
+              cx={SIZE / 2}
+              cy={SIZE / 2}
+              r={RADIUS}
+              stroke={isToday ? '#FFFFFF' : colors.accent.primary}
+              strokeWidth={2}
+              fill="none"
+              strokeDasharray={`${progressLength} ${CIRCUMFERENCE}`}
+              strokeLinecap="round"
+              transform={`rotate(-90 ${SIZE / 2} ${SIZE / 2})`}
+            />
+          )}
+        </Svg>
+        <Text style={[
+          styles.dayLabel,
+          isToday && styles.dayLabelToday,
+          isFuture && !isToday && styles.dayLabelFuture,
+        ]}>
+          {label}
+        </Text>
+      </View>
+      {isToday && <View style={styles.todayDot} />}
+    </View>
+  )
 }
 
 export default function HomeScreen({ navigation }) {
-  // Animated scroll value for header fade effect
-  const scrollY = useRef(new Animated.Value(0)).current
-  const scrollViewRef = useRef(null)
+  const glowAnim = useRef(new Animated.Value(0)).current
+  const [showSettingsModal, setShowSettingsModal] = useState(false)
+  const user = useAuthStore((state) => state.user)
+  const { data: weeklyChains, refetch: refetchWeekly } = useWeeklyFlows()
 
-  // Use React Query for latest chain data
-  const { data: latestChain, isLoading: loading, refetch } = useLatestChain()
-
-  // Use React Query for latest daily flow (for completion check)
-  const { data: latestDailyFlow, refetch: refetchDailyFlow } = useLatestDailyFlow()
-
-  // Mutation for saving quick check-ins
-  const saveEmbodimentCheck = useSaveEmbodimentCheck()
-
-  // Fetch data and scroll to top when screen comes into focus
   useFocusEffect(
     useCallback(() => {
-      refetch()
-      refetchDailyFlow()
-      // Scroll to top when tab is focused
-      scrollViewRef.current?.scrollTo({ y: 0, animated: false })
-    }, [refetch, refetchDailyFlow])
+      refetchWeekly()
+    }, [refetchWeekly])
   )
 
-  // Interpolate scroll position to opacity for header fade effect
-  const headerOpacity = scrollY.interpolate({
-    inputRange: [0, 100],
-    outputRange: [1, 0],
-    extrapolate: 'clamp',
-  })
+  useEffect(() => {
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(glowAnim, { toValue: 1, duration: 2200, useNativeDriver: true }),
+        Animated.timing(glowAnim, { toValue: 0, duration: 2200, useNativeDriver: true }),
+      ])
+    ).start()
+  }, [])
 
-  const backgroundOpacity = scrollY.interpolate({
-    inputRange: [0, 150],
-    outputRange: [1, 0],
-    extrapolate: 'clamp',
-  })
-
-  // Calculate stats from latest chain (flexible - works with any chain type)
-  const getChainStats = () => {
-    if (!latestChain) {
-      return null
-    }
-
-    // Calculate total minutes from entries (blocks)
-    const totalSeconds = (latestChain.somi_chain_entries || []).reduce((sum, entry) => sum + (entry.seconds_elapsed || 0), 0)
-    const totalMinutes = totalSeconds > 0 ? Math.max(1, Math.ceil(totalSeconds / 60)) : 0
-
-    const checks = latestChain.embodiment_checks || []
-
-    // If we have 2+ checks, show transformation
-    if (checks.length >= 2) {
-      const firstCheck = checks[0]
-      const lastCheck = checks[checks.length - 1]
-
-      const fromStateCode = firstCheck.polyvagal_state_code !== undefined ? firstCheck.polyvagal_state_code : 1
-      const toStateCode = lastCheck.polyvagal_state_code !== undefined ? lastCheck.polyvagal_state_code : 1
-
-      return {
-        fromState: POLYVAGAL_STATES[fromStateCode] || POLYVAGAL_STATES[1],
-        toState: POLYVAGAL_STATES[toStateCode] || POLYVAGAL_STATES[1],
-        totalMinutes,
-        hasTransformation: true,
-      }
-    }
-
-    // If we have 1 check, show single state
-    if (checks.length === 1) {
-      const stateCode = checks[0].polyvagal_state_code !== undefined ? checks[0].polyvagal_state_code : 1
-      return {
-        fromState: POLYVAGAL_STATES[stateCode] || POLYVAGAL_STATES[1],
-        toState: null,
-        totalMinutes,
-        hasTransformation: false,
-      }
-    }
-
-    // If no checks but has blocks (e.g., just body scan or single video)
-    if ((latestChain.somi_chain_entries || []).length > 0) {
-      return {
-        fromState: null,
-        toState: null,
-        totalMinutes,
-        hasTransformation: false,
-      }
-    }
-
-    return null
+  const getFirstName = () => {
+    if (!user) return ''
+    const name =
+      user.user_metadata?.given_name ||
+      user.user_metadata?.full_name?.split(' ')[0] ||
+      user.email?.split('@')[0] ||
+      ''
+    return name.charAt(0).toUpperCase() + name.slice(1)
   }
 
-  // Check if daily flow was completed today
-  const isDailyFlowComplete = () => {
-    if (!latestDailyFlow) return false
-
-    const chainDate = new Date(latestDailyFlow.created_at)
-    const today = new Date()
-
-    // Check if chain is from today
-    const isToday = chainDate.getDate() === today.getDate() &&
-                    chainDate.getMonth() === today.getMonth() &&
-                    chainDate.getFullYear() === today.getFullYear()
-
-    if (!isToday) return false
-
-    // Check if it has at least 2 check-ins (start and end)
-    const hasCheckIns = latestDailyFlow.embodiment_checks && latestDailyFlow.embodiment_checks.length >= 2
-
-    return hasCheckIns
-  }
-
-  // Get time-based greeting
-  const getGreeting = () => {
+  const getTimeOfDay = () => {
     const hour = new Date().getHours()
-    if (hour >= 0 && hour < 5) return 'Hey there, night owl'
-    if (hour >= 5 && hour < 12) return 'Good morning'
-    if (hour >= 12 && hour < 18) return 'Good afternoons'
-    return 'Good evenings'
+    if (hour >= 5 && hour < 12) return 'this morning'
+    if (hour >= 12 && hour < 17) return 'this afternoon'
+    if (hour >= 17 && hour < 21) return 'this evening'
+    return 'tonight'
   }
 
-  const chainStats = getChainStats()
+  const getWeekData = () => {
+    const today = new Date()
+    const dayOfWeek = today.getDay()
+    const startOfWeek = new Date(today)
+    startOfWeek.setDate(today.getDate() - dayOfWeek)
+    startOfWeek.setHours(0, 0, 0, 0)
 
-  // Get the most recent embodiment check from database (from any source: quick check-in or Daily Flow)
-  const getLastCheckIn = () => {
-    if (!latestChain?.embodiment_checks || latestChain.embodiment_checks.length === 0) {
-      return { state: null, sliderValue: null }
-    }
+    return Array.from({ length: 7 }, (_, i) => {
+      const date = new Date(startOfWeek)
+      date.setDate(startOfWeek.getDate() + i)
 
-    const lastCheck = latestChain.embodiment_checks[latestChain.embodiment_checks.length - 1]
-    return {
-      state: lastCheck.polyvagal_state_code,
-      sliderValue: lastCheck.slider_value
-    }
-  }
+      const dayChains = (weeklyChains || []).filter((chain) => {
+        const chainDate = new Date(chain.created_at)
+        return chainDate.toDateString() === date.toDateString()
+      })
 
-  const lastCheckIn = getLastCheckIn()
-  const lastQuickCheckInState = lastCheckIn.state
-  const lastQuickCheckInSliderValue = lastCheckIn.sliderValue
+      const totalSeconds = dayChains.reduce((sum, chain) => {
+        return sum + (chain.somi_chain_entries || []).reduce((s, entry) => s + (entry.seconds_elapsed || 0), 0)
+      }, 0)
 
-  const [showQuickCheckInModal, setShowQuickCheckInModal] = useState(false)
-  const [quickSliderValue, setQuickSliderValue] = useState(50)
-  const [quickPolyvagalState, setQuickPolyvagalState] = useState(null)
-  const [showSettingsModal, setShowSettingsModal] = useState(false)
-
-  const handleOpenQuickCheckIn = () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
-    setQuickSliderValue(50)
-    setQuickPolyvagalState(null)
-    setShowQuickCheckInModal(true)
-  }
-
-  const handleQuickStateSelect = (stateId) => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium)
-    setQuickPolyvagalState(stateId)
-  }
-
-  const handleQuickCheckInSave = async () => {
-    if (!quickPolyvagalState) {
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error)
-      return
-    }
-
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success)
-
-    // Save embodiment check using React Query mutation
-    saveEmbodimentCheck.mutate({
-      sliderValue: quickSliderValue,
-      polyvagalStateCode: quickPolyvagalState,
-      journalEntry: null,
-    }, {
-      onSuccess: () => {
-        // Refetch latest chain to update the UI with the new check-in
-        refetch()
+      return {
+        isToday: i === dayOfWeek,
+        isFuture: i > dayOfWeek,
+        percentage: Math.min(100, (totalSeconds / FLOW_TARGET_SECONDS) * 100),
       }
     })
-
-    setShowQuickCheckInModal(false)
   }
 
-  const handleClearQuickCheckIn = () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
-    // Note: This doesn't actually delete from database, just a UI placeholder
-    // To truly clear, we'd need a delete API endpoint
-    // For now, this button can be hidden or removed
-  }
+  const weekData = getWeekData()
+  const firstName = getFirstName()
+  const timeOfDay = getTimeOfDay()
 
-  // MEDITATION TIMER FEATURE ARCHIVED - see /archived-features/
-  // const handleOpenTimer = () => {
-  //   Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
-  //   navigation.navigate('MeditationTimerSetup')
-  // }
+  const handleStartFlow = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium)
+    navigation.navigate('DailyFlowSetup')
+  }
 
   const handleOpenSettings = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
     setShowSettingsModal(true)
   }
 
-  const handleCloseSettings = () => {
-    setShowSettingsModal(false)
-  }
-
-  const handleQuickRoutine = async (routineType, blockCount) => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium)
-
-    try {
-      // Generate routine via API
-      const { queue } = await api.generateRoutine(routineType, blockCount)
-
-      if (!queue || queue.length === 0) {
-        console.error('Failed to generate routine')
-        return
-      }
-
-      // Initialize routine in store
-      useRoutineStore.getState().initializeRoutine({
-        totalBlocks: blockCount,
-        routineType: routineType,
-        savedInitialValue: 50,
-        savedInitialState: 4,
-        customQueue: queue,
-        isQuickRoutine: true,
-        flowType: 'quick_routine',
-      })
-
-      // Navigate directly to routine
-      navigation.navigate('Flow', {
-        screen: 'SoMiRoutine',
-      })
-    } catch (error) {
-      console.error('Error generating routine:', error)
-    }
-  }
+  const glowOpacity = glowAnim.interpolate({ inputRange: [0, 1], outputRange: [0.2, 0.6] })
+  const glowScale = glowAnim.interpolate({ inputRange: [0, 1], outputRange: [1, 1.18] })
 
   return (
     <View style={styles.container}>
-      {/* Background Image - Hero Section */}
-      <Animated.Image
+      {/* Water background */}
+      <Image
         source={{ uri: 'https://qujifwhwntqxziymqdwu.supabase.co/storage/v1/object/public/test/home%20screen%20backgrounds/water_1.jpg' }}
-        style={[styles.heroImage, { opacity: backgroundOpacity }]}
+        style={StyleSheet.absoluteFillObject}
         resizeMode="cover"
       />
 
-      {/* Gradient overlay for better text readability */}
-      <Animated.View style={{ opacity: backgroundOpacity }}>
-        <LinearGradient
-          colors={['rgba(0, 0, 0, 0)', 'rgba(0, 0, 0, 0.3)', colors.background.primary]}
-          locations={[0, 0.5, 1]}
-          style={styles.heroGradient}
-        />
-      </Animated.View>
+      {/* Gradient overlay — darker at bottom for button contrast */}
+      <LinearGradient
+        colors={['rgba(0,0,0,0.08)', 'rgba(0,0,0,0.18)', 'rgba(0,0,0,0.72)']}
+        locations={[0, 0.45, 1]}
+        style={StyleSheet.absoluteFillObject}
+      />
 
-      {/* Header Row - Settings, Logo, (Future: Notifications) */}
-      <Animated.View style={[styles.headerRow, { opacity: headerOpacity }]}>
+      {/* Header */}
+      <View style={styles.header}>
+        <View style={styles.headerIconBtn}>
+          <Ionicons name="musical-notes-outline" size={16} color="rgba(255,255,255,0.7)" />
+        </View>
+        <Text style={styles.logoText}>SoMi</Text>
+        <TouchableOpacity style={styles.headerIconBtn} onPress={handleOpenSettings} activeOpacity={0.7}>
+          <Ionicons name="person-circle-outline" size={18} color="rgba(255,255,255,0.7)" />
+        </TouchableOpacity>
+      </View>
+
+      {/* Week streak strip */}
+      <View style={styles.weekStripContainer}>
+        <BlurView intensity={18} tint="dark" style={styles.weekStrip}>
+          {weekData.map((day, i) => (
+            <WeekDay
+              key={i}
+              label={DAY_LABELS[i]}
+              percentage={day.percentage}
+              isToday={day.isToday}
+              isFuture={day.isFuture}
+            />
+          ))}
+        </BlurView>
+      </View>
+
+      {/* Greeting — centered in remaining space */}
+      <View style={styles.greetingContainer}>
+        <Text style={styles.greetingText}>
+          Hi {firstName},{'\n'}it's time to flow{'\n'}{timeOfDay}.
+        </Text>
+      </View>
+
+      {/* Action row — Flow button + flanking side buttons */}
+      <View style={styles.actionRow}>
         <TouchableOpacity
-          onPress={handleOpenSettings}
-          style={styles.headerIconButton}
-          activeOpacity={0.7}
+          style={styles.sideBtn}
+          onPress={() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)}
+          activeOpacity={0.75}
         >
-          <Text style={styles.headerIcon}>🎵</Text>
+          <Ionicons name="musical-notes" size={20} color="rgba(255,255,255,0.75)" />
         </TouchableOpacity>
 
-        <Text style={styles.headerLogoText}>SoMi</Text>
-
-        {/* Placeholder for future notification icon */}
-        <View style={styles.headerIconButton} />
-      </Animated.View>
-
-      <Animated.ScrollView
-        ref={scrollViewRef}
-        style={styles.scrollView}
-        contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}
-        onScroll={Animated.event(
-          [{ nativeEvent: { contentOffset: { y: scrollY } } }],
-          { useNativeDriver: true }
-        )}
-        scrollEventThrottle={16}
-      >
-
-        {/* Welcome section */}
-        <View style={styles.welcomeSection}>
-          <Text style={styles.greetingText}>Hi Aylan, {getGreeting().toLowerCase()}</Text>
-        </View>
-
-        {/* Daily SoMi Flow Card */}
-        <View style={styles.dailyFlowSection}>
-          <TouchableOpacity
-            onPress={() => {
-              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium)
-              navigation.navigate('Flow')
-            }}
-            activeOpacity={0.85}
-            style={styles.dailyFlowCard}
-          >
-            <BlurView intensity={20} tint="dark" style={styles.dailyFlowBlur}>
-              <View style={styles.dailyFlowHeader}>
-                <View style={styles.dailyFlowTextContainer}>
-                  <Text style={styles.dailyFlowTitle}>My Daily Flow</Text>
-                  <Text style={styles.dailyFlowSubtitle}>
-                    complete practice with check-ins
-                  </Text>
-                </View>
-
-                <View style={[
-                  styles.dailyFlowCompletionBadge,
-                  chainStats && isDailyFlowComplete() && styles.dailyFlowCompletionBadgeComplete
-                ]}>
-                  {chainStats && isDailyFlowComplete() ? (
-                    <Text style={styles.dailyFlowCompletionCheckmark}>✓</Text>
-                  ) : (
-                    <Text style={styles.dailyFlowCompletionCircle}>○</Text>
-                  )}
-                </View>
-              </View>
-
-              <View style={styles.dailyFlowFooter}>
-                <Text style={styles.dailyFlowFooterText}>
-                  {chainStats && isDailyFlowComplete() ? 'completed today' : 'start your practice'}
-                </Text>
-              </View>
-            </BlurView>
+        {/* Glowing Flow button */}
+        <View style={styles.flowBtnWrapper}>
+          <Animated.View
+            style={[styles.flowBtnGlow, { opacity: glowOpacity, transform: [{ scale: glowScale }] }]}
+          />
+          <TouchableOpacity style={styles.flowBtn} onPress={handleStartFlow} activeOpacity={0.88}>
+            <Text style={styles.flowBtnText}>Flow</Text>
           </TouchableOpacity>
         </View>
 
-        {/* MVP: Quick Check-In hidden for now
-        <View style={styles.quickCheckInSection}>
-          <TouchableOpacity
-            onPress={handleOpenQuickCheckIn}
-            activeOpacity={0.85}
-            style={styles.quickCheckInCard}
-          >
-            <BlurView intensity={20} tint="dark" style={styles.quickCheckInBlur}>
-              {lastQuickCheckInState ? (
-                <View style={styles.quickCheckInSelected}>
-                  <Text style={styles.quickCheckInSelectedLabel}>You're feeling:</Text>
-                  <View style={styles.quickCheckInRow}>
-                    <View style={styles.quickCheckInSelectedBadge}>
-                      <Text style={styles.quickCheckInSelectedEmoji}>
-                        {POLYVAGAL_STATES[lastQuickCheckInState]?.emoji}
-                      </Text>
-                      <Text style={styles.quickCheckInSelectedText}>
-                        {POLYVAGAL_STATES[lastQuickCheckInState]?.label}
-                      </Text>
-                      <TouchableOpacity
-                        onPress={(e) => {
-                          e.stopPropagation()
-                          handleClearQuickCheckIn()
-                        }}
-                        style={styles.quickCheckInClear}
-                      >
-                        <Text style={styles.quickCheckInClearText}>✕</Text>
-                      </TouchableOpacity>
-                    </View>
+        <TouchableOpacity style={styles.sideBtn} onPress={handleOpenSettings} activeOpacity={0.75}>
+          <Ionicons name="options-outline" size={20} color="rgba(255,255,255,0.75)" />
+        </TouchableOpacity>
+      </View>
 
-                    {lastQuickCheckInSliderValue !== null && (
-                      <View style={styles.embodimentCircleContainer}>
-                        <Svg width={50} height={50}>
-                          <Circle
-                            cx={25}
-                            cy={25}
-                            r={22}
-                            stroke="rgba(255, 255, 255, 0.15)"
-                            strokeWidth={3}
-                            fill="none"
-                          />
-                          <Circle
-                            cx={25}
-                            cy={25}
-                            r={22}
-                            stroke={POLYVAGAL_STATES[lastQuickCheckInState]?.color || colors.accent.teal}
-                            strokeWidth={3}
-                            fill="none"
-                            strokeDasharray={`${(lastQuickCheckInSliderValue / 100) * 138.23} 138.23`}
-                            strokeLinecap="round"
-                            transform="rotate(-90 25 25)"
-                          />
-                        </Svg>
-                      </View>
-                    )}
-                  </View>
-                </View>
-              ) : (
-                <View style={styles.quickCheckInPrompt}>
-                  <Text style={styles.quickCheckInEmoji}>🌤</Text>
-                  <Text style={styles.quickCheckInText}>How are you feeling?</Text>
-                  <Text style={styles.quickCheckInChevron}>›</Text>
-                </View>
-              )}
-            </BlurView>
-          </TouchableOpacity>
-        </View>
-        */}
-
-        {/* MVP: Quick Check-In Modal hidden
-        <Modal
-          visible={showQuickCheckInModal}
-          transparent={true}
-          animationType="slide"
-          onRequestClose={() => setShowQuickCheckInModal(false)}
-        >
-          <View style={styles.quickCheckInModalOverlay}>
-            <BlurView intensity={40} tint="dark" style={styles.quickCheckInModalContainer}>
-              <View style={styles.quickCheckInModalHeader}>
-                <TouchableOpacity
-                  onPress={() => setShowQuickCheckInModal(false)}
-                  style={styles.quickCheckInModalClose}
-                >
-                  <Text style={styles.quickCheckInModalCloseText}>✕</Text>
-                </TouchableOpacity>
-              </View>
-
-              <Text style={styles.quickCheckInModalTitle}>
-                {quickPolyvagalState ? 'how present are those\nfeelings in the body?' : 'how do you feel\nright now?'}
-              </Text>
-
-              <View style={styles.quickCheckInModalSliderWrapper}>
-                <EmbodimentSlider
-                  value={quickSliderValue}
-                  onValueChange={(value) => setQuickSliderValue(value)}
-                  question={null}
-                  showStateLabel={false}
-                  showChips={true}
-                  states={Object.entries(POLYVAGAL_STATES)
-                    .filter(([code]) => code !== '0')
-                    .map(([code, state]) => ({
-                      id: parseInt(code),
-                      label: state.label,
-                      color: state.color,
-                      emoji: state.emoji,
-                    }))}
-                  selectedStateId={quickPolyvagalState}
-                  onStateChange={handleQuickStateSelect}
-                  isConfirmed={false}
-                  onConfirm={null}
-                  helpMode={false}
-                />
-              </View>
-
-              {quickPolyvagalState !== null && (
-                <View style={styles.quickCheckInModalButtonWrapper}>
-                  <TouchableOpacity
-                    onPress={handleQuickCheckInSave}
-                    activeOpacity={0.7}
-                    style={styles.quickCheckInModalSaveButton}
-                  >
-                    <Text style={styles.quickCheckInModalSaveButtonText}>
-                      Save
-                    </Text>
-                  </TouchableOpacity>
-                </View>
-              )}
-            </BlurView>
-          </View>
-        </Modal>
-        */}
-
-      </Animated.ScrollView>
-
-      {/* Settings Modal */}
-      <SettingsModal visible={showSettingsModal} onClose={handleCloseSettings} />
+      <CustomizationModal visible={showSettingsModal} onClose={() => setShowSettingsModal(false)} />
     </View>
   )
 }
@@ -488,477 +225,152 @@ export default function HomeScreen({ navigation }) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.background.primary,
+    backgroundColor: '#000',
   },
-  heroImage: {
+
+  // ── Header ──────────────────────────────────────────────
+  header: {
     position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    height: 400,
-    width: '100%',
-  },
-  heroGradient: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    height: 450,
-    width: '100%',
-  },
-  scrollView: {
-    flex: 1,
-  },
-  scrollContent: {
-    paddingBottom: 100,
-  },
-  welcomeSection: {
-    paddingHorizontal: 24,
-    paddingTop: 220,
-    paddingBottom: 20,
-  },
-  welcomeContent: {
-    alignItems: 'center',
-    width: '100%',
-  },
-  greetingText: {
-    color: colors.text.primary,
-    fontSize: 18,
-    fontWeight: '500',
-    marginBottom: 20,
-    textAlign: 'center',
-    letterSpacing: 0.3,
-  },
-  statsCard: {
-    borderRadius: 24,
-    overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: colors.border.subtle,
-    width: '100%',
-  },
-  statsContent: {
-    padding: 28,
-    alignItems: 'center',
-  },
-  statsLabel: {
-    color: colors.text.muted,
-    fontSize: 14,
-    fontWeight: '500',
-    marginBottom: 12,
-    letterSpacing: 0.5,
-  },
-  minutesRow: {
-    marginTop: 16,
-    paddingVertical: 10,
-    paddingHorizontal: 20,
-    backgroundColor: `${colors.accent.teal}26`, // 15% opacity
-    borderRadius: 16,
-  },
-  minutesLabel: {
-    color: colors.accent.teal,
-    fontSize: 16,
-    fontWeight: '600',
-    textAlign: 'center',
-    letterSpacing: 0.5,
-  },
-  statsDetail: {
-    color: colors.text.secondary,
-    fontSize: 16,
-    fontWeight: '500',
-    letterSpacing: 0.3,
-  },
-  stateTransition: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 16,
-  },
-  stateCircle: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    borderWidth: 2,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  stateEmoji: {
-    fontSize: 28,
-  },
-  transitionArrow: {
-    marginHorizontal: 16,
-  },
-  arrowText: {
-    fontSize: 24,
-    color: 'rgba(247, 249, 251, 0.5)',
-  },
-  stateLabels: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: 12,
-    gap: 8,
-  },
-  stateLabelText: {
-    fontSize: 14,
-    fontWeight: '600',
-    letterSpacing: 0.3,
-  },
-  stateLabelArrow: {
-    fontSize: 14,
-    color: 'rgba(247, 249, 251, 0.5)',
-  },
-  quickCheckInSection: {
-    paddingHorizontal: 24,
-    paddingTop: 32,
-    paddingBottom: 20,
-  },
-  quickCheckInCard: {
-    borderRadius: 20,
-    overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: colors.border.subtle,
-  },
-  quickCheckInBlur: {
-    paddingVertical: 18,
-    paddingHorizontal: 20,
-  },
-  quickCheckInPrompt: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  quickCheckInEmoji: {
-    fontSize: 32,
-  },
-  quickCheckInText: {
-    flex: 1,
-    color: colors.text.primary,
-    fontSize: 18,
-    fontWeight: '600',
-    letterSpacing: 0.3,
-  },
-  quickCheckInChevron: {
-    color: colors.text.muted,
-    fontSize: 28,
-    fontWeight: '300',
-  },
-  quickCheckInSelected: {
-    gap: 10,
-  },
-  quickCheckInSelectedLabel: {
-    color: colors.text.muted,
-    fontSize: 13,
-    fontWeight: '500',
-    letterSpacing: 0.3,
-  },
-  quickCheckInRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 16,
-  },
-  embodimentCircleContainer: {
-    width: 50,
-    height: 50,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  quickCheckInSelectedBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: colors.surface.secondary,
-    paddingVertical: 10,
-    paddingHorizontal: 16,
-    borderRadius: 20,
-    gap: 10,
-    alignSelf: 'flex-start',
-  },
-  quickCheckInSelectedEmoji: {
-    fontSize: 24,
-  },
-  quickCheckInSelectedText: {
-    color: colors.text.primary,
-    fontSize: 16,
-    fontWeight: '700',
-    letterSpacing: 0.3,
-  },
-  quickCheckInClear: {
-    marginLeft: 8,
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  quickCheckInClearText: {
-    color: colors.text.secondary,
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  quickCheckInModalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.75)',
-    justifyContent: 'flex-end',
-  },
-  quickCheckInModalContainer: {
-    height: '60%',
-    borderTopLeftRadius: 32,
-    borderTopRightRadius: 32,
-    overflow: 'hidden',
-    borderTopWidth: 1,
-    borderLeftWidth: 1,
-    borderRightWidth: 1,
-    borderColor: colors.border.default,
-  },
-  quickCheckInModalHeader: {
-    paddingHorizontal: 24,
-    paddingTop: 20,
-    paddingBottom: 12,
-    alignItems: 'flex-end',
-  },
-  quickCheckInModalClose: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: colors.surface.tertiary,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  quickCheckInModalCloseText: {
-    color: colors.text.primary,
-    fontSize: 20,
-    fontWeight: '300',
-  },
-  quickCheckInModalTitle: {
-    color: colors.text.primary,
-    fontSize: 18,
-    fontWeight: '500',
-    textAlign: 'center',
-    marginBottom: 24,
-    lineHeight: 26,
-    letterSpacing: 0.3,
-    paddingHorizontal: 24,
-  },
-  quickCheckInModalSliderWrapper: {
-    flex: 1,
-    paddingHorizontal: 32,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  quickCheckInModalButtonWrapper: {
-    paddingHorizontal: 32,
-    paddingBottom: 32,
-    paddingTop: 16,
-  },
-  quickCheckInModalSaveButton: {
-    paddingVertical: 16,
-    borderRadius: 24,
-    alignItems: 'center',
-    backgroundColor: colors.accent.primary,
-    shadowColor: colors.accent.primary,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-  },
-  quickCheckInModalSaveButtonText: {
-    fontSize: 17,
-    fontWeight: '700',
-    letterSpacing: 0.5,
-    color: colors.text.primary,
-  },
-  minutesSection: {
-    paddingHorizontal: 24,
-    paddingTop: 40,
-    paddingBottom: 20,
-  },
-  minutesCard: {
-    borderRadius: 24,
-    overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: colors.border.subtle,
-    padding: 32,
-    alignItems: 'center',
-  },
-  minutesLabel: {
-    color: colors.text.muted,
-    fontSize: 16,
-    fontWeight: '500',
-    marginBottom: 8,
-    letterSpacing: 0.5,
-  },
-  minutesNumber: {
-    color: colors.accent.teal,
-    fontSize: 64,
-    fontWeight: '700',
-    letterSpacing: -2,
-  },
-  minutesUnit: {
-    color: colors.accent.teal,
-    fontSize: 20,
-    fontWeight: '600',
-    marginBottom: 12,
-    letterSpacing: 0.5,
-  },
-  minutesSubtext: {
-    color: colors.text.secondary,
-    fontSize: 16,
-    fontWeight: '500',
-    marginBottom: 16,
-    textAlign: 'center',
-    letterSpacing: 0.3,
-  },
-  compassionateText: {
-    color: 'rgba(247, 249, 251, 0.6)',
-    fontSize: 14,
-    fontWeight: '500',
-    fontStyle: 'italic',
-    textAlign: 'center',
-    letterSpacing: 0.3,
-  },
-  headerRow: {
-    position: 'absolute',
-    top: 75,
+    top: 58,
     left: 0,
     right: 0,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 24,
+    paddingHorizontal: 22,
     zIndex: 10,
   },
-  headerIconButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: 'rgba(0, 0, 0, 0.3)',
+  headerIconBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: 'rgba(0,0,0,0.28)',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  headerIcon: {
-    fontSize: 24,
+  logoText: {
+    fontSize: 21,
+    fontWeight: '600',
+    color: '#FFFFFF',
+    letterSpacing: 1.8,
   },
-  headerLogoText: {
-    fontSize: 36,
-    fontWeight: '700',
-    color: colors.text.primary,
-    letterSpacing: 2,
+
+  // ── Week streak strip ────────────────────────────────────
+  weekStripContainer: {
+    position: 'absolute',
+    top: 104,
+    left: 16,
+    right: 16,
+    zIndex: 10,
   },
-  quickRoutineSection: {
-    paddingTop: 32,
-    paddingBottom: 20,
-  },
-  quickRoutineTitle: {
-    color: colors.text.primary,
-    fontSize: 22,
-    fontWeight: '700',
-    paddingHorizontal: 24,
-    marginBottom: 16,
-    letterSpacing: 0.5,
-  },
-  quickRoutineScroll: {
-    paddingHorizontal: 24,
-    gap: 12,
-  },
-  quickRoutineCard: {
-    borderRadius: 20,
+  weekStrip: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    alignItems: 'center',
+    paddingVertical: 10,
+    paddingHorizontal: 6,
+    borderRadius: 22,
     overflow: 'hidden',
     borderWidth: 1,
-    borderColor: colors.border.subtle,
-    width: 120,
+    borderColor: 'rgba(255,255,255,0.1)',
   },
-  quickRoutineBlur: {
-    paddingVertical: 20,
-    paddingHorizontal: 16,
-    alignItems: 'center',
-    gap: 8,
-  },
-  quickRoutineEmoji: {
-    fontSize: 36,
-  },
-  quickRoutineLabel: {
-    color: colors.text.primary,
-    fontSize: 15,
-    fontWeight: '600',
-    letterSpacing: 0.3,
-  },
-  quickRoutineDuration: {
-    color: colors.text.secondary,
-    fontSize: 13,
-    fontWeight: '500',
-    letterSpacing: 0.3,
-  },
-  dailyFlowSection: {
-    paddingHorizontal: 24,
-    paddingTop: 32,
-    paddingBottom: 20,
-  },
-  dailyFlowCard: {
-    borderRadius: 24,
-    overflow: 'hidden',
-    borderWidth: 2,
-    borderColor: colors.accent.primary,
-  },
-  dailyFlowBlur: {
-    padding: 24,
-  },
-  dailyFlowHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 16,
-  },
-  dailyFlowTextContainer: {
-    flex: 1,
-  },
-  dailyFlowTitle: {
-    color: colors.text.primary,
-    fontSize: 24,
-    fontWeight: '700',
-    letterSpacing: 0.5,
-    marginBottom: 6,
-  },
-  dailyFlowSubtitle: {
-    color: colors.text.secondary,
-    fontSize: 14,
-    fontWeight: '500',
-    letterSpacing: 0.3,
-  },
-  dailyFlowCompletionBadge: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: colors.surface.tertiary,
-    borderWidth: 2,
-    borderColor: colors.border.default,
+  dayItem: {
     alignItems: 'center',
     justifyContent: 'center',
-    marginLeft: 16,
+    gap: 4,
+    height: 48,
   },
-  dailyFlowCompletionBadgeComplete: {
-    backgroundColor: colors.accent.primary + '33',
-    borderColor: colors.accent.primary,
+  dayLabel: {
+    color: 'rgba(255,255,255,0.45)',
+    fontSize: 12,
+    fontWeight: '600',
   },
-  dailyFlowCompletionCheckmark: {
-    color: colors.accent.primary,
-    fontSize: 28,
+  dayLabelToday: {
+    color: '#FFFFFF',
     fontWeight: '700',
   },
-  dailyFlowCompletionCircle: {
-    color: colors.text.muted,
-    fontSize: 32,
-    fontWeight: '300',
+  dayLabelFuture: {
+    color: 'rgba(255,255,255,0.22)',
   },
-  dailyFlowFooter: {
-    paddingTop: 16,
-    borderTopWidth: 1,
-    borderTopColor: colors.border.subtle,
+  todayDot: {
+    width: 5,
+    height: 5,
+    borderRadius: 2.5,
+    backgroundColor: colors.accent.primary,
   },
-  dailyFlowFooterText: {
-    color: colors.accent.primary,
-    fontSize: 13,
-    fontWeight: '600',
-    letterSpacing: 0.5,
-    textTransform: 'lowercase',
+
+  // ── Greeting text ────────────────────────────────────────
+  greetingContainer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 28,
+    paddingTop: 185,
+    paddingBottom: 190,
+  },
+  greetingText: {
+    color: '#FFFFFF',
+    fontSize: 34,
+    fontWeight: '700',
     textAlign: 'center',
+    lineHeight: 46,
+    letterSpacing: -0.3,
+  },
+
+  // ── Action row ───────────────────────────────────────────
+  actionRow: {
+    position: 'absolute',
+    bottom: 116,
+    left: 0,
+    right: 0,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 26,
+  },
+  sideBtn: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    backgroundColor: 'rgba(255,255,255,0.1)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.15)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  flowBtnWrapper: {
+    width: 118,
+    height: 118,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  flowBtnGlow: {
+    position: 'absolute',
+    width: 118,
+    height: 118,
+    borderRadius: 59,
+    backgroundColor: 'rgba(255,255,255,0.3)',
+    shadowColor: '#FFFFFF',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 1,
+    shadowRadius: 40,
+  },
+  flowBtn: {
+    width: 118,
+    height: 118,
+    borderRadius: 59,
+    backgroundColor: '#FFFFFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#FFFFFF',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.55,
+    shadowRadius: 28,
+  },
+  flowBtnText: {
+    color: '#000000',
+    fontSize: 22,
+    fontWeight: '700',
+    letterSpacing: 0.5,
   },
 })

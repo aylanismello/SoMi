@@ -11,7 +11,6 @@ export const useSettingsStore = create(
     (set) => ({
       // Settings
       isMusicEnabled: true,
-      showTime: true,
       isSfxEnabled: true,
       bodyScanStart: true,
       bodyScanEnd: true,
@@ -21,16 +20,11 @@ export const useSettingsStore = create(
         isMusicEnabled: !state.isMusicEnabled,
       })),
 
-      toggleShowTime: () => set((state) => ({
-        showTime: !state.showTime,
-      })),
-
       toggleSfx: () => set((state) => ({
         isSfxEnabled: !state.isSfxEnabled,
       })),
 
       setMusicEnabled: (enabled) => set({ isMusicEnabled: enabled }),
-      setShowTime: (show) => set({ showTime: show }),
       setSfxEnabled: (enabled) => set({ isSfxEnabled: enabled }),
       setBodyScanStart: (val) => set({ bodyScanStart: val }),
       setBodyScanEnd: (val) => set({ bodyScanEnd: val }),

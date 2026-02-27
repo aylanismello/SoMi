@@ -162,6 +162,28 @@ export const useFlowMusicStore = create((set, get) => ({
     }
   },
 
+  pauseFlowMusic: () => {
+    const { audioPlayer, isPlaying } = get()
+    if (!audioPlayer || !isPlaying) return
+    try {
+      audioPlayer.pause()
+      set({ isPlaying: false })
+    } catch (error) {
+      console.error('Error pausing flow music:', error)
+    }
+  },
+
+  resumeFlowMusic: () => {
+    const { audioPlayer, isPlaying } = get()
+    if (!audioPlayer || isPlaying) return
+    try {
+      audioPlayer.play()
+      set({ isPlaying: true })
+    } catch (error) {
+      console.error('Error resuming flow music:', error)
+    }
+  },
+
   setVolume: (volume) => {
     const { audioPlayer } = get()
     if (audioPlayer) {

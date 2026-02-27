@@ -7,17 +7,9 @@ import * as Haptics from 'expo-haptics'
 import { colors } from '../constants/theme'
 import { useLatestChain } from '../hooks/useSupabaseQueries'
 import { useFlowMusicStore } from '../stores/flowMusicStore'
+import { deriveState } from '../constants/polyvagalStates'
 
 const { width, height } = Dimensions.get('window')
-
-// Polyvagal states
-const POLYVAGAL_STATES = {
-  1: { label: 'Drained', color: '#4A5F8C', emoji: '🌧' },
-  2: { label: 'Foggy', color: '#5B7BB4', emoji: '🌫' },
-  3: { label: 'Wired', color: '#6B9BD1', emoji: '🌪' },
-  4: { label: 'Steady', color: '#7DBCE7', emoji: '🌤' },
-  5: { label: 'Glowing', color: '#90DDF0', emoji: '☀️' },
-}
 
 // Generate random confetti particles
 const generateConfetti = (count) => {
@@ -32,7 +24,6 @@ const generateConfetti = (count) => {
 }
 
 export default function CompletionScreen({ route, navigation }) {
-  console.log('🎉🎉🎉 COMPLETION SCREEN RENDERING 🎉🎉🎉')
   const { data: latestChain } = useLatestChain()
   const [confetti] = useState(generateConfetti(20))
   const { stopFlowMusic } = useFlowMusicStore()
@@ -204,15 +195,21 @@ export default function CompletionScreen({ route, navigation }) {
     const blockCount = latestChain.somi_chain_entries?.length || 0
 
     const checks = latestChain.embodiment_checks || []
-    const fromStateCode = checks[0]?.polyvagal_state_code || 4
-    const toStateCode = checks[checks.length - 1]?.polyvagal_state_code || 4
+    const fromCheck = checks[0]
+    const toCheck = checks[checks.length - 1]
+    const fromState = fromCheck
+      ? deriveState(fromCheck.energy_level ?? 50, fromCheck.safety_level ?? 50)
+      : deriveState(50, 50)
+    const toState = toCheck
+      ? deriveState(toCheck.energy_level ?? 50, toCheck.safety_level ?? 50)
+      : deriveState(50, 50)
 
     return {
       totalMinutes,
       blockCount,
-      fromState: POLYVAGAL_STATES[fromStateCode],
-      toState: POLYVAGAL_STATES[toStateCode],
-      hasTransformation: fromStateCode !== toStateCode,
+      fromState: { label: fromState.label, color: fromState.color, emoji: fromState.icon },
+      toState:   { label: toState.label,   color: toState.color,   emoji: toState.icon   },
+      hasTransformation: fromState.name !== toState.name,
     }
   }
 
@@ -233,16 +230,7 @@ export default function CompletionScreen({ route, navigation }) {
     console.log('🎵 CompletionScreen: Fading out flow music on Continue...')
     stopFlowMusic()
 
-    // Reset Flow stack and navigate to Home
-    navigation.reset({
-      index: 0,
-      routes: [{ name: 'FlowMenu' }],
-    })
-
-    const tabNavigator = navigation.getParent()
-    if (tabNavigator) {
-      tabNavigator.navigate('Home')
-    }
+    navigation.navigate('(tabs)')
   }
 
   const badgeRotateInterpolate = badgeRotate.interpolate({

@@ -3,7 +3,7 @@ import { useEvent } from 'expo'
 import { useVideoPlayer, VideoView } from 'expo-video'
 import { StyleSheet, View, TouchableOpacity, Text, ScrollView, Animated, Pressable, Modal } from 'react-native'
 import { LinearGradient } from 'expo-linear-gradient'
-import { BlurView } from 'expo-blur'
+import { GlassView } from 'expo-glass-effect'
 import Svg, { Circle } from 'react-native-svg'
 import * as Haptics from 'expo-haptics'
 import { useFocusEffect } from '@react-navigation/native'
@@ -16,9 +16,9 @@ import { colors } from '../constants/theme'
 import { useSettingsStore } from '../stores/settingsStore'
 import { useFlowMusicStore } from '../stores/flowMusicStore'
 import { useRoutineStore } from '../stores/routineStore'
-import SettingsModal from './SettingsModal'
+import CustomizationModal from './CustomizationModal'
 import FlowProgressHeader from './FlowProgressHeader'
-import FlowControlsOverlay from './FlowControlsOverlay'
+import FlowTransportBar from './FlowTransportBar'
 import { useSettingsStore as useSettingsStoreForBodyScan } from '../stores/settingsStore'
 import { useSaveChainEntry } from '../hooks/useSupabaseQueries'
 
@@ -93,7 +93,7 @@ export default function SoMiRoutineScreen({ navigation }) {
   const { isMusicEnabled } = useSettingsStore()
   const bodyScanEnd = useSettingsStoreForBodyScan(state => state.bodyScanEnd)
   const flowMusicStore = useFlowMusicStore()
-  const { startFlowMusic, setVolume: setFlowMusicVolume, updateMusicSetting, stopFlowMusic, audioPlayer } = flowMusicStore
+  const { startFlowMusic, setVolume: setFlowMusicVolume, updateMusicSetting, stopFlowMusic, audioPlayer, pauseFlowMusic, resumeFlowMusic } = flowMusicStore
 
   // Mutation for saving completed blocks
   const saveChainEntryMutation = useSaveChainEntry()
@@ -116,6 +116,10 @@ export default function SoMiRoutineScreen({ navigation }) {
   const [interstitialPaused, setInterstitialPaused] = useState(false)
   const [allBlocks, setAllBlocks] = useState([])
 
+  // Tap-to-show overlay (controls only visible on tap, auto-hides after 3s)
+  const [showOverlay, setShowOverlay] = useState(false)
+  const overlayTimeoutRef = useRef(null)
+
   // Infinity mode for interstitial
   const [infinityMode, setInfinityMode] = useState(false)
   const infinityModeRef = useRef(false)
@@ -129,7 +133,6 @@ export default function SoMiRoutineScreen({ navigation }) {
   const [videoProgress, setVideoProgress] = useState(0)
   const [videoCurrentTime, setVideoCurrentTime] = useState(0)
   const [videoDuration, setVideoDuration] = useState(VIDEO_DURATION_CAP_SECONDS)
-  const [showControls, setShowControls] = useState(false)
   const [isPlayingState, setIsPlayingState] = useState(false)
   const [isScrubbing, setIsScrubbing] = useState(false)
   const [scrubbingPosition, setScrubbingPosition] = useState(0)
@@ -138,10 +141,8 @@ export default function SoMiRoutineScreen({ navigation }) {
   const startTimeRef = useRef(null)
   const hasSavedCurrentBlockRef = useRef(false)
   const hasCompletedCurrentBlockRef = useRef(false) // Prevent double-completion bug
-  const controlsOpacity = useRef(new Animated.Value(0)).current
   const progressBarRef = useRef(null)
   const thumbScale = useRef(new Animated.Value(1)).current
-  const hideTimeoutRef = useRef(null)
   const isSeekingRef = useRef(false)
   const shouldVideoPlayRef = useRef(false) // intent tracker for stall recovery
   const isMountedRef = useRef(true)        // guards stall recovery after unmount
@@ -184,6 +185,9 @@ export default function SoMiRoutineScreen({ navigation }) {
   // Preload sound effects on mount for instant playback
   useEffect(() => {
     soundManager.preloadSounds()
+    return () => {
+      if (overlayTimeoutRef.current) clearTimeout(overlayTimeoutRef.current)
+    }
   }, [])
 
   // Start flow music for quick routines (body scan flow starts music earlier)
@@ -275,8 +279,6 @@ export default function SoMiRoutineScreen({ navigation }) {
 
     if (phase === 'video' && currentVideo) {
       shouldVideoPlayRef.current = true
-      // Don't show controls when video starts
-      setShowControls(false)
 
       // Start playing
       console.log('▶️ Starting video:', currentVideo.name)
@@ -641,39 +643,6 @@ export default function SoMiRoutineScreen({ navigation }) {
     }
   }, [videoCurrentTime, videoDuration, phase, player])
 
-  // Animate controls visibility
-  useEffect(() => {
-    Animated.timing(controlsOpacity, {
-      toValue: showControls ? 1 : 0,
-      duration: 300,
-      useNativeDriver: true,
-    }).start()
-  }, [showControls, controlsOpacity])
-
-  // Auto-hide controls after 3 seconds when playing
-  useEffect(() => {
-    // Clear any existing timeout
-    if (hideTimeoutRef.current) {
-      clearTimeout(hideTimeoutRef.current)
-      hideTimeoutRef.current = null
-    }
-
-    // Don't hide if user is actively scrubbing
-    if (showControls && !isScrubbing) {
-      hideTimeoutRef.current = setTimeout(() => {
-        setShowControls(false)
-        hideTimeoutRef.current = null
-      }, 3000)
-    }
-
-    return () => {
-      if (hideTimeoutRef.current) {
-        clearTimeout(hideTimeoutRef.current)
-        hideTimeoutRef.current = null
-      }
-    }
-  }, [showControls, isScrubbing, phase, player])
-
   const transitionToVideoPhase = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium)
 
@@ -687,7 +656,6 @@ export default function SoMiRoutineScreen({ navigation }) {
     setPhase('video')
     setVideoProgress(0)
     setVideoCurrentTime(0)
-    setShowControls(false)
     // Track start time for elapsed time calculation
     startTimeRef.current = Date.now()
     hasSavedCurrentBlockRef.current = false // Reset save guard for new block
@@ -696,7 +664,6 @@ export default function SoMiRoutineScreen({ navigation }) {
 
   const handleSkipInterstitial = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium)
-    setShowControls(false)
     interstitialProgressAnim.stopAnimation()
     if (countdownIntervalRef.current) {
       clearInterval(countdownIntervalRef.current)
@@ -704,10 +671,21 @@ export default function SoMiRoutineScreen({ navigation }) {
     transitionToVideoPhase()
   }
 
+  const handleScreenTap = () => {
+    if (overlayTimeoutRef.current) clearTimeout(overlayTimeoutRef.current)
+    if (showOverlay) {
+      setShowOverlay(false)
+    } else {
+      setShowOverlay(true)
+      overlayTimeoutRef.current = setTimeout(() => setShowOverlay(false), 3000)
+    }
+  }
+
   const handleInterstitialPauseResume = () => {
     if (!interstitialPaused) {
       // Pause
       setInterstitialPaused(true)
+      pauseFlowMusic()
       wasPausedRef.current = true
       pausedCountdownRef.current = countdown
       if (countdownIntervalRef.current) {
@@ -718,6 +696,7 @@ export default function SoMiRoutineScreen({ navigation }) {
     } else {
       // Resume
       setInterstitialPaused(false)
+      resumeFlowMusic()
       wasPausedRef.current = false
       const elapsedTime = INTERSTITIAL_DURATION_SECONDS - countdown
       const remainingTime = countdown * 1000
@@ -750,9 +729,11 @@ export default function SoMiRoutineScreen({ navigation }) {
     if (currentlyPlaying) {
       shouldVideoPlayRef.current = false
       player.pause()
+      pauseFlowMusic()
     } else {
       shouldVideoPlayRef.current = true
       player.play()
+      resumeFlowMusic()
     }
     // Don't close overlay - let user see the state change
   }
@@ -761,10 +742,6 @@ export default function SoMiRoutineScreen({ navigation }) {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
     const newTime = Math.max(0, videoCurrentTime - 15)
     player.currentTime = newTime
-
-    // Reset the auto-hide timer
-    setShowControls(false)
-    setTimeout(() => setShowControls(true), 10)
   }
 
   const handleSkipForward = () => {
@@ -772,14 +749,6 @@ export default function SoMiRoutineScreen({ navigation }) {
     const cappedDuration = Math.min(videoDuration, VIDEO_DURATION_CAP_SECONDS)
     const newTime = Math.min(cappedDuration, videoCurrentTime + 15)
     player.currentTime = newTime
-
-    // Reset the auto-hide timer
-    setShowControls(false)
-    setTimeout(() => setShowControls(true), 10)
-  }
-
-  const toggleControls = () => {
-    setShowControls(!showControls)
   }
 
 
@@ -795,7 +764,6 @@ export default function SoMiRoutineScreen({ navigation }) {
     const touch = event.nativeEvent
 
     setIsScrubbing(true)
-    setShowControls(true)
     Animated.spring(thumbScale, {
       toValue: 2,
       useNativeDriver: true,
@@ -833,21 +801,10 @@ export default function SoMiRoutineScreen({ navigation }) {
       useNativeDriver: true,
     }).start()
 
-    // Reset the auto-hide timer by toggling controls
-    setShowControls(false)
-    setTimeout(() => setShowControls(true), 10)
-
     // Allow interval to resume updating after seek completes
     setTimeout(() => {
       isSeekingRef.current = false
     }, 500)
-  }
-
-  const formatTime = (seconds) => {
-    if (!seconds || isNaN(seconds)) return '0:00'
-    const mins = Math.floor(seconds / 60)
-    const secs = Math.floor(seconds % 60)
-    return `${mins}:${secs.toString().padStart(2, '0')}`
   }
 
   const handleVideoComplete = async () => {
@@ -885,16 +842,8 @@ export default function SoMiRoutineScreen({ navigation }) {
         // Reset routine store
         resetRoutine()
 
-        // Reset Flow stack and go home
-        navigation.reset({
-          index: 0,
-          routes: [{ name: 'FlowMenu' }],
-        })
-
-        const tabNavigator = navigation.getParent()
-        if (tabNavigator) {
-          tabNavigator.navigate('Home')
-        }
+        // Go home
+        navigation.navigate('(tabs)')
       } else {
         // Daily flow: check bodyScanEnd setting
         if (bodyScanEnd) {
@@ -1003,16 +952,8 @@ export default function SoMiRoutineScreen({ navigation }) {
         // Reset routine store
         resetRoutine()
 
-        // Reset Flow stack and go home
-        navigation.reset({
-          index: 0,
-          routes: [{ name: 'FlowMenu' }],
-        })
-
-        const tabNavigator = navigation.getParent()
-        if (tabNavigator) {
-          tabNavigator.navigate('Home')
-        }
+        // Go home
+        navigation.navigate('(tabs)')
       } else {
         // Daily flow: check bodyScanEnd setting
         if (bodyScanEnd) {
@@ -1086,18 +1027,7 @@ export default function SoMiRoutineScreen({ navigation }) {
     // Reset routine store
     resetRoutine()
 
-    // Reset the Flow stack to FlowMenu before navigating away
-    navigation.reset({
-      index: 0,
-      routes: [{ name: 'FlowMenu' }],
-    })
-
-    // Navigate to Home tab
-    // Get the tab navigator (parent of the stack navigator)
-    const tabNavigator = navigation.getParent()
-    if (tabNavigator) {
-      tabNavigator.navigate('Home')
-    }
+    navigation.navigate('(tabs)')
   }
 
   const handleCancelExit = () => {
@@ -1318,8 +1248,8 @@ export default function SoMiRoutineScreen({ navigation }) {
 
         <FlowProgressHeader />
 
-        {/* Main content — tap to toggle controls */}
-        <Pressable style={styles.interstitialContent} onPress={toggleControls}>
+        {/* Main content — tappable to show overlay controls */}
+        <Pressable style={styles.interstitialContent} onPress={handleScreenTap}>
           {/* Rotating integration message — smaller above the card */}
           <Animated.Text style={[styles.integrationMessage, { opacity: messageOpacity }]}>
             {INTEGRATION_MESSAGES[currentMessageIndex]}
@@ -1347,29 +1277,28 @@ export default function SoMiRoutineScreen({ navigation }) {
         </Pressable>
 
         {/* Loading bar — tap to skip */}
-        <Pressable onPress={handleSkipInterstitial} style={styles.barWrapper}>
-          <View style={styles.barTrack}>
-            <Animated.View style={[styles.barFill, { width: barWidth }]} />
-            <View style={styles.barContent}>
-              <Text style={styles.barLabel}>Skip Integration</Text>
-              <Text style={styles.barArrow}>›</Text>
+        {showOverlay && (
+          <Pressable onPress={handleSkipInterstitial} style={styles.barWrapper}>
+            <View style={styles.barTrack}>
+              <Animated.View style={[styles.barFill, { width: barWidth }]} />
+              <View style={styles.barContent}>
+                <Text style={styles.barLabel}>Skip Integration</Text>
+                <Text style={styles.barArrow}>›</Text>
+              </View>
             </View>
-          </View>
-        </Pressable>
+          </Pressable>
+        )}
 
-        <FlowControlsOverlay
-          visible={showControls}
-          opacity={controlsOpacity}
-          isPaused={interstitialPaused}
-          onSkipBlock={handleSkipInterstitial}
-          onPauseResume={handleInterstitialPauseResume}
-          onEndFlow={() => { setShowControls(false); handleExit() }}
-          onDismiss={() => setShowControls(false)}
-          onInteraction={() => {
-            if (hideTimeoutRef.current) clearTimeout(hideTimeoutRef.current)
-            hideTimeoutRef.current = setTimeout(() => setShowControls(false), 4000)
-          }}
-        />
+        {showOverlay && (
+          <FlowTransportBar
+            isPaused={interstitialPaused}
+            onPause={handleInterstitialPauseResume}
+            onPlay={handleInterstitialPauseResume}
+            onStop={handleExit}
+            onOpenSettings={handleOpenSettings}
+            containerStyle={{ bottom: 140 }}
+          />
+        )}
 
         <Modal
           visible={showExitModal}
@@ -1392,14 +1321,13 @@ export default function SoMiRoutineScreen({ navigation }) {
           </TouchableOpacity>
         </Modal>
 
-        <SettingsModal visible={showSettingsModal} onClose={handleCloseSettings} />
+        <CustomizationModal visible={showSettingsModal} onClose={handleCloseSettings} />
       </View>
     )
   }
 
   // Video Phase - Simplified with FlowProgressHeader + always-visible countdown
   const cappedDuration = Math.min(videoDuration, VIDEO_DURATION_CAP_SECONDS)
-  const timeRemaining = Math.max(0, cappedDuration - videoCurrentTime)
 
   return (
     <View style={styles.videoContainer}>
@@ -1408,7 +1336,7 @@ export default function SoMiRoutineScreen({ navigation }) {
         <FlowProgressHeader />
       </View>
 
-      <Pressable style={styles.videoPlayerArea} onPress={toggleControls}>
+      <Pressable style={styles.videoPlayerArea} onPress={handleScreenTap}>
         {showBackground ? (
           <LinearGradient
             colors={[colors.background.primary, colors.background.secondary, colors.background.primary]}
@@ -1429,26 +1357,36 @@ export default function SoMiRoutineScreen({ navigation }) {
         )}
       </Pressable>
 
-      {/* Always-visible countdown at bottom */}
-      <View style={styles.videoCountdownContainer}>
-        <Text style={styles.videoCountdownText}>
-          {formatTime(timeRemaining)}
-        </Text>
-      </View>
-
-      <FlowControlsOverlay
-        visible={showControls}
-        opacity={controlsOpacity}
+      <FlowTransportBar
         isPaused={!isPlayingState}
-        onSkipBlock={() => { setShowControls(false); handleCloseVideo() }}
-        onPauseResume={handlePlayPause}
-        onEndFlow={() => { setShowControls(false); handleExit() }}
-        onDismiss={() => setShowControls(false)}
-        onInteraction={() => {
-          if (hideTimeoutRef.current) clearTimeout(hideTimeoutRef.current)
-          hideTimeoutRef.current = setTimeout(() => setShowControls(false), 4000)
-        }}
+        onPause={handlePlayPause}
+        onPlay={handlePlayPause}
+        onStop={handleExit}
+        onOpenSettings={handleOpenSettings}
+        showControls={showOverlay}
+        containerStyle={{ bottom: 140 }}
       />
+
+      {showOverlay && (
+        <Pressable onPress={handleVideoComplete} style={styles.barWrapper}>
+          <LinearGradient
+            colors={['transparent', 'rgba(0,0,0,0.55)']}
+            style={styles.barScrim}
+            pointerEvents="none"
+          />
+          <GlassView
+            glassEffectStyle="regular"
+            colorScheme="dark"
+            style={styles.barTrack}
+          >
+            <View style={[styles.barFill, { width: `${Math.min(100, (videoCurrentTime / Math.max(1, cappedDuration)) * 100)}%` }]} />
+            <View style={styles.barContent}>
+              <Text style={styles.barLabel}>Skip Block</Text>
+              <Text style={styles.barArrow}>›</Text>
+            </View>
+          </GlassView>
+        </Pressable>
+      )}
 
       {/* Exit Bottom Sheet */}
       <Modal
@@ -1472,7 +1410,7 @@ export default function SoMiRoutineScreen({ navigation }) {
         </TouchableOpacity>
       </Modal>
 
-      <SettingsModal visible={showSettingsModal} onClose={handleCloseSettings} />
+      <CustomizationModal visible={showSettingsModal} onClose={handleCloseSettings} />
     </View>
   )
 }
@@ -1600,23 +1538,34 @@ const styles = StyleSheet.create({
     lineHeight: 20,
   },
   barWrapper: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
     paddingHorizontal: 20,
-    paddingBottom: 52,
+    paddingBottom: 44,
+  },
+  barScrim: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    height: 160,
   },
   barTrack: {
-    height: 68,
-    borderRadius: 34,
-    backgroundColor: 'rgba(255,255,255,0.1)',
+    height: 64,
+    borderRadius: 32,
     overflow: 'hidden',
-    position: 'relative',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.22)',
   },
   barFill: {
     position: 'absolute',
     left: 0,
     top: 0,
     bottom: 0,
-    backgroundColor: 'rgba(255,255,255,0.18)',
-    borderRadius: 34,
+    backgroundColor: 'rgba(255,255,255,0.14)',
+    borderRadius: 32,
   },
   barContent: {
     position: 'absolute',
@@ -1626,18 +1575,18 @@ const styles = StyleSheet.create({
     bottom: 0,
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 28,
+    paddingHorizontal: 26,
   },
   barLabel: {
     flex: 1,
     color: '#ffffff',
-    fontSize: 17,
-    fontWeight: '600',
-    letterSpacing: 0.3,
+    fontSize: 16,
+    fontWeight: '700',
+    letterSpacing: 0.4,
   },
   barArrow: {
-    color: 'rgba(255,255,255,0.45)',
-    fontSize: 28,
+    color: 'rgba(255,255,255,0.75)',
+    fontSize: 26,
     fontWeight: '300',
   },
   circleContainer: {

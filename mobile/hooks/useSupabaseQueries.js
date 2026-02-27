@@ -98,12 +98,12 @@ export function useSaveEmbodimentCheck() {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: async ({ sliderValue, polyvagalStateCode, journalEntry = null, flowType = null, tags = null }) => {
+    mutationFn: async ({ energyLevel, safetyLevel, journalEntry = null, flowType = null, tags = null }) => {
       // Get flowType from routine store if not provided
       const finalFlowType = flowType || useRoutineStore.getState().flowType
       return await chainService.saveEmbodimentCheck(
-        sliderValue,
-        polyvagalStateCode,
+        energyLevel,
+        safetyLevel,
         journalEntry,
         finalFlowType,
         tags
@@ -150,6 +150,21 @@ export function useSaveChainEntry() {
         queryClient.invalidateQueries({ queryKey: QUERY_KEYS.latestDailyFlow })
       }
     },
+  })
+}
+
+/**
+ * Fetch chains for the current week to power the streak strip
+ * @returns {UseQueryResult} Query result with chains array
+ */
+export function useWeeklyFlows() {
+  return useQuery({
+    queryKey: ['chains', 'weekly'],
+    queryFn: async () => {
+      const { chains } = await api.getChains(30)
+      return chains || []
+    },
+    staleTime: 30 * 1000,
   })
 }
 

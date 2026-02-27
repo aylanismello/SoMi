@@ -9,7 +9,8 @@ import { useSettingsStore } from '../stores/settingsStore'
 import { useFlowMusicStore } from '../stores/flowMusicStore'
 import { useRoutineStore } from '../stores/routineStore'
 import FlowProgressHeader from './FlowProgressHeader'
-import FlowControlsOverlay from './FlowControlsOverlay'
+import FlowTransportBar from './FlowTransportBar'
+import CustomizationModal from './CustomizationModal'
 
 const COUNTDOWN_DURATION_SECONDS = 60
 const OCEAN_VIDEO_URI = 'https://qujifwhwntqxziymqdwu.supabase.co/storage/v1/object/public/test/somi%20videos/ocean_loop_final.mp4'
@@ -44,15 +45,14 @@ export default function BodyScanCountdown({ route, navigation }) {
   const [showControls, setShowControls] = useState(false)
   const videoOpacity = useRef(new Animated.Value(1)).current
   const [showExitModal, setShowExitModal] = useState(false)
+  const [showSettingsModal, setShowSettingsModal] = useState(false)
   const [isPaused, setIsPaused] = useState(false)
   const pausedCountdownRef = useRef(COUNTDOWN_DURATION_SECONDS)
   const startTimeRef = useRef(null)
-
-  const controlsOpacity = useRef(new Animated.Value(0)).current
-  const hideTimeoutRef = useRef(null)
+  const overlayTimeoutRef = useRef(null)
 
   const { isMusicEnabled } = useSettingsStore()
-  const { startFlowMusic, stopFlowMusic, updateMusicSetting, audioPlayer } = useFlowMusicStore()
+  const { startFlowMusic, stopFlowMusic, updateMusicSetting, audioPlayer, pauseFlowMusic, resumeFlowMusic } = useFlowMusicStore()
 
   const progressAnim = useRef(new Animated.Value(0)).current
 
@@ -94,30 +94,6 @@ export default function BodyScanCountdown({ route, navigation }) {
     }
   }, [])
 
-  useEffect(() => {
-    Animated.timing(controlsOpacity, {
-      toValue: showControls ? 1 : 0,
-      duration: 300,
-      useNativeDriver: true,
-    }).start()
-  }, [showControls])
-
-  useEffect(() => {
-    if (hideTimeoutRef.current) {
-      clearTimeout(hideTimeoutRef.current)
-      hideTimeoutRef.current = null
-    }
-    if (showControls && !isPaused) {
-      hideTimeoutRef.current = setTimeout(() => {
-        setShowControls(false)
-        hideTimeoutRef.current = null
-      }, 4000)
-    }
-    return () => {
-      if (hideTimeoutRef.current) clearTimeout(hideTimeoutRef.current)
-    }
-  }, [showControls, isPaused])
-
   const handleComplete = async () => {
     const { soundManager } = require('../utils/SoundManager')
     soundManager.playBlockEnd()
@@ -152,6 +128,7 @@ export default function BodyScanCountdown({ route, navigation }) {
   const handlePauseResume = () => {
     if (!isPaused) {
       setIsPaused(true)
+      pauseFlowMusic()
       pausedCountdownRef.current = countdown
       if (countdownIntervalRef.current) {
         clearInterval(countdownIntervalRef.current)
@@ -160,6 +137,7 @@ export default function BodyScanCountdown({ route, navigation }) {
       progressAnim.stopAnimation()
     } else {
       setIsPaused(false)
+      resumeFlowMusic()
       const resumeCountdown = pausedCountdownRef.current
       setCountdown(resumeCountdown)
 
@@ -186,6 +164,35 @@ export default function BodyScanCountdown({ route, navigation }) {
     setShowExitModal(true)
   }
 
+  const handleScreenTap = () => {
+    if (overlayTimeoutRef.current) clearTimeout(overlayTimeoutRef.current)
+    if (showControls) {
+      setShowControls(false)
+    } else {
+      setShowControls(true)
+      overlayTimeoutRef.current = setTimeout(() => setShowControls(false), 3000)
+    }
+  }
+
+  const handleOpenSettings = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
+    if (!isPaused) {
+      setIsPaused(true)
+      pausedCountdownRef.current = countdown
+      if (countdownIntervalRef.current) {
+        clearInterval(countdownIntervalRef.current)
+        countdownIntervalRef.current = null
+      }
+      progressAnim.stopAnimation()
+    }
+    setShowSettingsModal(true)
+  }
+
+  const handleCloseSettings = () => {
+    setShowSettingsModal(false)
+    if (isPaused) handlePauseResume()
+  }
+
   const handleConfirmExit = async () => {
     setShowExitModal(false)
     progressAnim.stopAnimation()
@@ -196,9 +203,7 @@ export default function BodyScanCountdown({ route, navigation }) {
     } else {
       await chainService.endActiveChain()
     }
-    navigation.reset({ index: 0, routes: [{ name: 'FlowMenu' }] })
-    const tabNavigator = navigation.getParent()
-    if (tabNavigator) tabNavigator.navigate('Home')
+    navigation.navigate('(tabs)')
   }
 
   const handleCancelExit = () => {
@@ -233,35 +238,35 @@ export default function BodyScanCountdown({ route, navigation }) {
       {!fromCheckIn && <FlowProgressHeader />}
 
       {/* Main content — tap anywhere to toggle controls */}
-      <Pressable style={styles.content} onPress={() => setShowControls(!showControls)}>
+      <Pressable style={styles.content} onPress={handleScreenTap}>
         <Text style={styles.title}>Body Scan</Text>
         <Text style={styles.message}>{message}</Text>
       </Pressable>
 
       {/* Loading bar — tap to skip */}
-      <Pressable onPress={handleSkipBlock} style={styles.barWrapper}>
-        <View style={styles.barTrack}>
-          <Animated.View style={[styles.barFill, { width: barWidth }]} />
-          <View style={styles.barContent}>
-            <Text style={styles.barLabel}>Skip Body Scan</Text>
-            <Text style={styles.barArrow}>›</Text>
+      {showControls && (
+        <Pressable onPress={handleSkipBlock} style={styles.barWrapper}>
+          <View style={styles.barTrack}>
+            <Animated.View style={[styles.barFill, { width: barWidth }]} />
+            <View style={styles.barContent}>
+              <Text style={styles.barLabel}>Skip Body Scan</Text>
+              <Text style={styles.barArrow}>›</Text>
+            </View>
           </View>
-        </View>
-      </Pressable>
+        </Pressable>
+      )}
 
-      <FlowControlsOverlay
-        visible={showControls}
-        opacity={controlsOpacity}
+      <FlowTransportBar
         isPaused={isPaused}
-        onSkipBlock={handleSkipBlock}
-        onPauseResume={handlePauseResume}
-        onEndFlow={handleEndFlow}
-        onDismiss={() => setShowControls(false)}
-        onInteraction={() => {
-          if (hideTimeoutRef.current) clearTimeout(hideTimeoutRef.current)
-          hideTimeoutRef.current = setTimeout(() => setShowControls(false), 4000)
-        }}
+        onPause={handlePauseResume}
+        onPlay={handlePauseResume}
+        onStop={handleEndFlow}
+        onOpenSettings={handleOpenSettings}
+        showControls={showControls}
+        containerStyle={{ bottom: 140 }}
       />
+
+      <CustomizationModal visible={showSettingsModal} onClose={handleCloseSettings} />
 
       <Modal visible={showExitModal} transparent={true} animationType="slide" onRequestClose={handleCancelExit}>
         <Pressable style={styles.sheetOverlay} onPress={handleCancelExit}>
@@ -316,6 +321,10 @@ const styles = StyleSheet.create({
     letterSpacing: 0.2,
   },
   barWrapper: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
     paddingHorizontal: 20,
     paddingBottom: 52,
   },

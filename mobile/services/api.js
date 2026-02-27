@@ -95,13 +95,13 @@ export const api = {
   },
 
   // Embodiment checks
-  saveEmbodimentCheck: async (chainId, sliderValue, polyvagalStateCode, journalEntry = null, tags = null) => {
+  saveEmbodimentCheck: async (chainId, energyLevel, safetyLevel, journalEntry = null, tags = null) => {
     return apiRequest('/embodiment-checks', {
       method: 'POST',
       body: JSON.stringify({
         chainId,
-        sliderValue,
-        polyvagalStateCode,
+        energyLevel,
+        safetyLevel,
         journalEntry,
         ...(tags && tags.length > 0 ? { tags } : {}),
       }),

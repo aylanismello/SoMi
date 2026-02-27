@@ -7,34 +7,15 @@ import Svg, { Circle, Line } from 'react-native-svg'
 import * as Haptics from 'expo-haptics'
 import { Ionicons } from '@expo/vector-icons'
 import { chainService } from '../services/chainService'
-import { POLYVAGAL_STATE_MAP, STATE_DESCRIPTIONS } from './EmbodimentSlider'
 import { colors } from '../constants/theme'
 import { useChains, useDeleteChain } from '../hooks/useSupabaseQueries'
 import { useAuthStore } from '../stores/authStore'
-import { X_STATE_ORDER, intensityWord } from './StateXYPicker'
+import { intensityWord } from './StateXYPicker'
+import { deriveState, deriveIntensity } from '../constants/polyvagalStates'
 
-// Match polyvagal states from SoMeCheckIn (new code-based system)
-const POLYVAGAL_STATES = [
-  { id: 0, label: 'SOS', color: '#ff6b9d' },
-  { id: 1, label: 'Drained', color: '#4A5F8C' },
-  { id: 2, label: 'Foggy', color: '#5B7BB4' },
-  { id: 3, label: 'Wired', color: '#6B9BD1' },
-  { id: 4, label: 'Steady', color: '#7DBCE7' },
-  { id: 5, label: 'Glowing', color: '#90DDF0' },
-]
-
-const STATE_EMOJIS = {
-  0: '🆘',
-  1: '🌧',
-  2: '🌫',
-  3: '🌪',
-  4: '🌤',
-  5: '☀️',
-}
-
-// Same gradient colors as StateXYPicker for visual consistency in read-only check-in display
-const MINI_GRAD_COLORS = ['#091321', '#1C3058', '#2575AA', '#38C4D4', '#7050CC']
-const MINI_GRAD_LOCS = [0, 0.25, 0.5, 0.75, 1]
+// Mini bar gradient for check-in display (energy axis: left=low, right=high)
+const MINI_GRAD_COLORS = ['#0D1B2A', '#3D2575', '#8B5CF6']
+const MINI_GRAD_LOCS = [0, 0.5, 1]
 
 // Calendar/Streak View Component
 function CalendarStreakView({ chains }) {
@@ -189,8 +170,8 @@ function CalendarStreakView({ chains }) {
 
 // Floating Orb Component with physics
 function FloatingOrb({ check, index, onPress, isSelected, formatDate }) {
-  const stateInfo = POLYVAGAL_STATES.find(s => s.id === check.polyvagal_state_code)
-  const fillLevel = check.embodiment_level / 100
+  const stateInfo = deriveState(check.energy_level ?? 50, check.safety_level ?? 50)
+  const fillLevel = deriveIntensity(check.energy_level ?? 50, check.safety_level ?? 50) / 100
 
   // Circle measurements for progress ring
   const circleSize = 52
@@ -296,7 +277,7 @@ function FloatingOrb({ check, index, onPress, isSelected, formatDate }) {
             strokeWidth={strokeWidth}
             fill="none"
           />
-          {/* Progress ring */}
+          {/* Progress ring - uses derived state color */}
           <Circle
             cx={circleSize / 2}
             cy={circleSize / 2}
@@ -322,7 +303,7 @@ function FloatingOrb({ check, index, onPress, isSelected, formatDate }) {
           ]}
         >
           <Text style={[styles.gardenOrbEmoji, { opacity: 1 }]}>
-            {STATE_EMOJIS[check.polyvagal_state_code]}
+            {stateInfo.icon}
           </Text>
         </View>
 
@@ -335,8 +316,8 @@ function FloatingOrb({ check, index, onPress, isSelected, formatDate }) {
             tooltipAlignment === 'right' && styles.orbTooltipRight,
             tooltipAlignment === 'center' && styles.orbTooltipCenter,
           ]}>
-            <Text style={styles.orbTooltipText}>{Math.round(check.embodiment_level)}%</Text>
-            <Text style={styles.orbTooltipState}>{stateInfo?.label}</Text>
+            <Text style={styles.orbTooltipText}>{Math.round(fillLevel * 100)}%</Text>
+            <Text style={styles.orbTooltipState}>{stateInfo.label}</Text>
             <Text style={styles.orbTooltipDate}>{formatDate(check.created_at)}</Text>
           </View>
         )}
@@ -413,13 +394,14 @@ export default function MySomiScreen({ navigation }) {
       return
     }
 
-    // Calculate average score
-    const avgScore = data.reduce((sum, check) => sum + check.embodiment_level, 0) / data.length
+    // Calculate average score (using derived intensity)
+    const avgScore = data.reduce((sum, check) => sum + deriveIntensity(check.energy_level ?? 50, check.safety_level ?? 50), 0) / data.length
 
     // Find most common state
     const stateCounts = {}
     data.forEach(check => {
-      stateCounts[check.polyvagal_state_code] = (stateCounts[check.polyvagal_state_code] || 0) + 1
+      const stateName = deriveState(check.energy_level ?? 50, check.safety_level ?? 50).name
+      stateCounts[stateName] = (stateCounts[stateName] || 0) + 1
     })
     const mostCommonState = Object.keys(stateCounts).reduce((a, b) =>
       stateCounts[a] > stateCounts[b] ? a : b
@@ -428,8 +410,8 @@ export default function MySomiScreen({ navigation }) {
     // Calculate recent trend (last 5 vs previous 5)
     let recentTrend = null
     if (data.length >= 10) {
-      const recentAvg = data.slice(0, 5).reduce((sum, c) => sum + c.embodiment_level, 0) / 5
-      const previousAvg = data.slice(5, 10).reduce((sum, c) => sum + c.embodiment_level, 0) / 5
+      const recentAvg = data.slice(0, 5).reduce((sum, c) => sum + deriveIntensity(c.energy_level ?? 50, c.safety_level ?? 50), 0) / 5
+      const previousAvg = data.slice(5, 10).reduce((sum, c) => sum + deriveIntensity(c.energy_level ?? 50, c.safety_level ?? 50), 0) / 5
       const diff = recentAvg - previousAvg
 
       if (Math.abs(diff) < 5) {
@@ -586,8 +568,8 @@ export default function MySomiScreen({ navigation }) {
     return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
   }
 
-  const getStateInfo = (stateId) => {
-    return POLYVAGAL_STATES.find(s => s.id === stateId)
+  const getStateInfo = (energy, safety) => {
+    return deriveState(energy ?? 50, safety ?? 50)
   }
 
   const handleOrbPress = (check) => {
@@ -1077,14 +1059,12 @@ export default function MySomiScreen({ navigation }) {
                       })
 
                       const renderCheck = (check, label) => {
-                        const xStateIdx = X_STATE_ORDER.findIndex(s => s.id === check.polyvagal_state_code)
-                        const xStateInfo = xStateIdx >= 0 ? X_STATE_ORDER[xStateIdx] : null
-                        const legacyStateInfo = getStateInfo(check.polyvagal_state_code)
-                        const displayIcon = xStateInfo?.icon || STATE_EMOJIS[check.polyvagal_state_code] || '❓'
-                        const displayLabel = xStateInfo?.label || legacyStateInfo?.label || 'Unknown'
-                        const displayColor = xStateInfo?.color || legacyStateInfo?.color || '#888'
-                        const xFrac = xStateIdx >= 0 ? (xStateIdx + 0.5) / X_STATE_ORDER.length : 0.5
-                        const intensity = check.embodiment_level || 0
+                        const stInfo = getStateInfo(check.energy_level, check.safety_level)
+                        const displayIcon = stInfo.icon
+                        const displayLabel = stInfo.label
+                        const displayColor = stInfo.color
+                        const intensity = Math.round(deriveIntensity(check.energy_level ?? 50, check.safety_level ?? 50))
+                        const xFrac = (check.energy_level ?? 50) / 100
                         const iWord = intensityWord(intensity)
                         const dimOpacity = 1 - (intensity / 100) * 0.8
                         const hasTags = check.tags && check.tags.length > 0
@@ -1101,12 +1081,10 @@ export default function MySomiScreen({ navigation }) {
                                   style={StyleSheet.absoluteFillObject}
                                 />
                                 <View style={[StyleSheet.absoluteFillObject, { backgroundColor: '#040812', opacity: dimOpacity, borderRadius: 10 }]} />
-                                {xStateIdx >= 0 && (
-                                  <View style={[styles.miniBarMarker, {
-                                    left: `${xFrac * 100}%`,
-                                    backgroundColor: displayColor,
-                                  }]} />
-                                )}
+                                <View style={[styles.miniBarMarker, {
+                                  left: `${xFrac * 100}%`,
+                                  backgroundColor: displayColor,
+                                }]} />
                                 <View style={styles.miniBarReadout}>
                                   <Text style={styles.miniBarIcon}>{displayIcon}</Text>
                                   <Text style={styles.miniBarStateName}>{displayLabel}</Text>

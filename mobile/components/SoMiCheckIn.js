@@ -1,10 +1,10 @@
 import React, { useState, useRef } from 'react'
-import { StyleSheet, Text, View, TouchableOpacity, Modal, TextInput, Keyboard, KeyboardAvoidingView, Platform, TouchableWithoutFeedback, ScrollView } from 'react-native'
+import { StyleSheet, Text, View, TouchableOpacity, Modal, TextInput, Keyboard, KeyboardAvoidingView, Platform, TouchableWithoutFeedback, ScrollView, ActivityIndicator } from 'react-native'
 import { LinearGradient } from 'expo-linear-gradient'
-import { BlurView } from 'expo-blur'
 import * as Haptics from 'expo-haptics'
 import Svg, { Path } from 'react-native-svg'
-import StateXYPicker, { X_STATE_ORDER, intensityWord } from './StateXYPicker'
+import StateXYPicker, { intensityWord } from './StateXYPicker'
+import { deriveState, deriveIntensity } from '../constants/polyvagalStates'
 import { chainService } from '../services/chainService'
 import { colors } from '../constants/theme'
 import { useFlowMusicStore } from '../stores/flowMusicStore'
@@ -19,8 +19,8 @@ const PRESET_TAGS = [
 ]
 
 export default function SoMiCheckIn({ navigation, route }) {
-  const [sliderValue, setSliderValue] = useState(0)
-  const [polyvagalState, setPolyvagalState] = useState(null)
+  const [energyLevel, setEnergyLevel] = useState(50)
+  const [safetyLevel, setSafetyLevel] = useState(50)
   const [scrollEnabled, setScrollEnabled] = useState(true)
 
   const [showExitModal, setShowExitModal] = useState(false)
@@ -32,29 +32,28 @@ export default function SoMiCheckIn({ navigation, route }) {
   // Somatic experience tags
   const [selectedTags, setSelectedTags] = useState(new Set())
 
+  const [isSubmitting, setIsSubmitting] = useState(false)
+
   const routineStore = useRoutineStore()
-  const savedInitialValue = useRoutineStore(state => state.savedInitialValue)
-  const savedInitialState = useRoutineStore(state => state.savedInitialState)
-  const initialStateObj = X_STATE_ORDER.find(s => s.id === savedInitialState)
+  const savedInitialEnergy = useRoutineStore(state => state.savedInitialEnergy)
+  const savedInitialSafety = useRoutineStore(state => state.savedInitialSafety)
+  const initialStateObj = (savedInitialEnergy != null && savedInitialSafety != null)
+    ? deriveState(savedInitialEnergy, savedInitialSafety)
+    : null
+  const initialIntensity = (savedInitialEnergy != null && savedInitialSafety != null)
+    ? deriveIntensity(savedInitialEnergy, savedInitialSafety)
+    : 0
   const { stopFlowMusic } = useFlowMusicStore()
   const saveEmbodimentCheckMutation = useSaveEmbodimentCheck()
   const queryClient = useQueryClient()
 
-  const saveEmbodimentCheck = async (value, stateId, journal = null, tags = null) => {
+  const saveEmbodimentCheck = async (energy, safety, journal = null, tags = null) => {
     await saveEmbodimentCheckMutation.mutateAsync({
-      sliderValue: value,
-      polyvagalStateCode: stateId,
+      energyLevel: energy,
+      safetyLevel: safety,
       journalEntry: journal,
       tags,
     })
-  }
-
-  const handleSliderChange = (value) => {
-    setSliderValue(value)
-  }
-
-  const handleStateChange = (stateId) => {
-    setPolyvagalState(stateId)
   }
 
   const toggleTag = (tag) => {
@@ -81,14 +80,11 @@ export default function SoMiCheckIn({ navigation, route }) {
   }
 
   const handleFinish = async () => {
-    if (!polyvagalState) {
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error)
-      return
-    }
-
+    if (isSubmitting) return
+    setIsSubmitting(true)
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium)
 
-    await saveEmbodimentCheck(sliderValue, polyvagalState, journalEntry || null, selectedTags.size > 0 ? [...selectedTags] : null)
+    await saveEmbodimentCheck(energyLevel, safetyLevel, journalEntry || null, selectedTags.size > 0 ? [...selectedTags] : null)
 
     const isDaily = !routineStore.isQuickRoutine
 
@@ -108,7 +104,7 @@ export default function SoMiCheckIn({ navigation, route }) {
     if (isDaily) {
       navigation.navigate('CompletionScreen')
     } else {
-      navigation.navigate('Home')
+      navigation.navigate('(tabs)')
     }
   }
 
@@ -130,15 +126,7 @@ export default function SoMiCheckIn({ navigation, route }) {
     stopFlowMusic()
     routineStore.resetRoutine()
 
-    navigation.reset({
-      index: 0,
-      routes: [{ name: 'FlowMenu' }],
-    })
-
-    const tabNavigator = navigation.getParent()
-    if (tabNavigator) {
-      tabNavigator.navigate('Home')
-    }
+    navigation.navigate('(tabs)')
   }
 
   const handleCancelExit = () => {
@@ -191,7 +179,7 @@ export default function SoMiCheckIn({ navigation, route }) {
               <Text style={styles.beforeIcon}>{initialStateObj.icon}</Text>
               <Text style={styles.beforeState}>{initialStateObj.label}</Text>
               <Text style={styles.beforeDot}>·</Text>
-              <Text style={styles.beforeIntensity}>{intensityWord(savedInitialValue ?? 0)}</Text>
+              <Text style={styles.beforeIntensity}>{intensityWord(initialIntensity)}</Text>
             </View>
           </View>
         )}
@@ -199,10 +187,10 @@ export default function SoMiCheckIn({ navigation, route }) {
         {/* State × Intensity picker */}
         <View style={styles.pickerSection}>
           <StateXYPicker
-            selectedStateId={polyvagalState}
-            onStateChange={handleStateChange}
-            intensityValue={sliderValue}
-            onIntensityChange={handleSliderChange}
+            energyLevel={energyLevel}
+            onEnergyChange={setEnergyLevel}
+            safetyLevel={safetyLevel}
+            onSafetyChange={setSafetyLevel}
             onDragStart={() => setScrollEnabled(false)}
             onDragEnd={() => setScrollEnabled(true)}
           />
@@ -234,10 +222,17 @@ export default function SoMiCheckIn({ navigation, route }) {
         <TouchableOpacity
           onPress={handleFinish}
           activeOpacity={0.75}
-          style={styles.completeButton}
+          disabled={isSubmitting}
+          style={[styles.completeButton, isSubmitting && styles.completeButtonDisabled]}
         >
-          <Text style={styles.completeButtonText}>Complete Flow</Text>
-          <Text style={styles.completeButtonArrow}>›</Text>
+          {isSubmitting ? (
+            <ActivityIndicator color="#ffffff" style={{ flex: 1 }} />
+          ) : (
+            <>
+              <Text style={styles.completeButtonText}>Complete Flow</Text>
+              <Text style={styles.completeButtonArrow}>›</Text>
+            </>
+          )}
         </TouchableOpacity>
       </View>
 
@@ -508,6 +503,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 28,
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.08)',
+  },
+  completeButtonDisabled: {
+    opacity: 0.5,
   },
   completeButtonText: {
     flex: 1,

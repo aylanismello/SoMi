@@ -17,6 +17,8 @@ export const useRoutineStore = create((set, get) => ({
   selectedVideoId: null,
 
   // Initial check-in state (preserved for final check-in)
+  savedInitialEnergy: null,
+  savedInitialSafety: null,
   savedInitialValue: 0,
   savedInitialState: null,
 
@@ -47,6 +49,8 @@ export const useRoutineStore = create((set, get) => ({
   initializeRoutine: ({
     totalBlocks,
     routineType,
+    savedInitialEnergy = null,
+    savedInitialSafety = null,
     savedInitialValue,
     savedInitialState,
     customQueue = null,
@@ -55,6 +59,8 @@ export const useRoutineStore = create((set, get) => ({
   }) => set({
     totalBlocks,
     routineType,
+    savedInitialEnergy,
+    savedInitialSafety,
     savedInitialValue,
     savedInitialState,
     isQuickRoutine,
@@ -78,6 +84,8 @@ export const useRoutineStore = create((set, get) => ({
     hardcodedQueue: [],
     currentVideo: null,
     selectedVideoId: null,
+    savedInitialEnergy: null,
+    savedInitialSafety: null,
     savedInitialValue: 0,
     savedInitialState: null,
     routineType: 'morning',

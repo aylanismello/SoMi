@@ -9,7 +9,7 @@ import { chainService } from '../services/chainService'
 import { soundManager } from '../utils/SoundManager'
 import { useSettingsStore } from '../stores/settingsStore'
 import { useRoutineStore } from '../stores/routineStore'
-import SettingsModal from './SettingsModal'
+import CustomizationModal from './CustomizationModal'
 
 export default function PlayerScreen({ navigation, route }) {
   const flowType = useRoutineStore(state => state.flowType)
@@ -27,17 +27,13 @@ export default function PlayerScreen({ navigation, route }) {
   const [showControls, setShowControls] = useState(false)
   const [currentTime, setCurrentTime] = useState(0)
   const [duration, setDuration] = useState(0)
-  const [isScrubbing, setIsScrubbing] = useState(false)
-  const [scrubbingPosition, setScrubbingPosition] = useState(0)
   const [isPlayingState, setIsPlayingState] = useState(false)
   const [showBackgroundVideo, setShowBackgroundVideo] = useState(isAudio) // Auto-show for audio
   const [showSettingsModal, setShowSettingsModal] = useState(false)
   const controlsOpacity = useRef(new Animated.Value(0)).current
 
   const { isMusicEnabled } = useSettingsStore()
-  const progressBarRef = useRef(null)
   const hideTimeoutRef = useRef(null)
-  const thumbScale = useRef(new Animated.Value(1)).current
   const isSeekingRef = useRef(false)
   const startTimeRef = useRef(Date.now()) // Track when playback started
   const hasSavedRef = useRef(false) // Prevent duplicate saves
@@ -181,8 +177,7 @@ export default function PlayerScreen({ navigation, route }) {
       hideTimeoutRef.current = null
     }
 
-    // Don't hide if user is actively scrubbing
-    if (showControls && !isScrubbing) {
+    if (showControls) {
       hideTimeoutRef.current = setTimeout(() => {
         // Check if still playing when timer fires
         if (player.playing) {
@@ -198,7 +193,7 @@ export default function PlayerScreen({ navigation, route }) {
         hideTimeoutRef.current = null
       }
     }
-  }, [showControls, isScrubbing, player])
+  }, [showControls, player])
 
   const handlePlayPause = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
@@ -216,46 +211,14 @@ export default function PlayerScreen({ navigation, route }) {
     }
   }
 
-  const handleSkipBackward = () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
-    const newTime = Math.max(0, currentTime - 15)
-
-    // Audio player uses seekTo(), video player uses currentTime property
-    if (isAudio) {
-      player.seekTo(newTime)
-    } else {
-      player.currentTime = newTime
-    }
-
-    // Reset the auto-hide timer
-    setShowControls(false)
-    setTimeout(() => setShowControls(true), 10)
-  }
-
-  const handleSkipForward = () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
-    const newTime = Math.min(duration, currentTime + 15)
-
-    // Audio player uses seekTo(), video player uses currentTime property
-    if (isAudio) {
-      player.seekTo(newTime)
-    } else {
-      player.currentTime = newTime
-    }
-
-    // Reset the auto-hide timer
-    setShowControls(false)
-    setTimeout(() => setShowControls(true), 10)
-  }
-
-  const handleClose = () => {
+  const handleSkipToNext = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium)
     player.pause()
     // Play block end sound only during check-in flow (not from Explore)
     if (!fromExplore && isMusicEnabled) {
       soundManager.playBlockEnd()
     }
-    // Save completed block before closing
+    // Save completed block before navigating
     saveCompletedBlock()
 
     // Navigate based on where we came from
@@ -289,81 +252,7 @@ export default function PlayerScreen({ navigation, route }) {
     setShowSettingsModal(false)
   }
 
-
-  const calculatePosition = (touchX, barWidth) => {
-    const seekPosition = (touchX / barWidth) * duration
-    return Math.max(0, Math.min(duration, seekPosition))
-  }
-
-  const handleProgressBarTouch = (event) => {
-    if (!progressBarRef.current || !duration) return
-
-    const touch = event.nativeEvent
-
-    setIsScrubbing(true)
-    setShowControls(true)
-    Animated.spring(thumbScale, {
-      toValue: 2,
-      useNativeDriver: true,
-    }).start()
-
-    progressBarRef.current.measure((x, y, width, height, pageX, pageY) => {
-      const touchX = touch.pageX - pageX
-      const position = calculatePosition(touchX, width)
-      setScrubbingPosition(position)
-    })
-  }
-
-  const handleProgressBarMove = (event) => {
-    if (!isScrubbing || !progressBarRef.current || !duration) return
-
-    const touch = event.nativeEvent
-    progressBarRef.current.measure((x, y, width, height, pageX, pageY) => {
-      const touchX = touch.pageX - pageX
-      const position = calculatePosition(touchX, width)
-      setScrubbingPosition(position)
-    })
-  }
-
-  const handleProgressBarRelease = () => {
-    if (!isScrubbing) return
-
-    // Actually seek to the scrubbed position
-    isSeekingRef.current = true
-
-    // Audio player uses seekTo(), video player uses currentTime property
-    if (isAudio) {
-      player.seekTo(scrubbingPosition)
-    } else {
-      player.currentTime = scrubbingPosition
-    }
-    setCurrentTime(scrubbingPosition)
-
-    setIsScrubbing(false)
-    Animated.spring(thumbScale, {
-      toValue: 1,
-      useNativeDriver: true,
-    }).start()
-
-    // Reset the auto-hide timer by toggling controls
-    setShowControls(false)
-    setTimeout(() => setShowControls(true), 10)
-
-    // Allow interval to resume updating after seek completes
-    setTimeout(() => {
-      isSeekingRef.current = false
-    }, 500)
-  }
-
-  const formatTime = (seconds) => {
-    if (!seconds || isNaN(seconds)) return '0:00'
-    const mins = Math.floor(seconds / 60)
-    const secs = Math.floor(seconds % 60)
-    return `${mins}:${secs.toString().padStart(2, '0')}`
-  }
-
-  const displayTime = isScrubbing ? scrubbingPosition : currentTime
-  const progress = duration > 0 ? displayTime / duration : 0
+  const progress = duration > 0 ? currentTime / duration : 0
 
   return (
     <View style={styles.container}>
@@ -394,13 +283,6 @@ export default function PlayerScreen({ navigation, route }) {
         {/* Dark overlay scrim */}
         <View style={styles.overlayScrim} pointerEvents="none" />
 
-        <TouchableOpacity
-          style={styles.closeButton}
-          onPress={handleClose}
-        >
-          <Text style={styles.closeText}>✕</Text>
-        </TouchableOpacity>
-
         {/* Settings button */}
         <TouchableOpacity
           style={styles.settingsButton}
@@ -410,15 +292,6 @@ export default function PlayerScreen({ navigation, route }) {
         </TouchableOpacity>
 
         <View style={styles.controlsContainer}>
-          {/* Skip backward button */}
-          <TouchableOpacity
-            style={styles.skipButton}
-            onPress={handleSkipBackward}
-          >
-            <Text style={styles.skipArrow}>⟲</Text>
-            <Text style={styles.skipText}>15</Text>
-          </TouchableOpacity>
-
           {/* Play/Pause button */}
           <TouchableOpacity
             style={styles.playPauseButton}
@@ -428,49 +301,21 @@ export default function PlayerScreen({ navigation, route }) {
               {isPlayingState ? '❚❚' : '▶'}
             </Text>
           </TouchableOpacity>
-
-          {/* Skip forward button */}
-          <TouchableOpacity
-            style={styles.skipButton}
-            onPress={handleSkipForward}
-          >
-            <Text style={styles.skipArrow}>⟳</Text>
-            <Text style={styles.skipText}>15</Text>
-          </TouchableOpacity>
         </View>
 
-        {/* Progress bar */}
-        <View style={styles.progressContainer}>
-          <View
-            ref={progressBarRef}
-            style={styles.progressBarTouchable}
-            onStartShouldSetResponder={() => true}
-            onMoveShouldSetResponder={() => true}
-            onResponderGrant={handleProgressBarTouch}
-            onResponderMove={handleProgressBarMove}
-            onResponderRelease={handleProgressBarRelease}
-          >
-            <View style={styles.progressBar}>
-              <View style={[styles.progressFill, { width: `${progress * 100}%` }]} />
-              <Animated.View
-                style={[
-                  styles.progressThumb,
-                  {
-                    left: `${progress * 100}%`,
-                    transform: [{ scale: thumbScale }],
-                  },
-                ]}
-              />
+        {/* Skip Block bar */}
+        <Pressable onPress={handleSkipToNext} style={styles.barWrapper}>
+          <View style={styles.barTrack}>
+            <View style={[styles.barFill, { width: `${progress * 100}%` }]} />
+            <View style={styles.barContent}>
+              <Text style={styles.barLabel}>Skip Block</Text>
+              <Text style={styles.barArrow}>›</Text>
             </View>
           </View>
-          <View style={styles.timeContainer}>
-            <Text style={styles.timeText}>{formatTime(displayTime)}</Text>
-            <Text style={styles.timeText}>{formatTime(duration)}</Text>
-          </View>
-        </View>
+        </Pressable>
       </Animated.View>
 
-      <SettingsModal visible={showSettingsModal} onClose={handleCloseSettings} />
+      <CustomizationModal visible={showSettingsModal} onClose={handleCloseSettings} />
     </View>
   )
 }
@@ -504,21 +349,6 @@ const styles = StyleSheet.create({
     ...StyleSheet.absoluteFillObject,
     backgroundColor: 'rgba(0, 0, 0, 0.4)',
   },
-  closeButton: {
-    position: 'absolute',
-    top: 60,
-    right: 30,
-    width: 44,
-    height: 44,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    borderRadius: 22,
-  },
-  closeText: {
-    color: '#ffffff',
-    fontSize: 24,
-  },
   settingsButton: {
     position: 'absolute',
     top: 60,
@@ -541,7 +371,6 @@ const styles = StyleSheet.create({
     width: '100%',
     top: '50%',
     transform: [{ translateY: -50 }],
-    gap: 40,
   },
   playPauseButton: {
     width: 100,
@@ -560,67 +389,49 @@ const styles = StyleSheet.create({
     color: '#000000',
     fontSize: 36,
   },
-  skipButton: {
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 15,
-  },
-  skipArrow: {
-    color: '#ffffff',
-    fontSize: 38,
-    fontWeight: '300',
-    marginBottom: -8,
-  },
-  skipText: {
-    color: '#ffffff',
-    fontSize: 13,
-    fontWeight: '600',
-  },
-  progressContainer: {
+  barWrapper: {
+    paddingHorizontal: 20,
+    paddingBottom: 52,
     position: 'absolute',
-    bottom: 40,
-    left: 30,
-    right: 30,
+    bottom: 0,
+    left: 0,
+    right: 0,
   },
-  progressBarTouchable: {
-    paddingVertical: 20,
-    paddingHorizontal: 5,
-  },
-  progressBar: {
-    height: 6,
-    backgroundColor: 'rgba(255, 255, 255, 0.3)',
-    borderRadius: 3,
+  barTrack: {
+    height: 68,
+    borderRadius: 34,
+    backgroundColor: 'rgba(255,255,255,0.1)',
+    overflow: 'hidden',
     position: 'relative',
-    justifyContent: 'center',
   },
-  progressFill: {
+  barFill: {
     position: 'absolute',
-    height: '100%',
-    backgroundColor: '#ff6b6b',
-    borderRadius: 3,
+    left: 0,
+    top: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(255,255,255,0.18)',
+    borderRadius: 34,
   },
-  progressThumb: {
+  barContent: {
     position: 'absolute',
-    width: 18,
-    height: 18,
-    borderRadius: 9,
-    backgroundColor: '#ffffff',
-    marginLeft: -9,
-    top: -6,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 3,
-    elevation: 5,
-  },
-  timeContainer: {
+    left: 0,
+    right: 0,
+    top: 0,
+    bottom: 0,
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginTop: 8,
+    alignItems: 'center',
+    paddingHorizontal: 28,
   },
-  timeText: {
+  barLabel: {
+    flex: 1,
     color: '#ffffff',
-    fontSize: 12,
-    fontWeight: '500',
+    fontSize: 17,
+    fontWeight: '600',
+    letterSpacing: 0.3,
+  },
+  barArrow: {
+    color: 'rgba(255,255,255,0.45)',
+    fontSize: 28,
+    fontWeight: '300',
   },
 })
