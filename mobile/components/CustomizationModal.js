@@ -12,9 +12,9 @@ const CUST_SECTIONS = [
     id: 'background',
     label: 'Background',
     options: [
-      { value: 'night', label: 'Night', type: 'sphere', color: '#7B9EC0' },
-      { value: 'moss',  label: 'Moss',  type: 'sphere', color: '#6B7A3A' },
-      { value: 'black', label: 'Black', type: 'sphere', color: '#111111' },
+      { value: 'river', label: 'River', type: 'sphere', color: '#5BAEE8' },
+      { value: 'ocean', label: 'Ocean', type: 'sphere', color: '#1A4A8A' },
+      { value: 'lake',  label: 'Lake',  type: 'sphere', color: '#2E7BC4' },
     ],
   },
   {
@@ -29,21 +29,12 @@ const CUST_SECTIONS = [
   },
   {
     id: 'tone',
-    label: 'Inhale / Exhale Tone',
+    label: 'Block Change Tone',
     options: [
       { value: 'sine',  label: 'Sine',  type: 'icon', icon: 'pulse-outline' },
       { value: 'synth', label: 'Synth', type: 'icon', icon: 'musical-notes-outline' },
       { value: 'bowl',  label: 'Bowl',  type: 'icon', icon: 'radio-button-off-outline' },
       { value: 'off',   label: 'Off',   type: 'off' },
-    ],
-  },
-  {
-    id: 'vibration',
-    label: 'Vibration',
-    options: [
-      { value: 'strong', label: 'Strong', type: 'icon', icon: 'phone-portrait-outline' },
-      { value: 'medium', label: 'Medium', type: 'icon', icon: 'phone-portrait-outline' },
-      { value: 'off',    label: 'Off',    type: 'off' },
     ],
   },
 ]
@@ -52,7 +43,7 @@ export default function CustomizationModal({ visible, onClose }) {
   const { isMusicEnabled, toggleMusic, isSfxEnabled, toggleSfx } = useSettingsStore()
 
   const [selections, setSelections] = useState({
-    background: 'night', soundscape: 'forest', tone: 'bowl', vibration: 'medium',
+    background: 'river', soundscape: 'forest', tone: 'bowl',
   })
 
   const pick = (sectionId, value) => {
@@ -75,7 +66,6 @@ export default function CustomizationModal({ visible, onClose }) {
       <TouchableOpacity style={styles.overlay} activeOpacity={1} onPress={onClose}>
         <TouchableOpacity activeOpacity={1} style={styles.sheet} onPress={() => {}}>
           <View style={styles.handle} />
-          <Text style={styles.title}>Customization</Text>
           <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 24 }}>
 
             {/* Music toggle */}

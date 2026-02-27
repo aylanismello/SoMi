@@ -6,7 +6,7 @@ import { LinearGradient } from 'expo-linear-gradient'
 import * as Haptics from 'expo-haptics'
 import Svg, { Path } from 'react-native-svg'
 import StateXYPicker, { intensityWord } from './StateXYPicker'
-import { deriveState, deriveIntensity } from '../constants/polyvagalStates'
+import { deriveState, deriveIntensity, getPolyvagalExplanation } from '../constants/polyvagalStates'
 import { chainService } from '../services/chainService'
 import { colors } from '../constants/theme'
 import { useFlowMusicStore } from '../stores/flowMusicStore'
@@ -36,6 +36,7 @@ export default function SoMiCheckIn() {
   const [selectedTags, setSelectedTags] = useState(new Set())
 
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [showPolyvagalInfo, setShowPolyvagalInfo] = useState(false)
 
   const routineStore = useRoutineStore()
   const savedInitialEnergy = useRoutineStore(state => state.savedInitialEnergy)
@@ -170,7 +171,16 @@ export default function SoMiCheckIn() {
           >
             <Text style={styles.journalIconFloating}>📝</Text>
           </TouchableOpacity>
-          <Text style={styles.closingCheckInLabel}>closing check-in</Text>
+          <View style={styles.closingCheckInRow}>
+            <Text style={styles.closingCheckInLabel}>closing check-in</Text>
+            <TouchableOpacity
+              onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setShowPolyvagalInfo(true) }}
+              activeOpacity={0.7}
+              style={styles.infoBtn}
+            >
+              <Text style={styles.infoBtnText}>?</Text>
+            </TouchableOpacity>
+          </View>
           <Text style={styles.questionText}>how do you feel{'\n'}right now?</Text>
         </View>
 
@@ -238,6 +248,33 @@ export default function SoMiCheckIn() {
           )}
         </TouchableOpacity>
       </View>
+
+      {/* Polyvagal State Info Modal */}
+      <Modal
+        visible={showPolyvagalInfo}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={() => setShowPolyvagalInfo(false)}
+      >
+        <TouchableOpacity
+          style={styles.infoOverlay}
+          activeOpacity={1}
+          onPress={() => setShowPolyvagalInfo(false)}
+        >
+          <TouchableOpacity activeOpacity={1} style={styles.infoSheet} onPress={() => {}}>
+            <View style={styles.infoHandle} />
+            <Text style={styles.infoTitle}>{getPolyvagalExplanation(energyLevel, safetyLevel).title}</Text>
+            <Text style={styles.infoBody}>{getPolyvagalExplanation(energyLevel, safetyLevel).body}</Text>
+            <TouchableOpacity
+              onPress={() => setShowPolyvagalInfo(false)}
+              style={styles.infoDismiss}
+              activeOpacity={0.7}
+            >
+              <Text style={styles.infoDismissText}>Got it</Text>
+            </TouchableOpacity>
+          </TouchableOpacity>
+        </TouchableOpacity>
+      </Modal>
 
       {/* Journal Entry Modal */}
       <Modal
@@ -379,7 +416,6 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     letterSpacing: 1.5,
     textTransform: 'uppercase',
-    marginBottom: 10,
   },
   questionText: {
     color: colors.text.primary,
@@ -663,4 +699,38 @@ const styles = StyleSheet.create({
     fontSize: 17,
     fontWeight: '500',
   },
+  closingCheckInRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 10,
+    gap: 8,
+  },
+  infoBtn: {
+    width: 18, height: 18, borderRadius: 9,
+    borderWidth: 1.5, borderColor: 'rgba(255,255,255,0.3)',
+    alignItems: 'center', justifyContent: 'center',
+  },
+  infoBtnText: {
+    color: 'rgba(255,255,255,0.5)',
+    fontSize: 10, fontWeight: '700',
+    lineHeight: 12,
+  },
+  infoOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' },
+  infoSheet: {
+    backgroundColor: '#111827',
+    borderTopLeftRadius: 28, borderTopRightRadius: 28,
+    paddingTop: 12, paddingBottom: 52, paddingHorizontal: 24,
+  },
+  infoHandle: {
+    width: 36, height: 4,
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    borderRadius: 2, alignSelf: 'center', marginBottom: 24,
+  },
+  infoTitle: { color: '#fff', fontSize: 20, fontWeight: '700', marginBottom: 16, letterSpacing: 0.2 },
+  infoBody: { color: 'rgba(255,255,255,0.7)', fontSize: 15, lineHeight: 24, fontWeight: '400', marginBottom: 28 },
+  infoDismiss: {
+    backgroundColor: 'rgba(255,255,255,0.08)', borderRadius: 20,
+    paddingVertical: 16, alignItems: 'center',
+  },
+  infoDismissText: { color: 'rgba(255,255,255,0.7)', fontSize: 16, fontWeight: '600' },
 })

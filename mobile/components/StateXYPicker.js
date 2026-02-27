@@ -160,6 +160,24 @@ export default function StateXYPicker({
           style={StyleSheet.absoluteFillObject}
         />
 
+        {/* Axis corner labels */}
+        {[
+          { lines: ['safe', 'low energy'],    pos: { top: 8,    left: 10  }, align: 'flex-start' },
+          { lines: ['safe', 'high energy'],   pos: { top: 8,    right: 10 }, align: 'flex-end'   },
+          { lines: ['unsafe', 'low energy'],  pos: { bottom: 8, left: 10  }, align: 'flex-start' },
+          { lines: ['unsafe', 'high energy'], pos: { bottom: 8, right: 10 }, align: 'flex-end'   },
+        ].map((corner, i) => (
+          <View
+            key={i}
+            pointerEvents="none"
+            style={[styles.axisCorner, corner.pos, { alignItems: corner.align }]}
+          >
+            {corner.lines.map((line, j) => (
+              <Text key={j} style={styles.axisCornerText}>{line}</Text>
+            ))}
+          </View>
+        ))}
+
         {/* State zone labels — floating, no dividers */}
         {QUAD_LABELS.map(ql => {
           const isActive = curState.name === ql.name
@@ -266,5 +284,16 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '700',
     letterSpacing: 0.4,
+  },
+  axisCorner: {
+    position: 'absolute',
+  },
+  axisCornerText: {
+    color: 'rgba(255,255,255,0.28)',
+    fontSize: 7,
+    fontWeight: '600',
+    letterSpacing: 0.5,
+    textTransform: 'uppercase',
+    lineHeight: 10,
   },
 })

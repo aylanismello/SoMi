@@ -14,7 +14,7 @@ import { getAutoRoutineType } from '../services/routineConfig'
 import StateXYPicker from './StateXYPicker'
 import CustomizationModal from './CustomizationModal'
 import { api } from '../services/api'
-import { deriveState, deriveIntensity, deriveStateFromDeltas } from '../constants/polyvagalStates'
+import { deriveState, deriveIntensity, deriveStateFromDeltas, getPolyvagalExplanation } from '../constants/polyvagalStates'
 
 const _H_PAD = 20
 const MIN_DURATION = 1
@@ -210,6 +210,8 @@ export default function DailyFlowSetup() {
   const [showDurationPicker, setShowDurationPicker] = useState(false)
   const [showCustomization, setShowCustomization]   = useState(false)
   const [showPlanSheet, setShowPlanSheet]           = useState(false)
+  const [showPolyvagalInfo, setShowPolyvagalInfo]   = useState(false)
+  const [isRefreshing, setIsRefreshing]             = useState(false)
 
   const energyRef  = useRef(50)
   const safetyRef  = useRef(50)
@@ -224,6 +226,10 @@ export default function DailyFlowSetup() {
   const toastDismissTimerRef = useRef(null)
 
   // Glow animation for the Flow button
+  useEffect(() => {
+    if (!isGenerating) setIsRefreshing(false)
+  }, [isGenerating])
+
   useEffect(() => {
     Animated.loop(
       Animated.sequence([
@@ -382,6 +388,7 @@ export default function DailyFlowSetup() {
   const handleRefresh = useCallback(() => {
     if (!isReadyForInputRef.current || isGenerating) return
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium)
+    setIsRefreshing(true)
     doGeneratePreview(getAutoRoutineType(), selectedMinutes, energyLevel, safetyLevel, false)
   }, [doGeneratePreview, selectedMinutes, energyLevel, safetyLevel, isGenerating])
 
@@ -430,7 +437,16 @@ export default function DailyFlowSetup() {
       >
         {/* How do you feel */}
         <View style={styles.section}>
-          <Text style={styles.sectionLabel}>How do you feel in your body?</Text>
+          <View style={styles.sectionLabelRow}>
+            <Text style={styles.sectionLabel}>How do you feel in your body?</Text>
+            <TouchableOpacity
+              onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setShowPolyvagalInfo(true) }}
+              activeOpacity={0.7}
+              style={styles.infoBtn}
+            >
+              <Text style={styles.infoBtnText}>?</Text>
+            </TouchableOpacity>
+          </View>
           <StateXYPicker
             energyLevel={energyLevel}
             onEnergyChange={(v) => { energyRef.current = v; setEnergyLevel(v) }}
@@ -449,15 +465,18 @@ export default function DailyFlowSetup() {
           {/* Refresh */}
           <TouchableOpacity
             onPress={handleRefresh}
-            activeOpacity={hasDiff ? 0.7 : 1}
-            style={[styles.sideBtn, !hasDiff && styles.sideBtnOff]}
+            activeOpacity={hasDiff && !isRefreshing ? 0.7 : 1}
+            style={[styles.sideBtn, (!hasDiff || isRefreshing) && styles.sideBtnOff]}
             disabled={!hasDiff || isGenerating}
           >
-            <Ionicons
-              name="refresh"
-              size={20}
-              color={hasDiff ? 'rgba(255,255,255,0.78)' : 'rgba(255,255,255,0.22)'}
-            />
+            {isRefreshing
+              ? <ActivityIndicator size="small" color="rgba(255,255,255,0.78)" />
+              : <Ionicons
+                  name="refresh"
+                  size={20}
+                  color={hasDiff ? 'rgba(255,255,255,0.78)' : 'rgba(255,255,255,0.22)'}
+                />
+            }
           </TouchableOpacity>
 
           {/* Glowing Flow button */}
@@ -592,6 +611,33 @@ export default function DailyFlowSetup() {
         </View>
       </Modal>
 
+      {/* Polyvagal State Info Modal */}
+      <Modal
+        visible={showPolyvagalInfo}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={() => setShowPolyvagalInfo(false)}
+      >
+        <TouchableOpacity
+          style={styles.reasoningOverlay}
+          activeOpacity={1}
+          onPress={() => setShowPolyvagalInfo(false)}
+        >
+          <TouchableOpacity activeOpacity={1} style={styles.reasoningSheet} onPress={() => {}}>
+            <View style={styles.reasoningHandle} />
+            <Text style={styles.reasoningTitle}>{getPolyvagalExplanation(energyLevel, safetyLevel).title}</Text>
+            <Text style={styles.reasoningBody}>{getPolyvagalExplanation(energyLevel, safetyLevel).body}</Text>
+            <TouchableOpacity
+              onPress={() => setShowPolyvagalInfo(false)}
+              style={styles.reasoningDismiss}
+              activeOpacity={0.7}
+            >
+              <Text style={styles.reasoningDismissText}>Got it</Text>
+            </TouchableOpacity>
+          </TouchableOpacity>
+        </TouchableOpacity>
+      </Modal>
+
       {/* Reasoning Sheet Modal */}
       <Modal
         visible={showReasoningSheet}
@@ -646,11 +692,27 @@ const styles = StyleSheet.create({
   scrollView: { flex: 1 },
   scrollContent: { flexGrow: 1, justifyContent: 'center', paddingHorizontal: _H_PAD, paddingBottom: 240 },
   section: { marginBottom: 24 },
+  sectionLabelRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
+    gap: 8,
+  },
   sectionLabel: {
     color: 'rgba(255,255,255,0.65)',
     fontSize: 13, fontWeight: '600',
-    letterSpacing: 0.4, marginBottom: 12,
+    letterSpacing: 0.4,
     textTransform: 'uppercase',
+  },
+  infoBtn: {
+    width: 18, height: 18, borderRadius: 9,
+    borderWidth: 1.5, borderColor: 'rgba(255,255,255,0.3)',
+    alignItems: 'center', justifyContent: 'center',
+  },
+  infoBtnText: {
+    color: 'rgba(255,255,255,0.5)',
+    fontSize: 10, fontWeight: '700',
+    lineHeight: 12,
   },
 
   // ── Plan Sheet ───────────────────────────────────────────────────────────────

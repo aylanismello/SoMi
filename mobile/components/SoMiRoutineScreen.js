@@ -1344,7 +1344,7 @@ export default function SoMiRoutineScreen() {
         onPlay={handlePlayPause}
         onStop={handleExit}
         onOpenSettings={handleOpenSettings}
-        skipLabel="Skip Block"
+        skipLabel={currentVideo?.name ? `Skip ${currentVideo.name}` : 'Skip Block'}
         onSkip={handleVideoComplete}
         fillWidth={`${Math.min(100, (videoCurrentTime / Math.max(1, cappedDuration)) * 100)}%`}
         showControls={showOverlay}

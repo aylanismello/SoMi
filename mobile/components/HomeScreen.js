@@ -11,6 +11,7 @@ import CustomizationModal from './CustomizationModal'
 import { useAuthStore } from '../stores/authStore'
 import { useWeeklyFlows } from '../hooks/useSupabaseQueries'
 import { Ionicons } from '@expo/vector-icons'
+import SoMiHeader from './SoMiHeader'
 
 const DAY_LABELS = ['S', 'M', 'T', 'W', 'T', 'F', 'S']
 const FLOW_TARGET_SECONDS = 300 // 5 minutes = full circle
@@ -161,15 +162,10 @@ export default function HomeScreen() {
       />
 
       {/* Header */}
-      <View style={styles.header}>
-        <View style={styles.headerIconBtn}>
-          <Ionicons name="musical-notes-outline" size={16} color="rgba(255,255,255,0.7)" />
-        </View>
-        <Text style={styles.logoText}>SoMi</Text>
-        <TouchableOpacity style={styles.headerIconBtn} onPress={handleOpenSettings} activeOpacity={0.7}>
-          <Ionicons name="person-circle-outline" size={18} color="rgba(255,255,255,0.7)" />
-        </TouchableOpacity>
-      </View>
+      <SoMiHeader
+        style={styles.header}
+        onRightPress={() => {}}
+      />
 
       {/* Week streak strip */}
       <View style={styles.weekStripContainer}>
@@ -235,25 +231,7 @@ const styles = StyleSheet.create({
     top: 58,
     left: 0,
     right: 0,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 22,
     zIndex: 10,
-  },
-  headerIconBtn: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: 'rgba(0,0,0,0.28)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  logoText: {
-    fontSize: 21,
-    fontWeight: '600',
-    color: '#FFFFFF',
-    letterSpacing: 1.8,
   },
 
   // ── Week streak strip ────────────────────────────────────

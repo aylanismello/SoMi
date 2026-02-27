@@ -5,13 +5,13 @@ import { LinearGradient } from 'expo-linear-gradient'
 import { BlurView } from 'expo-blur'
 import Svg, { Circle, Line } from 'react-native-svg'
 import * as Haptics from 'expo-haptics'
-import { Ionicons } from '@expo/vector-icons'
 import { chainService } from '../services/chainService'
 import { colors } from '../constants/theme'
 import { useChains, useDeleteChain } from '../hooks/useSupabaseQueries'
 import { useAuthStore } from '../stores/authStore'
 import { intensityWord } from './StateXYPicker'
 import { deriveState, deriveIntensity } from '../constants/polyvagalStates'
+import SoMiHeader from './SoMiHeader'
 
 // Mini bar gradient for check-in display (energy axis: left=low, right=high)
 const MINI_GRAD_COLORS = ['#0D1B2A', '#3D2575', '#8B5CF6']
@@ -709,6 +709,7 @@ export default function MySomiScreen() {
         colors={[colors.background.primary, colors.background.secondary, colors.background.primary]}
         style={styles.container}
       >
+        <SoMiHeader style={styles.soMiHeader} rightIcon="settings" onRightPress={handleOpenSettings} />
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={colors.accent.primary} />
         </View>
@@ -722,17 +723,7 @@ export default function MySomiScreen() {
         colors={[colors.background.primary, colors.background.secondary, colors.background.primary]}
         style={styles.container}
       >
-        <View style={styles.header}>
-          <TouchableOpacity
-            onPress={handleOpenSettings}
-            style={styles.settingsButton}
-            activeOpacity={0.7}
-          >
-            <Ionicons name="settings-outline" size={24} color={colors.text.primary} />
-          </TouchableOpacity>
-          <Text style={styles.headerTitle}>my somi</Text>
-          <View style={styles.headerSpacer} />
-        </View>
+        <SoMiHeader style={styles.soMiHeader} rightIcon="settings" onRightPress={handleOpenSettings} />
         {renderEmptyState()}
       </LinearGradient>
     )
@@ -746,20 +737,7 @@ export default function MySomiScreen() {
       colors={[colors.background.primary, colors.background.secondary, colors.background.primary]}
       style={styles.container}
     >
-      <View style={styles.header}>
-        <TouchableOpacity
-          onPress={handleOpenSettings}
-          style={styles.settingsButton}
-          activeOpacity={0.7}
-        >
-          <Ionicons name="settings-outline" size={24} color={colors.text.primary} />
-        </TouchableOpacity>
-        <View style={styles.headerTextContainer}>
-          <Text style={styles.headerTitle}>my somi</Text>
-          <Text style={styles.headerSubtitle}>{stats.totalCheckIns} check-ins</Text>
-        </View>
-        <View style={styles.headerSpacer} />
-      </View>
+      <SoMiHeader style={styles.soMiHeader} rightIcon="settings" onRightPress={handleOpenSettings} />
 
       <ScrollView
         ref={scrollViewRef}
@@ -1262,41 +1240,9 @@ export default function MySomiScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    paddingTop: 60,
   },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 24,
-    paddingBottom: 20,
-    paddingTop: 10,
-  },
-  settingsButton: {
-    width: 44,
-    height: 44,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  headerTextContainer: {
-    flex: 1,
-    alignItems: 'center',
-  },
-  headerSpacer: {
-    width: 44,
-  },
-  headerTitle: {
-    color: colors.text.primary,
-    fontSize: 32,
-    fontWeight: '700',
-    letterSpacing: 0.5,
-    marginBottom: 4,
-  },
-  headerSubtitle: {
-    color: colors.text.muted,
-    fontSize: 15,
-    fontWeight: '500',
-    letterSpacing: 0.3,
+  soMiHeader: {
+    paddingTop: 58,
   },
   scrollContainer: {
     flex: 1,

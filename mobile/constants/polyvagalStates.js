@@ -48,5 +48,67 @@ export const getStateByName = (name) => {
   return POLYVAGAL_STATES[name] || POLYVAGAL_STATES.steady
 }
 
+// ─── 8-Zone Polyvagal Explanations ────────────────────────────────────────────
+// Divides the 2D space into 8 zones (2 safety bands × 4 energy bands)
+// energy: 0-100 (0=low, 100=high)
+// safety: 0-100 (0=unsafe, 100=safe)
+const POLYVAGAL_EXPLANATIONS = [
+  {
+    id: 'deep_rest',
+    test: (e, s) => s > 50 && e < 25,
+    title: 'Deep Rest',
+    body: "Your nervous system has settled into deep stillness. This is the ventral vagal state at its quietest — safe, slow, and restorative. Your body is doing repair work beneath the surface. Nothing needs to happen right now.",
+  },
+  {
+    id: 'calm',
+    test: (e, s) => s > 50 && e >= 25 && e < 50,
+    title: 'Calm',
+    body: "You're grounded and quietly present. This is your nervous system's home base — regulated, available, and open without needing to perform. There's a steady readiness here, neither pushing nor retreating.",
+  },
+  {
+    id: 'engaged',
+    test: (e, s) => s > 50 && e >= 50 && e < 75,
+    title: 'Engaged',
+    body: "Energized and at ease. Your ventral vagal system is fully online — you have access to creativity, connection, and clear thinking. This is a great state for meaningful work and genuine presence.",
+  },
+  {
+    id: 'alive',
+    test: (e, s) => s > 50 && e >= 75,
+    title: 'Alive',
+    body: "High energy with safety underneath it. You might feel joyful, inspired, or deeply motivated. Your system is fully mobilized in a healthy way — this is aliveness, not threat. Let it move through you.",
+  },
+  {
+    id: 'collapsed',
+    test: (e, s) => s <= 50 && e < 25,
+    title: 'Collapsed',
+    body: "Your nervous system has gone into dorsal vagal shutdown — the oldest survival response. You may feel numb, foggy, heavy, or disconnected. Your body is protecting you by conserving energy. Gentle warmth, slow breath, or light movement can help your system begin to emerge.",
+  },
+  {
+    id: 'frozen',
+    test: (e, s) => s <= 50 && e >= 25 && e < 50,
+    title: 'Frozen',
+    body: "You're caught between shutdown and activation — the freeze response. Your system is braced but unable to move. You might feel stuck, anxious without knowing why, or simply blank. This is a protective state, not a failure. A slow exhale, or any small movement, can begin to thaw it.",
+  },
+  {
+    id: 'anxious',
+    test: (e, s) => s <= 50 && e >= 50 && e < 75,
+    title: 'Anxious',
+    body: "Your sympathetic nervous system is mobilizing in response to perceived threat. You may feel on edge, irritable, or scattered. Cortisol and adrenaline are at work. This is your body's protection response doing its job — grounding and rhythmic movement can help your system recalibrate.",
+  },
+  {
+    id: 'overwhelmed',
+    test: (e, s) => s <= 50 && e >= 75,
+    title: 'Overwhelmed',
+    body: "Full sympathetic activation. Your system is in high-alert survival mode — fight, flight, or panic may feel close. Your body is doing exactly what it was built to do in the face of perceived danger. It needs to know you're safe. Slow, extended exhales are the fastest signal you can send it.",
+  },
+]
+
+export function getPolyvagalExplanation(energy, safety) {
+  const e = energy ?? 50
+  const s = safety ?? 50
+  const zone = POLYVAGAL_EXPLANATIONS.find(z => z.test(e, s)) ?? POLYVAGAL_EXPLANATIONS[1]
+  return { title: zone.title, body: zone.body }
+}
+
 // Export as array
 export const POLYVAGAL_STATES_ARRAY = Object.values(POLYVAGAL_STATES)
