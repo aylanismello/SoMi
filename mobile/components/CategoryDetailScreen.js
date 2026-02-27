@@ -4,6 +4,8 @@ import { LinearGradient } from 'expo-linear-gradient'
 import * as Haptics from 'expo-haptics'
 import { supabase } from '../supabase'
 import { deriveStateFromDeltas } from '../constants/polyvagalStates'
+import { useNavigation } from '@react-navigation/native'
+import { useLocalSearchParams } from 'expo-router'
 
 // Polyvagal states (new 2D model) — order: shutdown → restful → steady → wired → glowing
 const POLYVAGAL_STATES = [
@@ -33,8 +35,11 @@ const sortByStateTarget = (videos) => {
   })
 }
 
-export default function CategoryDetailScreen({ navigation, route }) {
-  const { categoryId, categoryName, categoryColors } = route.params
+export default function CategoryDetailScreen() {
+  const navigation = useNavigation()
+  const params = useLocalSearchParams()
+  const { categoryId, categoryName } = params
+  const categoryColors = params.categoryColors ? JSON.parse(params.categoryColors) : ['#111', '#222']
   const [videos, setVideos] = useState([])
   const [loading, setLoading] = useState(true)
 

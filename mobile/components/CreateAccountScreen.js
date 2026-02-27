@@ -4,10 +4,12 @@ import * as Haptics from 'expo-haptics'
 import { useAuthStore } from '../stores/authStore'
 import { Ionicons } from '@expo/vector-icons'
 import { useState } from 'react'
+import { useNavigation } from '@react-navigation/native'
 
 const APPLE_SIGN_UP_IMAGE = 'https://qujifwhwntqxziymqdwu.supabase.co/storage/v1/object/public/test/somi%20images/sign_up_with_apple.png'
 
-export default function CreateAccountScreen({ navigation }) {
+export default function CreateAccountScreen() {
+  const navigation = useNavigation()
   const signUpWithEmail = useAuthStore((state) => state.signUpWithEmail)
   const signInWithApple = useAuthStore((state) => state.signInWithApple)
 

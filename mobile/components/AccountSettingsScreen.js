@@ -3,15 +3,19 @@ import { colors } from '../constants/theme'
 import * as Haptics from 'expo-haptics'
 import { Ionicons } from '@expo/vector-icons'
 import { useAuthStore } from '../stores/authStore'
+import { useNavigation } from '@react-navigation/native'
+import { useRouter } from 'expo-router'
 
-export default function AccountSettingsScreen({ navigation }) {
+export default function AccountSettingsScreen() {
+  const navigation = useNavigation()
+  const router = useRouter()
   const signOut = useAuthStore((state) => state.signOut)
   const user = useAuthStore((state) => state.user)
 
   const handleLogout = async () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium)
     await signOut()
-    // onAuthStateChange will handle navigation to auth screens
+    router.replace('/(auth)/welcome')
   }
 
   const handleBack = () => {

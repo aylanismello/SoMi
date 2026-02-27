@@ -10,7 +10,7 @@ import EmailAuthModal from './SignInModal'
 
 const OCEAN_VIDEO_URI = 'https://qujifwhwntqxziymqdwu.supabase.co/storage/v1/object/public/test/somi%20videos/ocean_loop_final.mp4'
 
-export default function WelcomeScreen({ navigation }) {
+export default function WelcomeScreen() {
   const [showOtherOptions, setShowOtherOptions] = useState(false)
   const [showEmailModal, setShowEmailModal] = useState(false)
   const signInWithApple = useAuthStore((state) => state.signInWithApple)
@@ -105,7 +105,6 @@ export default function WelcomeScreen({ navigation }) {
       <EmailAuthModal
         visible={showEmailModal}
         onClose={() => setShowEmailModal(false)}
-        navigation={navigation}
       />
     </>
   )

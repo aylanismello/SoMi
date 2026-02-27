@@ -426,7 +426,7 @@ export default function DailyFlowSetup() {
         style={styles.scrollView}
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
-        scrollEnabled={scrollEnabled}
+        scrollEnabled={false}
       >
         {/* How do you feel */}
         <View style={styles.section}>
@@ -441,19 +441,6 @@ export default function DailyFlowSetup() {
           />
         </View>
 
-        {reasoning && previewQueue && previewQueue.length > 0 && (
-          <TouchableOpacity
-            onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setShowReasoningSheet(true) }}
-            activeOpacity={0.7}
-            style={styles.whyButton}
-          >
-            <Text style={styles.whyButtonIcon}>✦</Text>
-            <Text style={styles.whyButtonText}>Why did SoMi make the flow this way?</Text>
-            <Ionicons name="chevron-forward" size={14} color="rgba(255,255,255,0.3)" />
-          </TouchableOpacity>
-        )}
-
-        <View style={{ height: 240 }} />
       </ScrollView>
 
       {/* Sticky bottom: action row + duration pill */}
@@ -585,6 +572,17 @@ export default function DailyFlowSetup() {
                     </>
                   )
                 })()}
+                {reasoning && previewQueue && previewQueue.length > 0 && (
+                  <TouchableOpacity
+                    onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setShowPlanSheet(false); setShowReasoningSheet(true) }}
+                    activeOpacity={0.7}
+                    style={[styles.whyButton, { marginTop: 16, marginBottom: 4 }]}
+                  >
+                    <Text style={styles.whyButtonIcon}>✦</Text>
+                    <Text style={styles.whyButtonText}>Why did SoMi make the flow this way?</Text>
+                    <Ionicons name="chevron-forward" size={14} color="rgba(255,255,255,0.3)" />
+                  </TouchableOpacity>
+                )}
               </ScrollView>
               <TouchableOpacity onPress={() => setShowPlanSheet(false)} style={styles.sheetCloseButton} activeOpacity={0.7}>
                 <Text style={styles.sheetCloseText}>Close</Text>
@@ -646,7 +644,7 @@ const styles = StyleSheet.create({
 
   // ── Scroll ─────────────────────────────────────────────────────────────────
   scrollView: { flex: 1 },
-  scrollContent: { paddingHorizontal: _H_PAD, paddingTop: 4 },
+  scrollContent: { flexGrow: 1, justifyContent: 'center', paddingHorizontal: _H_PAD, paddingBottom: 240 },
   section: { marginBottom: 24 },
   sectionLabel: {
     color: 'rgba(255,255,255,0.65)',

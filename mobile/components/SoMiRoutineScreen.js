@@ -849,7 +849,7 @@ export default function SoMiRoutineScreen() {
           })
         } else {
           // Skip body scan, go straight to closing check-in
-          navigation.navigate('SoMiCheckIn', {
+          navigation.replace('SoMiCheckIn', {
             fromPlayer: true,
             savedInitialValue,
             savedInitialState,
@@ -959,7 +959,7 @@ export default function SoMiRoutineScreen() {
           })
         } else {
           // Skip body scan, go straight to closing check-in
-          navigation.navigate('SoMiCheckIn', {
+          navigation.replace('SoMiCheckIn', {
             fromPlayer: true,
             savedInitialValue,
             savedInitialState,
