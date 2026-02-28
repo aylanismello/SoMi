@@ -12,31 +12,13 @@ import { useRoutineStore } from '../stores/routineStore'
 import { chainService } from '../services/chainService'
 import StateXYPicker from './StateXYPicker'
 import CustomizationModal from './CustomizationModal'
+import FlowPlanSheet from './FlowPlanSheet'
 import { api } from '../services/api'
-import { deriveState, deriveStateFromDeltas, getPolyvagalExplanation } from '../constants/polyvagalStates'
+import { deriveState, getPolyvagalExplanation } from '../constants/polyvagalStates'
 
 const _H_PAD = 20
 const MIN_DURATION = 1
 const MAX_DURATION = 60
-
-// Polyvagal state emojis (new 2D model)
-const STATE_EMOJIS = {
-  shutdown: '🌑',
-  restful:  '🌦',
-  wired:    '🌪',
-  glowing:  '☀️',
-  steady:   '⛅',
-}
-
-const SECTION_LABELS = {
-  'warm_up': 'WARM UP',
-  'main': 'MAIN',
-  'integration': 'INTEGRATION',
-}
-
-function getSectionLabel(name) {
-  return SECTION_LABELS[name] || name.toUpperCase()
-}
 
 // ─── Duration Picker Modal ────────────────────────────────────────────────────
 function DurationPickerModal({ visible, minutes, onClose, onSave }) {
@@ -189,7 +171,11 @@ const dpStyles = StyleSheet.create({
 // ─── Main Component ───────────────────────────────────────────────────────────
 export default function DailyFlowSetup() {
   const navigation = useNavigation()
-  const { bodyScanStart, bodyScanEnd, setBodyScanStart, setBodyScanEnd } = useSettingsStore()
+  const {
+    bodyScanStart, bodyScanEnd,
+    setBodyScanStart, setBodyScanEnd,
+    isMusicEnabled, toggleMusic,
+  } = useSettingsStore()
 
   const [selectedMinutes, setSelectedMinutes] = useState(10)
   const [energyLevel, setEnergyLevel]         = useState(50)
@@ -203,14 +189,12 @@ export default function DailyFlowSetup() {
   const [showCustomization, setShowCustomization]   = useState(false)
   const [showPlanSheet, setShowPlanSheet]           = useState(false)
   const [showPolyvagalInfo, setShowPolyvagalInfo]   = useState(false)
-  const [isRefreshing, setIsRefreshing]             = useState(false)
 
   const [actualDuration, setActualDuration] = useState(null)
   const fullSegmentsRef = useRef(null)
 
   const energyRef  = useRef(50)
   const safetyRef  = useRef(50)
-  const lastGeneratedParamsRef = useRef(null)
   const hasInitializedRef      = useRef(false)
   const isReadyForInputRef     = useRef(false)
 
@@ -220,11 +204,7 @@ export default function DailyFlowSetup() {
   const isToastShownRef      = useRef(false)
   const toastDismissTimerRef = useRef(null)
 
-  // Glow animation for the Flow button
-  useEffect(() => {
-    if (!isGenerating) setIsRefreshing(false)
-  }, [isGenerating])
-
+  // Glow animation
   useEffect(() => {
     Animated.loop(
       Animated.sequence([
@@ -237,13 +217,8 @@ export default function DailyFlowSetup() {
   const glowOpacity = glowAnim.interpolate({ inputRange: [0, 1], outputRange: [0.2, 0.6] })
   const glowScale   = glowAnim.interpolate({ inputRange: [0, 1], outputRange: [1, 1.18] })
 
-  const hasDiff = lastGeneratedParamsRef.current !== null && (
-    lastGeneratedParamsRef.current.energy   !== energyLevel ||
-    lastGeneratedParamsRef.current.safety   !== safetyLevel ||
-    lastGeneratedParamsRef.current.minutes  !== selectedMinutes ||
-    lastGeneratedParamsRef.current.scanStart !== bodyScanStart ||
-    lastGeneratedParamsRef.current.scanEnd   !== bodyScanEnd
-  )
+  // Body scan toggles — only relevant when duration ≥ 8 min
+  const showBodyScanToggles = selectedMinutes >= 8
 
   const hideToast = useCallback(() => {
     clearTimeout(toastDismissTimerRef.current)
@@ -264,6 +239,7 @@ export default function DailyFlowSetup() {
     toastDismissTimerRef.current = setTimeout(hideToast, 2200)
   }, [toastAnim, hideToast])
 
+  // Toast pan responder — swipe up to dismiss, tap to open plan sheet
   const toastPanResponder = useMemo(() => {
     const dismiss = () => {
       clearTimeout(toastDismissTimerRef.current)
@@ -284,7 +260,12 @@ export default function DailyFlowSetup() {
       },
       onPanResponderRelease: (_, gs) => {
         if (gs.dy < -30 || gs.vy < -0.3) {
+          // Swipe up → dismiss
           dismiss()
+        } else if (Math.abs(gs.dy) < 5 && Math.abs(gs.dx) < 5) {
+          // Tap → open plan sheet
+          clearTimeout(toastDismissTimerRef.current)
+          setShowPlanSheet(true)
         } else {
           Animated.spring(toastAnim, { toValue: 0, useNativeDriver: true, tension: 200, friction: 15 }).start()
           toastDismissTimerRef.current = setTimeout(hideToast, 2200)
@@ -294,28 +275,34 @@ export default function DailyFlowSetup() {
     })
   }, [])
 
-  const doGeneratePreview = useCallback(async (durationMinutes, energy, safety, isInitial) => {
+  // ── Generate preview ────────────────────────────────────────────────────────
+  // scanStartOverride / scanEndOverride allow passing new values before store updates
+  const doGeneratePreview = useCallback(async (
+    durationMinutes, energy, safety, isInitial,
+    scanStartOverride, scanEndOverride
+  ) => {
     setIsGenerating(true)
     try {
-      const stateTarget = (energy != null && safety != null) ? deriveState(energy, safety).name : 'steady'
+      const stateTarget = (energy != null && safety != null)
+        ? deriveState(energy, safety).name
+        : 'steady'
       const { bodyScanStart: scanStart, bodyScanEnd: scanEnd } = useSettingsStore.getState()
+      const effectiveScanStart = scanStartOverride !== undefined ? scanStartOverride : scanStart
+      const effectiveScanEnd   = scanEndOverride   !== undefined ? scanEndOverride   : scanEnd
+
       const result = await api.generateFlow({
-        polyvagal_state: stateTarget,
+        polyvagal_state:  stateTarget,
         duration_minutes: durationMinutes,
-        body_scan_start: scanStart,
-        body_scan_end: scanEnd,
+        body_scan_start:  effectiveScanStart,
+        body_scan_end:    effectiveScanEnd,
         use_ai: false,
       })
       if (result.segments && result.segments.length > 0) {
-        // Extract somi_block segments as the preview queue (for plan view and player)
         const blockSegments = result.segments.filter(s => s.type === 'somi_block')
         setPreviewQueue(blockSegments)
         setActualDuration(result.actual_duration_seconds)
         if (result.reasoning) setReasoning(result.reasoning)
-        // Store full segments for the player
         fullSegmentsRef.current = result.segments
-        const { bodyScanStart: scanStart2, bodyScanEnd: scanEnd2 } = useSettingsStore.getState()
-        lastGeneratedParamsRef.current = { energy, safety, minutes: durationMinutes, scanStart: scanStart2, scanEnd: scanEnd2 }
         if (!isInitial) showUpdatedToast()
       }
     } catch (err) {
@@ -339,15 +326,14 @@ export default function DailyFlowSetup() {
       setScrollEnabled(true)
       setPreviewQueue(null)
       setReasoning(null)
-      lastGeneratedParamsRef.current = null
       setBodyScanStart(true)
       setBodyScanEnd(true)
 
-      // Auto-generate immediately with default state
       doGeneratePreview(10, 50, 50, true)
     }
   }, [doGeneratePreview]))
 
+  // ── Event handlers ──────────────────────────────────────────────────────────
   const handleClose = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium)
     hasInitializedRef.current = false
@@ -363,23 +349,21 @@ export default function DailyFlowSetup() {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy)
     await chainService.saveCheckToSession(energyLevel, safetyLevel, null)
     const derivedState = deriveState(energyLevel, safetyLevel)
-    // Body scan bookends are now in the segments — check if present
     const segments = fullSegmentsRef.current || []
     const hasBodyScanStart = segments.length > 0 && segments[0].type === 'body_scan'
     useRoutineStore.getState().initializeRoutine({
-      totalBlocks: previewQueue?.length ?? 1,
-      routineType: 'daily_flow',
-      savedInitialEnergy:  energyLevel,
-      savedInitialSafety:  safetyLevel,
-      savedInitialValue:   0,
-      savedInitialState:   derivedState.name,
-      customQueue:         previewQueue || null,
-      segments:            segments,
-      isQuickRoutine:      false,
-      flowType:            'daily_flow',
+      totalBlocks:        previewQueue?.length ?? 1,
+      routineType:        'daily_flow',
+      savedInitialEnergy: energyLevel,
+      savedInitialSafety: safetyLevel,
+      savedInitialValue:  0,
+      savedInitialState:  derivedState.name,
+      customQueue:        previewQueue || null,
+      segments:           segments,
+      isQuickRoutine:     false,
+      flowType:           'daily_flow',
     })
     if (hasBodyScanStart) {
-      // Skip past the body_scan segment so SoMiRoutine starts at micro_integration
       useRoutineStore.getState().setSegmentIndex(1)
       navigation.replace('BodyScanCountdown', { isInitial: true, skipToRoutine: true })
     } else {
@@ -387,12 +371,34 @@ export default function DailyFlowSetup() {
     }
   }
 
-  const handleRefresh = useCallback(() => {
+  // Trigger re-generate when user lifts finger from the XY picker
+  const handlePickerDragEnd = useCallback(() => {
+    setScrollEnabled(true)
     if (!isReadyForInputRef.current || isGenerating) return
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium)
-    setIsRefreshing(true)
-    doGeneratePreview(selectedMinutes, energyLevel, safetyLevel, false)
-  }, [doGeneratePreview, selectedMinutes, energyLevel, safetyLevel, isGenerating])
+    doGeneratePreview(selectedMinutes, energyRef.current, safetyRef.current, false)
+  }, [doGeneratePreview, selectedMinutes, isGenerating])
+
+  // Duration save → re-generate immediately
+  const handleDurationSave = useCallback((min) => {
+    setSelectedMinutes(min)
+    if (!isReadyForInputRef.current || isGenerating) return
+    doGeneratePreview(min, energyLevel, safetyLevel, false)
+  }, [doGeneratePreview, energyLevel, safetyLevel, isGenerating])
+
+  // Body scan toggle handlers
+  const handleToggleBodyScanStart = useCallback(() => {
+    const newVal = !bodyScanStart
+    setBodyScanStart(newVal)
+    if (!isReadyForInputRef.current || isGenerating) return
+    doGeneratePreview(selectedMinutes, energyLevel, safetyLevel, false, newVal, bodyScanEnd)
+  }, [bodyScanStart, bodyScanEnd, selectedMinutes, energyLevel, safetyLevel, isGenerating, doGeneratePreview])
+
+  const handleToggleBodyScanEnd = useCallback(() => {
+    const newVal = !bodyScanEnd
+    setBodyScanEnd(newVal)
+    if (!isReadyForInputRef.current || isGenerating) return
+    doGeneratePreview(selectedMinutes, energyLevel, safetyLevel, false, bodyScanStart, newVal)
+  }, [bodyScanStart, bodyScanEnd, selectedMinutes, energyLevel, safetyLevel, isGenerating, doGeneratePreview])
 
   return (
     <View style={styles.container}>
@@ -408,7 +414,7 @@ export default function DailyFlowSetup() {
         style={StyleSheet.absoluteFillObject}
       />
 
-      {/* Toast */}
+      {/* Toast — tappable to open plan sheet, swipe-up to dismiss */}
       <Animated.View
         {...toastPanResponder.panHandlers}
         pointerEvents={isToastVisible ? 'auto' : 'none'}
@@ -418,6 +424,7 @@ export default function DailyFlowSetup() {
           <Ionicons name="checkmark" size={14} color="#fff" />
         </View>
         <Text style={styles.toastText}>Flow Updated</Text>
+        <Ionicons name="chevron-forward" size={14} color="rgba(255,255,255,0.35)" />
       </Animated.View>
 
       {/* Header: edit | X */}
@@ -435,7 +442,7 @@ export default function DailyFlowSetup() {
         style={styles.scrollView}
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
-        scrollEnabled={false}
+        scrollEnabled={scrollEnabled}
       >
         {/* How do you feel */}
         <View style={styles.section}>
@@ -455,7 +462,7 @@ export default function DailyFlowSetup() {
             safetyLevel={safetyLevel}
             onSafetyChange={(v) => { safetyRef.current = v; setSafetyLevel(v) }}
             onDragStart={() => setScrollEnabled(false)}
-            onDragEnd={() => setScrollEnabled(true)}
+            onDragEnd={handlePickerDragEnd}
           />
         </View>
 
@@ -464,21 +471,17 @@ export default function DailyFlowSetup() {
       {/* Sticky bottom: action row + duration pill */}
       <View style={styles.stickyBottom}>
         <View style={styles.actionRow}>
-          {/* Refresh */}
+          {/* Music toggle button — matches HomeScreen left-button style */}
           <TouchableOpacity
-            onPress={handleRefresh}
-            activeOpacity={hasDiff && !isRefreshing ? 0.7 : 1}
-            style={[styles.sideBtn, (!hasDiff || isRefreshing) && styles.sideBtnOff]}
-            disabled={!hasDiff || isGenerating}
+            style={styles.sideBtn}
+            onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); toggleMusic() }}
+            activeOpacity={0.75}
           >
-            {isRefreshing
-              ? <ActivityIndicator size="small" color="rgba(255,255,255,0.78)" />
-              : <Ionicons
-                  name="refresh"
-                  size={20}
-                  color={hasDiff ? 'rgba(255,255,255,0.78)' : 'rgba(255,255,255,0.22)'}
-                />
-            }
+            <Ionicons
+              name={isMusicEnabled ? 'musical-notes' : 'musical-notes-outline'}
+              size={20}
+              color="rgba(255,255,255,0.78)"
+            />
           </TouchableOpacity>
 
           {/* Glowing Flow button */}
@@ -508,7 +511,9 @@ export default function DailyFlowSetup() {
           onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setShowDurationPicker(true) }}
           activeOpacity={0.75}
         >
-          <Text style={styles.durationPillText}>{actualDuration ? `${Math.ceil(actualDuration / 60)} min` : `${selectedMinutes} min`}</Text>
+          <Text style={styles.durationPillText}>
+            {actualDuration ? `${Math.ceil(actualDuration / 60)} min` : `${selectedMinutes} min`}
+          </Text>
           <Ionicons name="chevron-expand-outline" size={14} color="rgba(255,255,255,0.5)" />
         </TouchableOpacity>
       </View>
@@ -518,104 +523,29 @@ export default function DailyFlowSetup() {
         visible={showDurationPicker}
         minutes={selectedMinutes}
         onClose={() => setShowDurationPicker(false)}
-        onSave={(min) => setSelectedMinutes(min)}
+        onSave={handleDurationSave}
       />
 
       {/* Customization modal */}
       <CustomizationModal visible={showCustomization} onClose={() => setShowCustomization(false)} />
 
-      {/* Plan Sheet Modal */}
-      <Modal
+      {/* Unified "Your Flow" plan sheet */}
+      <FlowPlanSheet
         visible={showPlanSheet}
-        transparent={true}
-        animationType="slide"
-        onRequestClose={() => setShowPlanSheet(false)}
-      >
-        <View style={styles.sheetOverlay}>
-          <TouchableOpacity style={styles.sheetDismissArea} activeOpacity={1} onPress={() => setShowPlanSheet(false)} />
-          <View style={styles.sheetContainer}>
-            <BlurView intensity={40} tint="dark" style={styles.sheetBlur}>
-              <View style={styles.sheetHandle} />
-              <Text style={styles.sheetTitle}>Your Plan</Text>
-              <Text style={styles.sheetSubtitle}>
-                {previewQueue?.length ?? 0} exercises · {actualDuration ? `${Math.ceil(actualDuration / 60)} min` : `~${selectedMinutes} min`}
-              </Text>
-              <ScrollView style={styles.sheetScroll} showsVerticalScrollIndicator={false}>
-                {(() => {
-                  if (!previewQueue || previewQueue.length === 0) return null
-                  const hasSections = !!previewQueue[0]?.section
-
-                  const renderBlock = (block, globalIndex) => (
-                    <View key={`${block.canonical_name}-${globalIndex}`} style={styles.planItem}>
-                      <View style={styles.planItemNumber}>
-                        <Text style={styles.planItemNumberText}>{globalIndex + 1}</Text>
-                      </View>
-                      <Text style={styles.planItemName}>{block.name}</Text>
-                      {STATE_EMOJIS[deriveStateFromDeltas(block.energy_delta, block.safety_delta)?.name] ? (
-                        <Text style={styles.planItemEmoji}>{STATE_EMOJIS[deriveStateFromDeltas(block.energy_delta, block.safety_delta)?.name]}</Text>
-                      ) : null}
-                    </View>
-                  )
-
-                  const renderBodyScanItem = () => (
-                    <View key="bodyscan" style={[styles.planItem, styles.bodyScanItem]}>
-                      <View style={[styles.planItemNumber, styles.bodyScanNumber]}>
-                        <Text style={styles.bodyScanNumberText}>~</Text>
-                      </View>
-                      <Text style={styles.bodyScanItemName}>Body Scan</Text>
-                      <Text style={styles.lockEmoji}>🔒</Text>
-                    </View>
-                  )
-
-                  const segments = fullSegmentsRef.current || []
-                  const hasBodyScanStart = segments.length > 0 && segments[0].type === 'body_scan'
-                  const hasBodyScanEnd = segments.length > 0 && segments[segments.length - 1].type === 'body_scan' && segments[segments.length - 1].section === 'integration'
-
-                  if (hasSections) {
-                    const groups = []
-                    let currentName = null
-                    previewQueue.forEach((block, i) => {
-                      const name = block.section || 'main'
-                      if (name !== currentName) { currentName = name; groups.push({ name, items: [] }) }
-                      groups[groups.length - 1].items.push({ block, globalIndex: i })
-                    })
-                    return groups.map((group, gi) => (
-                      <View key={group.name}>
-                        <Text style={styles.sectionHeader}>{getSectionLabel(group.name)}</Text>
-                        {gi === 0 && hasBodyScanStart && renderBodyScanItem()}
-                        {group.items.map(({ block, globalIndex }) => renderBlock(block, globalIndex))}
-                        {gi === groups.length - 1 && hasBodyScanEnd && renderBodyScanItem()}
-                      </View>
-                    ))
-                  }
-
-                  return (
-                    <>
-                      {hasBodyScanStart && renderBodyScanItem()}
-                      {previewQueue.map((block, index) => renderBlock(block, index))}
-                      {hasBodyScanEnd && renderBodyScanItem()}
-                    </>
-                  )
-                })()}
-                {reasoning && previewQueue && previewQueue.length > 0 && (
-                  <TouchableOpacity
-                    onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setShowPlanSheet(false); setShowReasoningSheet(true) }}
-                    activeOpacity={0.7}
-                    style={[styles.whyButton, { marginTop: 16, marginBottom: 4 }]}
-                  >
-                    <Text style={styles.whyButtonIcon}>✦</Text>
-                    <Text style={styles.whyButtonText}>Why did SoMi make the flow this way?</Text>
-                    <Ionicons name="chevron-forward" size={14} color="rgba(255,255,255,0.3)" />
-                  </TouchableOpacity>
-                )}
-              </ScrollView>
-              <TouchableOpacity onPress={() => setShowPlanSheet(false)} style={styles.sheetCloseButton} activeOpacity={0.7}>
-                <Text style={styles.sheetCloseText}>Close</Text>
-              </TouchableOpacity>
-            </BlurView>
-          </View>
-        </View>
-      </Modal>
+        onClose={() => setShowPlanSheet(false)}
+        closeLabel="Update"
+        onWhyPress={() => { setShowPlanSheet(false); setShowReasoningSheet(true) }}
+        queue={previewQueue || []}
+        fullSegments={fullSegmentsRef.current || []}
+        reasoning={reasoning}
+        actualDuration={actualDuration}
+        selectedMinutes={selectedMinutes}
+        showBodyScanToggles={showBodyScanToggles}
+        bodyScanStartEnabled={bodyScanStart}
+        bodyScanEndEnabled={bodyScanEnd}
+        onToggleBodyScanStart={handleToggleBodyScanStart}
+        onToggleBodyScanEnd={handleToggleBodyScanEnd}
+      />
 
       {/* Polyvagal State Info Modal */}
       <Modal
@@ -696,7 +626,7 @@ const styles = StyleSheet.create({
 
   // ── Scroll ─────────────────────────────────────────────────────────────────
   scrollView: { flex: 1 },
-  scrollContent: { flexGrow: 1, justifyContent: 'center', paddingHorizontal: _H_PAD, paddingBottom: 240 },
+  scrollContent: { flexGrow: 1, paddingHorizontal: _H_PAD, paddingTop: 8, paddingBottom: 240 },
   section: { marginBottom: 24 },
   sectionLabelRow: {
     flexDirection: 'row',
@@ -721,63 +651,6 @@ const styles = StyleSheet.create({
     lineHeight: 12,
   },
 
-  // ── Plan Sheet ───────────────────────────────────────────────────────────────
-  sheetOverlay: {
-    flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', flexDirection: 'column',
-  },
-  sheetDismissArea: { flex: 1 },
-  sheetContainer: {
-    maxHeight: '70%', borderTopLeftRadius: 24, borderTopRightRadius: 24, overflow: 'hidden',
-  },
-  sheetBlur: { paddingTop: 12, paddingBottom: 40, paddingHorizontal: 24 },
-  sheetHandle: {
-    width: 40, height: 4, backgroundColor: 'rgba(255,255,255,0.3)',
-    borderRadius: 2, alignSelf: 'center', marginBottom: 20,
-  },
-  sheetTitle: { color: '#fff', fontSize: 22, fontWeight: '700', letterSpacing: 0.5, marginBottom: 4 },
-  sheetSubtitle: { color: 'rgba(255,255,255,0.45)', fontSize: 13, fontWeight: '500', marginBottom: 20 },
-  sheetScroll: { maxHeight: 400 },
-  sectionHeader: {
-    color: 'rgba(255,255,255,0.45)', fontSize: 11, fontWeight: '700', letterSpacing: 1.2,
-    marginTop: 16, marginBottom: 4, paddingHorizontal: 12,
-  },
-  planItem: {
-    flexDirection: 'row', alignItems: 'center',
-    paddingVertical: 14, paddingHorizontal: 12,
-    borderRadius: 12, marginBottom: 4, gap: 12,
-  },
-  planItemNumber: {
-    width: 28, height: 28, borderRadius: 14,
-    backgroundColor: 'rgba(255,255,255,0.1)',
-    alignItems: 'center', justifyContent: 'center',
-  },
-  planItemNumberText: { color: 'rgba(255,255,255,0.55)', fontSize: 13, fontWeight: '600' },
-  planItemName: { flex: 1, color: '#fff', fontSize: 15, fontWeight: '500' },
-  planItemEmoji: { fontSize: 16 },
-  bodyScanItem: { opacity: 0.6 },
-  bodyScanNumber: { backgroundColor: 'rgba(255,255,255,0.08)' },
-  bodyScanNumberText: { color: 'rgba(255,255,255,0.45)', fontSize: 13, fontWeight: '600' },
-  bodyScanItemName: { flex: 1, color: 'rgba(255,255,255,0.55)', fontSize: 15, fontWeight: '500', fontStyle: 'italic' },
-  lockEmoji: { fontSize: 14 },
-  sheetCloseButton: {
-    marginTop: 16, paddingVertical: 14,
-    backgroundColor: 'rgba(255,255,255,0.08)',
-    borderRadius: 20, borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)',
-    alignItems: 'center',
-  },
-  sheetCloseText: { color: '#fff', fontSize: 15, fontWeight: '600' },
-
-  // ── Why button ──────────────────────────────────────────────────────────────
-  whyButton: {
-    flexDirection: 'row', alignItems: 'center', gap: 10,
-    paddingVertical: 14, paddingHorizontal: 16, marginTop: 8,
-    borderRadius: 16,
-    backgroundColor: 'rgba(255,255,255,0.04)',
-    borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)',
-  },
-  whyButtonIcon: { color: colors.accent.primary, fontSize: 14 },
-  whyButtonText: { flex: 1, color: 'rgba(255,255,255,0.5)', fontSize: 13, fontWeight: '500', letterSpacing: 0.1 },
-
   // ── Sticky bottom ───────────────────────────────────────────────────────────
   stickyBottom: {
     position: 'absolute', bottom: 0, left: 0, right: 0,
@@ -798,10 +671,6 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255,255,255,0.1)',
     borderWidth: 1, borderColor: 'rgba(255,255,255,0.15)',
     alignItems: 'center', justifyContent: 'center',
-  },
-  sideBtnOff: {
-    backgroundColor: 'rgba(255,255,255,0.04)',
-    borderColor: 'rgba(255,255,255,0.06)',
   },
   flowBtnWrapper: {
     width: 118, height: 118,
