@@ -163,7 +163,7 @@ if body_scan_start → { type: "body_scan", section: "warm_up", duration_seconds
 
 for i, block in selected_blocks:
     section = assign_section(i, block_count)   // per table above
-    append { type: "integration", section: section, duration_seconds: 20 }
+    append { type: "micro_integration", section: section, duration_seconds: 20 }
     append { type: "somi_block",  section: section, duration_seconds: 60, ...block }
 
 if body_scan_end → { type: "body_scan", section: "integration", duration_seconds: 60 }
@@ -189,10 +189,10 @@ actual_duration_seconds = body_scan_seconds + (block_count * 80)
 | Type | Fields |
 |------|--------|
 | `body_scan` | `type`, `section`, `duration_seconds` |
-| `integration` | `type`, `section`, `duration_seconds` |
+| `micro_integration` | `type`, `section`, `duration_seconds` |
 | `somi_block` | `type`, `section`, `duration_seconds`, `id`, `title`, `video_url`, `energy_delta`, `safety_delta`, ... |
 
-`body_scan` and `integration` carry nothing but `type`, `section`, and `duration_seconds`. Only `somi_block` carries full metadata because the video player needs it.
+`body_scan` and `micro_integration` carry nothing but `type`, `section`, and `duration_seconds`. Only `somi_block` carries full metadata because the video player needs it.
 
 ---
 
@@ -201,20 +201,20 @@ actual_duration_seconds = body_scan_seconds + (block_count * 80)
 #### Edge case — 1 block (e.g. 1–2 min budget)
 ```
 → main only, no section headers
-  [integration/main] [somi_block/main]
+  [micro_integration/main] [somi_block/main]
 ```
 
 #### Edge case — 2 blocks (e.g. 3 min budget)
 ```
-WARM UP   [integration] [somi_block]
-MAIN      [integration] [somi_block]
+WARM UP   [micro_integration] [somi_block]
+MAIN      [micro_integration] [somi_block]
 ```
 
 #### First normal case — 3 blocks (e.g. 4 min budget)
 ```
-WARM UP      [integration] [somi_block]
-MAIN         [integration] [somi_block]
-INTEGRATION  [integration] [somi_block]
+WARM UP      [micro_integration] [somi_block]
+MAIN         [micro_integration] [somi_block]
+INTEGRATION  [micro_integration] [somi_block]
 ```
 
 ---
@@ -226,17 +226,17 @@ block_count=6 → block[0]=warm_up · block[1–4]=main · block[5]=integration
 ```json
 {
   "segments": [
-    { "type": "integration", "section": "warm_up",     "duration_seconds": 20 },
+    { "type": "micro_integration", "section": "warm_up",     "duration_seconds": 20 },
     { "type": "somi_block",  "section": "warm_up",     "duration_seconds": 60, "id": 47, "title": "Vagus Reset", "video_url": "..." },
-    { "type": "integration", "section": "main",        "duration_seconds": 20 },
+    { "type": "micro_integration", "section": "main",        "duration_seconds": 20 },
     { "type": "somi_block",  "section": "main",        "duration_seconds": 60, "id": 12, "title": "Covering the Eyes", "video_url": "..." },
-    { "type": "integration", "section": "main",        "duration_seconds": 20 },
+    { "type": "micro_integration", "section": "main",        "duration_seconds": 20 },
     { "type": "somi_block",  "section": "main",        "duration_seconds": 60, "id": 33, "title": "Humming", "video_url": "..." },
-    { "type": "integration", "section": "main",        "duration_seconds": 20 },
+    { "type": "micro_integration", "section": "main",        "duration_seconds": 20 },
     { "type": "somi_block",  "section": "main",        "duration_seconds": 60, "id": 8,  "title": "Body Tapping", "video_url": "..." },
-    { "type": "integration", "section": "main",        "duration_seconds": 20 },
+    { "type": "micro_integration", "section": "main",        "duration_seconds": 20 },
     { "type": "somi_block",  "section": "main",        "duration_seconds": 60, "id": 21, "title": "Diaphragmatic Breath", "video_url": "..." },
-    { "type": "integration", "section": "integration", "duration_seconds": 20 },
+    { "type": "micro_integration", "section": "integration", "duration_seconds": 20 },
     { "type": "somi_block",  "section": "integration", "duration_seconds": 60, "id": 19, "title": "Humming Exhale", "video_url": "..." }
   ],
   "actual_duration_seconds": 480
