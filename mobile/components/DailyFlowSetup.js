@@ -10,11 +10,10 @@ import { colors } from '../constants/theme'
 import { useSettingsStore } from '../stores/settingsStore'
 import { useRoutineStore } from '../stores/routineStore'
 import { chainService } from '../services/chainService'
-import { getAutoRoutineType } from '../services/routineConfig'
 import StateXYPicker from './StateXYPicker'
 import CustomizationModal from './CustomizationModal'
 import { api } from '../services/api'
-import { deriveState, deriveIntensity, deriveStateFromDeltas, getPolyvagalExplanation } from '../constants/polyvagalStates'
+import { deriveState, deriveStateFromDeltas, getPolyvagalExplanation } from '../constants/polyvagalStates'
 
 const _H_PAD = 20
 const MIN_DURATION = 1
@@ -30,20 +29,13 @@ const STATE_EMOJIS = {
 }
 
 const SECTION_LABELS = {
-  'warm-up': 'WARM UP',
+  'warm_up': 'WARM UP',
   'main': 'MAIN',
   'integration': 'INTEGRATION',
 }
 
 function getSectionLabel(name) {
   return SECTION_LABELS[name] || name.toUpperCase()
-}
-
-function computeBlockCount(totalMinutes, scanStart, scanEnd) {
-  const totalSeconds = totalMinutes * 60
-  const bodyScanSeconds = (scanStart ? 60 : 0) + (scanEnd ? 60 : 0)
-  const exerciseTime = totalSeconds - bodyScanSeconds
-  return Math.max(1, Math.round((exerciseTime + 20) / 80))
 }
 
 // ─── Duration Picker Modal ────────────────────────────────────────────────────
@@ -213,6 +205,9 @@ export default function DailyFlowSetup() {
   const [showPolyvagalInfo, setShowPolyvagalInfo]   = useState(false)
   const [isRefreshing, setIsRefreshing]             = useState(false)
 
+  const [actualDuration, setActualDuration] = useState(null)
+  const fullSegmentsRef = useRef(null)
+
   const energyRef  = useRef(50)
   const safetyRef  = useRef(50)
   const lastGeneratedParamsRef = useRef(null)
@@ -299,25 +294,26 @@ export default function DailyFlowSetup() {
     })
   }, [])
 
-  const doGeneratePreview = useCallback(async (routineType, durationMinutes, energy, safety, isInitial) => {
+  const doGeneratePreview = useCallback(async (durationMinutes, energy, safety, isInitial) => {
     setIsGenerating(true)
     try {
-      const stateTarget = (energy != null && safety != null) ? deriveState(energy, safety).name : null
-      const intensity   = (energy != null && safety != null) ? Math.round(deriveIntensity(energy, safety)) : null
+      const stateTarget = (energy != null && safety != null) ? deriveState(energy, safety).name : 'steady'
       const { bodyScanStart: scanStart, bodyScanEnd: scanEnd } = useSettingsStore.getState()
-      const blockCount = computeBlockCount(durationMinutes, scanStart, scanEnd)
-      const localHour  = new Date().getHours()
-      const timezone   = Intl.DateTimeFormat().resolvedOptions().timeZone
-      const result = await api.generateRoutine(
-        routineType,
-        blockCount,
-        stateTarget
-          ? { polyvagalState: stateTarget, intensity, durationMinutes, blockCount, localHour, timezone }
-          : { durationMinutes, blockCount, localHour, timezone }
-      )
-      if (result.queue && result.queue.length > 0) {
-        setPreviewQueue(result.queue)
+      const result = await api.generateFlow({
+        polyvagal_state: stateTarget,
+        duration_minutes: durationMinutes,
+        body_scan_start: scanStart,
+        body_scan_end: scanEnd,
+        use_ai: false,
+      })
+      if (result.segments && result.segments.length > 0) {
+        // Extract somi_block segments as the preview queue (for plan view and player)
+        const blockSegments = result.segments.filter(s => s.type === 'somi_block')
+        setPreviewQueue(blockSegments)
+        setActualDuration(result.actual_duration_seconds)
         if (result.reasoning) setReasoning(result.reasoning)
+        // Store full segments for the player
+        fullSegmentsRef.current = result.segments
         const { bodyScanStart: scanStart2, bodyScanEnd: scanEnd2 } = useSettingsStore.getState()
         lastGeneratedParamsRef.current = { energy, safety, minutes: durationMinutes, scanStart: scanStart2, scanEnd: scanEnd2 }
         if (!isInitial) showUpdatedToast()
@@ -348,7 +344,7 @@ export default function DailyFlowSetup() {
       setBodyScanEnd(true)
 
       // Auto-generate immediately with default state
-      doGeneratePreview(getAutoRoutineType(), 10, 50, 50, true)
+      doGeneratePreview(10, 50, 50, true)
     }
   }, [doGeneratePreview]))
 
@@ -367,18 +363,21 @@ export default function DailyFlowSetup() {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy)
     await chainService.saveCheckToSession(energyLevel, safetyLevel, null)
     const derivedState = deriveState(energyLevel, safetyLevel)
+    // Body scan bookends are now in the segments — check if present
+    const segments = fullSegmentsRef.current || []
+    const hasBodyScanStart = segments.length > 0 && segments[0].type === 'body_scan'
     useRoutineStore.getState().initializeRoutine({
-      totalBlocks: previewQueue?.length ?? selectedMinutes,
-      routineType: getAutoRoutineType(),
+      totalBlocks: previewQueue?.length ?? 1,
+      routineType: 'daily_flow',
       savedInitialEnergy:  energyLevel,
       savedInitialSafety:  safetyLevel,
-      savedInitialValue:   Math.round(deriveIntensity(energyLevel, safetyLevel)),
+      savedInitialValue:   0,
       savedInitialState:   derivedState.name,
       customQueue:         previewQueue || null,
       isQuickRoutine:      false,
       flowType:            'daily_flow',
     })
-    if (bodyScanStart) {
+    if (hasBodyScanStart) {
       navigation.replace('BodyScanCountdown', { isInitial: true, skipToRoutine: true })
     } else {
       navigation.replace('SoMiRoutine')
@@ -389,7 +388,7 @@ export default function DailyFlowSetup() {
     if (!isReadyForInputRef.current || isGenerating) return
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium)
     setIsRefreshing(true)
-    doGeneratePreview(getAutoRoutineType(), selectedMinutes, energyLevel, safetyLevel, false)
+    doGeneratePreview(selectedMinutes, energyLevel, safetyLevel, false)
   }, [doGeneratePreview, selectedMinutes, energyLevel, safetyLevel, isGenerating])
 
   return (
@@ -506,7 +505,7 @@ export default function DailyFlowSetup() {
           onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setShowDurationPicker(true) }}
           activeOpacity={0.75}
         >
-          <Text style={styles.durationPillText}>{selectedMinutes} min</Text>
+          <Text style={styles.durationPillText}>{actualDuration ? `${Math.ceil(actualDuration / 60)} min` : `${selectedMinutes} min`}</Text>
           <Ionicons name="chevron-expand-outline" size={14} color="rgba(255,255,255,0.5)" />
         </TouchableOpacity>
       </View>
@@ -536,7 +535,7 @@ export default function DailyFlowSetup() {
               <View style={styles.sheetHandle} />
               <Text style={styles.sheetTitle}>Your Plan</Text>
               <Text style={styles.sheetSubtitle}>
-                {previewQueue?.length ?? 0} exercises · ~{selectedMinutes} min
+                {previewQueue?.length ?? 0} exercises · {actualDuration ? `${Math.ceil(actualDuration / 60)} min` : `~${selectedMinutes} min`}
               </Text>
               <ScrollView style={styles.sheetScroll} showsVerticalScrollIndicator={false}>
                 {(() => {
@@ -565,6 +564,10 @@ export default function DailyFlowSetup() {
                     </View>
                   )
 
+                  const segments = fullSegmentsRef.current || []
+                  const hasBodyScanStart = segments.length > 0 && segments[0].type === 'body_scan'
+                  const hasBodyScanEnd = segments.length > 0 && segments[segments.length - 1].type === 'body_scan' && segments[segments.length - 1].section === 'integration'
+
                   if (hasSections) {
                     const groups = []
                     let currentName = null
@@ -576,18 +579,18 @@ export default function DailyFlowSetup() {
                     return groups.map((group, gi) => (
                       <View key={group.name}>
                         <Text style={styles.sectionHeader}>{getSectionLabel(group.name)}</Text>
-                        {gi === 0 && bodyScanStart && renderBodyScanItem()}
+                        {gi === 0 && hasBodyScanStart && renderBodyScanItem()}
                         {group.items.map(({ block, globalIndex }) => renderBlock(block, globalIndex))}
-                        {gi === groups.length - 1 && bodyScanEnd && renderBodyScanItem()}
+                        {gi === groups.length - 1 && hasBodyScanEnd && renderBodyScanItem()}
                       </View>
                     ))
                   }
 
                   return (
                     <>
-                      {bodyScanStart && renderBodyScanItem()}
+                      {hasBodyScanStart && renderBodyScanItem()}
                       {previewQueue.map((block, index) => renderBlock(block, index))}
-                      {bodyScanEnd && renderBodyScanItem()}
+                      {hasBodyScanEnd && renderBodyScanItem()}
                     </>
                   )
                 })()}

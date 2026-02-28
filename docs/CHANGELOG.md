@@ -1,5 +1,32 @@
 # Changelog
 
+## 2026-02-27 — Flow Engine v1
+
+Complete rewrite of the routine generation system. Key changes:
+
+**Server:**
+- New `POST /api/flows/generate` endpoint replaces `/api/routines/generate`
+- Block count computed server-side from `duration_minutes` (was client-side)
+- Default path is now algorithmic (state filter + shuffle-without-replacement), AI is opt-in via `use_ai: true`
+- Response is `{ segments, actual_duration_seconds }` — segments array includes `somi_block`, `micro_integration`, and `body_scan` types
+- New `server/lib/polyvagal.js` — block filtering, selection, section assignment, deterministic explanation generation
+- Removed season inference from Claude prompt (was NH-only)
+- Deleted `server/lib/routines.js` (hardcoded morning/night sequences)
+
+**Mobile:**
+- `api.generateFlow()` replaces `api.generateRoutine()` with new signature
+- `DailyFlowSetup.js` — removed `computeBlockCount`, `getAutoRoutineType`, `deriveIntensity`; sends new params; shows `actual_duration_seconds`
+- Section labels normalised to underscores (`warm_up` not `warm-up`) everywhere
+- Deleted `mobile/services/videoSelectionAlgorithm.js` and `mobile/services/routineConfig.js`
+- Updated `RoutineQueuePreview.js` and `mediaService.js` to remove deleted dependencies
+
+**DB:**
+- Migration: `UPDATE somi_chain_entries SET section = 'warm_up' WHERE section = 'warm-up'`
+
+**Docs:**
+- Renamed `docs/05_routine_engine.md` -> `docs/05_flow_engine.md`
+- Updated `docs/03_architecture.md` (route table, system map)
+
 ## 2026-02-27 — Fix block-end sound + docs clarification
 
 - `_layout.js`: call `setAudioModeAsync({ playsInSilentMode: true, interruptionMode: 'mixWithOthers' })` on startup so sound effects play even when the iOS silent switch is on and mix correctly with flow music

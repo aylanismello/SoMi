@@ -5,7 +5,7 @@ export default function Home() {
       <p>Backend API for SoMi mobile app</p>
       <h2>Available Endpoints:</h2>
       <ul>
-        <li>POST /api/routines/generate - Generate routine blocks</li>
+        <li>POST /api/flows/generate - Generate flow segments</li>
         <li>GET /api/chains - Get all chains</li>
         <li>GET /api/chains/latest - Get latest chain</li>
         <li>POST /api/chains - Create new chain</li>

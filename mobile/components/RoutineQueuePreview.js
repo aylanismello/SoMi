@@ -6,13 +6,11 @@ import { BlurView } from 'expo-blur'
 import * as Haptics from 'expo-haptics'
 import { colors } from '../constants/theme'
 import { supabase } from '../supabase'
-import { getRoutineConfig, ROUTINE_TYPES } from '../services/routineConfig'
 import { useRoutineStore } from '../stores/routineStore'
 import { useSettingsStore } from '../stores/settingsStore'
-import { useBlocks } from '../hooks/useSupabaseQueries'
 
 const SECTION_LABELS = {
-  'warm-up': 'WARM UP',
+  'warm_up': 'WARM UP',
   'main': 'MAIN',
   'integration': 'INTEGRATION',
 }
@@ -53,51 +51,18 @@ export default function RoutineQueuePreview() {
     displayMinutes = null, // User-selected duration (may differ from actual block count)
   } = route.params || {}
 
-  const [localQueue, setLocalQueue] = useState([])
   const [enrichedQueue, setEnrichedQueue] = useState([])
   const [libraryBlocks, setLibraryBlocks] = useState([])
   const [showLibrary, setShowLibrary] = useState(false)
   const [swapIndex, setSwapIndex] = useState(null)
+  const isLoading = false
 
-  // Get canonical names for the routine
-  const canonicalNames = getRoutineConfig(routineType, totalBlocks)
-
-  // Fetch blocks using React Query
-  const { data: fetchedBlocks, isLoading } = useBlocks(canonicalNames)
-
-  // Initialize queue when blocks are loaded
+  // Initialize queue from store
   useEffect(() => {
-    if (fetchedBlocks && fetchedBlocks.length > 0 && localQueue.length === 0) {
-      // Use store queue if in edit mode, otherwise create new queue from fetched blocks
-      let queueFormat
-      if (isEditMode && storeQueue && storeQueue.length > 0) {
-        queueFormat = storeQueue
-      } else {
-        // Convert fetched blocks to queue format
-        queueFormat = fetchedBlocks.map((block, index) => ({
-          somi_block_id: block.id,
-          name: block.name,
-          canonical_name: block.canonical_name,
-          url: block.media_url,
-          type: 'video',
-          order: index,
-          description: block.description,
-          energy_delta: block.energy_delta,
-          safety_delta: block.safety_delta,
-        }))
-      }
-
-      setLocalQueue(queueFormat)
-      setEnrichedQueue(queueFormat)
-
-      // If not in edit mode, update store with initial queue (only once)
-      if (!isEditMode && queueFormat.length > 0) {
-        setQueue(queueFormat)
-      }
+    if (storeQueue && storeQueue.length > 0 && enrichedQueue.length === 0) {
+      setEnrichedQueue(storeQueue)
     }
-    // Only depend on fetchedBlocks and isEditMode
-    // Don't include storeQueue or setQueue to avoid infinite loops
-  }, [fetchedBlocks, isEditMode])
+  }, [storeQueue])
 
   // Load library blocks
   useEffect(() => {

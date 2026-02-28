@@ -1,5 +1,4 @@
 import { supabase } from '../supabase'
-import { getRoutineConfig } from './routineConfig'
 
 // Cache for video blocks to avoid redundant fetches
 let videoBlocksCache = null
@@ -74,42 +73,3 @@ export async function prefetchVideoBlocks() {
   await fetchVideoBlocks()
 }
 
-/**
- * Get blocks for a specific routine type and block count
- *
- * @param {number} blockCount - Number of blocks (2, 6, or 10)
- * @param {string} routineType - Routine type ('morning' or 'night')
- * @returns {Array} Array of media objects ready for the player
- */
-export async function getBlocksForRoutine(blockCount, routineType) {
-  // Get all blocks from database
-  const allBlocks = await fetchVideoBlocks()
-
-  // Get the canonical names for this routine type and block count
-  const canonicalNames = getRoutineConfig(routineType, blockCount)
-
-  if (!canonicalNames || canonicalNames.length === 0) {
-    console.error(`No blocks configured for ${routineType} routine with ${blockCount} blocks`)
-    return []
-  }
-
-  console.log(`Building queue for ${routineType} routine with ${blockCount} blocks:`, canonicalNames)
-
-  // Filter and order blocks based on the algorithm's canonical names
-  const selectedBlocks = canonicalNames
-    .map(canonicalName => {
-      const block = allBlocks.find(b => b.canonical_name === canonicalName)
-      if (!block) {
-        console.warn(`❌ Block not found for canonical_name: ${canonicalName}`)
-      } else {
-        console.log(`✓ Found block: ${block.name} (${canonicalName})`)
-      }
-      return block
-    })
-    .filter(block => block !== undefined) // Remove any missing blocks
-    .map(block => blockToMedia(block)) // Convert to media format
-
-  console.log(`Selected ${selectedBlocks.length} blocks for routine (requested ${blockCount})`)
-  console.log('Final queue:', selectedBlocks.map(b => b.name))
-  return selectedBlocks
-}

@@ -213,25 +213,25 @@ Currently called once per video block. With v1, only `somi_block` segments map t
 ## Implementation Order
 
 **Server**
-1. `server/lib/polyvagal.js` — `filterBlocksByState` only
-2. Rewrite `server/app/api/flows/generate/route.js` (move from `/routines/`) — includes shuffle-without-replacement selection, section assignment, segment assembly, canned explanation generation, and normalising Claude output to `warm_up` underscores when `use_ai: true`
-3. Remove season inference from `server/lib/claude.js`
-4. Delete `server/lib/routines.js`
+1. ✅ `server/lib/polyvagal.js` — `filterBlocksByState`, `selectBlocks`, `assignSections`, `generateExplanation`
+2. ✅ Rewrite `server/app/api/flows/generate/route.js` (move from `/routines/`) — includes shuffle-without-replacement selection, section assignment, segment assembly, canned explanation generation, and normalising Claude output to `warm_up` underscores when `use_ai: true`
+3. ✅ Remove season inference from `server/lib/claude.js`
+4. ✅ Delete `server/lib/routines.js`
 
 **Mobile**
-5. Update `mobile/services/api.js` — rename to `generateFlow`, new signature
-6. Update `mobile/components/DailyFlowSetup.js` — new params, `segments` response, hide body scan toggles below 8 min, remove `getAutoRoutineType` import, update `SECTION_LABELS` keys to underscores, add `use_ai` toggle to setup UI
-7. Update player to dispatch on `micro_integration` and `body_scan` segment types (body scan screen already exists)
-8. Update `chainService` — only save `somi_block` segments to `chain-entries`
-9. Delete `mobile/services/videoSelectionAlgorithm.js`
-10. Delete `mobile/services/routineConfig.js` (if only consumed by `getAutoRoutineType`)
+5. ✅ Update `mobile/services/api.js` — rename to `generateFlow`, new signature
+6. ✅ Update `mobile/components/DailyFlowSetup.js` — new params, `segments` response, hide body scan toggles below 8 min, remove `getAutoRoutineType` import, update `SECTION_LABELS` keys to underscores, add `use_ai` toggle to setup UI
+7. ✅ Update player to dispatch on `micro_integration` and `body_scan` segment types (body scan screen already exists) — player already handles interstitials and body scans via existing phase logic; queue shape is compatible
+8. ✅ Update `chainService` — only save `somi_block` segments to `chain-entries` — already correct; only somi_block data reaches saveBlockToSession/saveCompletedBlock
+9. ✅ Delete `mobile/services/videoSelectionAlgorithm.js`
+10. ✅ Delete `mobile/services/routineConfig.js` — also updated `RoutineQueuePreview.js`, `mediaService.js`, and `SoMiRoutineScreen.js` to remove dependencies
 
 **DB**
-11. Migration: `UPDATE somi_chain_entries SET section = 'warm_up' WHERE section = 'warm-up'`
+11. ✅ Migration: `UPDATE somi_chain_entries SET section = 'warm_up' WHERE section = 'warm-up'` — executed against production DB
 
 **Docs**
-12. Rename and update `docs/05_routine_engine.md` → `docs/05_flow_engine.md`
-13. Update `docs/03_architecture.md` — fix route table, remove `routines.js` from system map
+12. ✅ Rename and update `docs/05_routine_engine.md` → `docs/05_flow_engine.md`
+13. ✅ Update `docs/03_architecture.md` — fix route table, remove `routines.js` from system map
 
 ---
 

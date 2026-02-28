@@ -15,7 +15,7 @@ graph TD
     subgraph Server["Next.js API (Vercel)"]
         ROUTES[API Routes /api/*]
         AUTH_LIB[lib/auth.js]
-        ROUTINES_LIB[lib/routines.js]
+        POLYVAGAL_LIB[lib/polyvagal.js]
         CLAUDE_LIB[lib/claude.js]
     end
 
@@ -33,7 +33,7 @@ graph TD
     ROUTES --> AUTH_LIB
     AUTH_LIB -->|JWT verification| SUPABASE
     ROUTES -->|RLS-scoped queries| SUPABASE
-    ROUTES --> ROUTINES_LIB
+    ROUTES --> POLYVAGAL_LIB
     ROUTES --> CLAUDE_LIB
     CLAUDE_LIB -->|API call| ANTHROPIC
 ```
@@ -60,7 +60,7 @@ graph TD
 
 | Method | Path | Purpose |
 |--------|------|---------|
-| POST | `/api/routines/generate` | Generate routine (AI or hardcoded) |
+| POST | `/api/flows/generate` | Generate flow (algorithmic default, AI opt-in) |
 | GET | `/api/blocks?canonical_names=` | Fetch blocks by canonical name |
 | GET | `/api/chains?limit=` | List user's chains |
 | GET | `/api/chains/latest?flow_type=` | Latest chain (optionally filtered) |
@@ -87,7 +87,7 @@ SoMi/
 ├── mobile/          # Expo React Native app
 │   ├── app/         # File-based routes (Expo Router)
 │   ├── components/  # Screen components
-│   ├── services/    # API client, chain service, media, routine config, video algorithm
+│   ├── services/    # API client, chain service, media
 │   ├── stores/      # Zustand state stores
 │   ├── constants/   # Polyvagal states, theme, media re-exports
 │   ├── contexts/    # Legacy context providers (replaced by stores)
@@ -95,7 +95,7 @@ SoMi/
 │   └── utils/       # SoundManager
 ├── server/          # Next.js API backend
 │   ├── app/api/     # API route handlers
-│   └── lib/         # Auth, Supabase client, Claude AI, hardcoded routines
+│   └── lib/         # Auth, Supabase client, Claude AI, polyvagal block filtering
 ├── docs/            # This documentation
 └── backlog/         # Backlog.md task management
 ```

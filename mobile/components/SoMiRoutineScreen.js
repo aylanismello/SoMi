@@ -10,8 +10,6 @@ import { useFocusEffect, useNavigation } from '@react-navigation/native'
 import { router } from 'expo-router'
 import { chainService } from '../services/chainService'
 import { api } from '../services/api'
-import { selectRoutineVideo } from '../services/videoSelectionAlgorithm'
-import { getBlocksForRoutine } from '../services/mediaService'
 import { soundManager } from '../utils/SoundManager'
 import { colors } from '../constants/theme'
 import { useSettingsStore } from '../stores/settingsStore'
@@ -383,11 +381,12 @@ export default function SoMiRoutineScreen() {
     try {
       setIsLoadingVideos(true)
 
-      // Use queue from store (already set by RoutineQueuePreview or quick routine)
-      let queue = hardcodedQueue
+      // Use queue from store (set by DailyFlowSetup or quick routine)
+      const queue = hardcodedQueue
       if (!queue || queue.length === 0) {
-        queue = await getBlocksForRoutine(totalBlocks, routineType)
-        setQueue(queue)
+        console.warn('No queue in store — cannot load videos')
+        setIsLoadingVideos(false)
+        return
       }
 
       // Get the canonical names from the queue to fetch block details
@@ -879,12 +878,10 @@ export default function SoMiRoutineScreen() {
         console.log(nextVideo ? `✅ FOUND: ${nextVideo.name}` : `❌ NOT FOUND - will use fallback!`)
       }
 
-      // Fallback to algorithm if hardcoded queue is empty or incomplete
-      if (!nextVideo) {
-        console.warn(`⚠️⚠️⚠️ FALLBACK ALGORITHM TRIGGERED! This explains random behavior!`)
-        const stateTarget = STATE_CODE_TO_TARGET[savedInitialState] || 'settling'
-        nextVideo = selectRoutineVideo(videoQueue, stateTarget, currentVideo?.id)
-        console.log(`🎲 Algorithm selected random block:`, nextVideo?.name)
+      // Fallback: pick random from videoQueue if queue is somehow incomplete
+      if (!nextVideo && videoQueue.length > 0) {
+        console.warn('Queue incomplete — picking random block from pool')
+        nextVideo = videoQueue[Math.floor(Math.random() * videoQueue.length)]
       }
 
       setCurrentVideo(nextVideo)
@@ -989,12 +986,10 @@ export default function SoMiRoutineScreen() {
         console.log(nextVideo ? `✅ FOUND: ${nextVideo.name}` : `❌ NOT FOUND - will use fallback!`)
       }
 
-      // Fallback to algorithm if hardcoded queue is empty or incomplete
-      if (!nextVideo) {
-        console.warn(`⚠️⚠️⚠️ FALLBACK ALGORITHM TRIGGERED! This explains random behavior!`)
-        const stateTarget = STATE_CODE_TO_TARGET[savedInitialState] || 'settling'
-        nextVideo = selectRoutineVideo(videoQueue, stateTarget, currentVideo?.id)
-        console.log(`🎲 Algorithm selected random block:`, nextVideo?.name)
+      // Fallback: pick random from videoQueue if queue is somehow incomplete
+      if (!nextVideo && videoQueue.length > 0) {
+        console.warn('Queue incomplete — picking random block from pool')
+        nextVideo = videoQueue[Math.floor(Math.random() * videoQueue.length)]
       }
 
       setCurrentVideo(nextVideo)

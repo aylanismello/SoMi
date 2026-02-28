@@ -2,34 +2,6 @@ import Anthropic from '@anthropic-ai/sdk'
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 
-/**
- * Derive the current season from the user's IANA timezone string.
- * Uses the actual local date in their timezone so 11 PM on Dec 31 in
- * Tokyo is "winter" even if the server is in UTC+0 mid-afternoon.
- *
- * Hemisphere note: this currently assumes the northern hemisphere.
- * Southern-hemisphere users (Australia, NZ, Argentina, South Africa…)
- * will get the wrong season. A future improvement would detect the
- * hemisphere from the timezone name or an explicit "hemisphere" param
- * and flip the season accordingly.
- */
-function getSeason(timezone) {
-  try {
-    const localDate = new Date(new Date().toLocaleString('en-US', { timeZone: timezone }))
-    const month = localDate.getMonth() + 1 // 1–12
-    if (month >= 3 && month <= 5) return 'spring'
-    if (month >= 6 && month <= 8) return 'summer'
-    if (month >= 9 && month <= 11) return 'autumn'
-    return 'winter'
-  } catch {
-    // Invalid timezone — fall back to UTC-based guess
-    const month = new Date().getUTCMonth() + 1
-    if (month >= 3 && month <= 5) return 'spring'
-    if (month >= 6 && month <= 8) return 'summer'
-    if (month >= 9 && month <= 11) return 'autumn'
-    return 'winter'
-  }
-}
 
 // ─── WEATHER (future enhancement) ────────────────────────────────────────────
 // Weather context would make routines significantly more grounded in the user's
@@ -97,8 +69,6 @@ Use time of day as a soft background signal — the nervous system state and int
 - **Evening (17–22)**: Lean toward settling. Avoid highly activating main blocks; close with grounding.
 - **Late night (23–4)**: Keep everything gentle and integrative. Prioritise self_hug, brain_hold, eye_covering.
 
-Season is provided as light background context — let it inform subtly but don't let it override state or time cues.
-
 ## Output Format
 Respond ONLY with valid JSON matching this exact schema. No extra text, no markdown fences:
 {
@@ -131,7 +101,7 @@ Only use canonical_name values from the provided available blocks list. Never in
  * @param {string[]} params.availableBlocks - Array of canonical_name strings available in DB
  * @returns {Promise<{sections: Array<{name: string, blocks: Array<{canonical_name: string}>}>}>}
  */
-export async function generateAIRoutine({ polyvagalState, intensity, durationMinutes, availableBlocks, blockCount: explicitBlockCount, localHour, timezone }) {
+export async function generateAIRoutine({ polyvagalState, intensity, durationMinutes, availableBlocks, blockCount: explicitBlockCount, localHour }) {
   // Use client-computed count if provided (accounts for body scan time); fallback to 1 block/min
   const blockCount = explicitBlockCount ?? Math.round(durationMinutes)
 
@@ -149,9 +119,7 @@ export async function generateAIRoutine({ polyvagalState, intensity, durationMin
       })()
     : null
 
-  const season = timezone ? getSeason(timezone) : null
-
-  const userPrompt = `Design a ${durationMinutes}-minute somatic routine for someone who feels: ${polyvagalState} at intensity ${intensity}/100.${timeOfDayStr ? ` It is currently ${timeOfDayStr} for this person.` : ''}${season ? ` The season is ${season}.` : ''}
+  const userPrompt = `Design a ${durationMinutes}-minute somatic routine for someone who feels: ${polyvagalState} at intensity ${intensity}/100.${timeOfDayStr ? ` It is currently ${timeOfDayStr} for this person.` : ''}
 
 Available blocks (use only these canonical names — repetition is allowed):
 ${availableBlocks.join(', ')}

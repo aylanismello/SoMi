@@ -17,7 +17,7 @@ All flows verified from navigation code in `mobile/app/_layout.js` and component
 2. **DailyFlowSetup**
    - User drags 2D StateXYPicker (energy 0-100, safety 0-100)
    - User picks duration (1-60 min, default 10)
-   - App calls `POST /api/routines/generate` with state + duration
+   - App calls `POST /api/flows/generate` with state + duration
    - Block queue preview displayed (body scan bookends if enabled in settings)
    - Tap "Start Flow" → navigate to `SoMiCheckIn` (opening)
 3. **SoMiCheckIn (opening)**

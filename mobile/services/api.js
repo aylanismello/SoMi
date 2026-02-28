@@ -67,13 +67,11 @@ async function apiRequest(endpoint, options = {}) {
 }
 
 export const api = {
-  // Routine generation
-  // Pass optional { polyvagalState, intensity, durationMinutes } for AI-generated routines
-  generateRoutine: async (routineType, blockCount, aiParams = null) => {
-    const body = { routineType, blockCount, ...aiParams }
-    return apiRequest('/routines/generate', {
+  // Flow generation (v1)
+  generateFlow: async ({ polyvagal_state, duration_minutes, body_scan_start = false, body_scan_end = false, use_ai = false }) => {
+    return apiRequest('/flows/generate', {
       method: 'POST',
-      body: JSON.stringify(body),
+      body: JSON.stringify({ polyvagal_state, duration_minutes, body_scan_start, body_scan_end, use_ai }),
     })
   },
 
