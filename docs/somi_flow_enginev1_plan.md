@@ -221,7 +221,7 @@ Currently called once per video block. With v1, only `somi_block` segments map t
 **Mobile**
 5. ✅ Update `mobile/services/api.js` — rename to `generateFlow`, new signature
 6. ✅ Update `mobile/components/DailyFlowSetup.js` — new params, `segments` response, hide body scan toggles below 8 min, remove `getAutoRoutineType` import, update `SECTION_LABELS` keys to underscores, add `use_ai` toggle to setup UI
-7. ✅ Update player to dispatch on `micro_integration` and `body_scan` segment types (body scan screen already exists) — player already handles interstitials and body scans via existing phase logic; queue shape is compatible
+7. ✅ Rewrite player as segment-driven orchestrator — `SoMiRoutineScreen.js` walks `segments[segmentIndex]`, dispatches `micro_integration` → `FlowIntegration.js`, `somi_block` → `FlowVideoPlayer.js`, `body_scan` → `BodyScanCountdown` screen. `routineStore.js` gains `segments[]`, `segmentIndex`, `advanceSegment()`
 8. ✅ Update `chainService` — only save `somi_block` segments to `chain-entries` — already correct; only somi_block data reaches saveBlockToSession/saveCompletedBlock
 9. ✅ Delete `mobile/services/videoSelectionAlgorithm.js`
 10. ✅ Delete `mobile/services/routineConfig.js` — also updated `RoutineQueuePreview.js`, `mediaService.js`, and `SoMiRoutineScreen.js` to remove dependencies

@@ -105,7 +105,7 @@ export default function BodyScanCountdown() {
     const elapsedMs = Date.now() - startTimeRef.current
     const elapsedSeconds = Math.round(elapsedMs / 1000)
     const BODY_SCAN_BLOCK_ID = 20
-    const section = isInitial ? 'warm-up' : 'integration'
+    const section = isInitial ? 'warm_up' : 'integration'
     await chainService.saveCompletedBlock(BODY_SCAN_BLOCK_ID, elapsedSeconds, isInitial ? 0 : finalOrderIndex, null, flowType, section)
 
     if (skipToRoutine) {

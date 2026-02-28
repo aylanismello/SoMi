@@ -5,13 +5,20 @@ import { create } from 'zustand'
  * Replaces scattered useState and navigation params in SoMiRoutineScreen
  */
 export const useRoutineStore = create((set, get) => ({
-  // Session state
+  // ── Segment-driven state (v1 flow engine) ─────────────────────────────────
+  // The segments array is THE source of truth for playback order.
+  // Each segment has { type, section, duration_seconds, ...extras }.
+  // The player walks segmentIndex forward; segment type dispatches rendering.
+  segments: [],
+  segmentIndex: 0,
+
+  // ── Legacy session state (still used by player internals) ─────────────────
   currentCycle: 1,
   totalBlocks: 6,
-  phase: 'interstitial', // 'video' | 'interstitial' - always starts at interstitial
+  phase: 'interstitial', // 'video' | 'interstitial' - derived from segment type
   remainingSeconds: 0, // live countdown updated every second by SoMiRoutineScreen
 
-  // Queue management
+  // Queue management — hardcodedQueue holds somi_block segments only (for plan view, edit modal, chain entries)
   hardcodedQueue: [],
   currentVideo: null,
   selectedVideoId: null,
@@ -27,11 +34,24 @@ export const useRoutineStore = create((set, get) => ({
   isQuickRoutine: false,
   flowType: 'daily_flow', // 'daily_flow' | 'quick_routine' | 'single_block'
 
-  // Actions
+  // ── Computed helpers ──────────────────────────────────────────────────────
+  currentSegment: () => {
+    const { segments, segmentIndex } = get()
+    return segments[segmentIndex] ?? null
+  },
+
+  // ── Actions ───────────────────────────────────────────────────────────────
   setRemainingSeconds: (s) => set({ remainingSeconds: s }),
   setCurrentCycle: (cycle) => set({ currentCycle: cycle }),
 
   setPhase: (phase) => set({ phase }),
+
+  setSegments: (segments) => set({ segments }),
+  setSegmentIndex: (idx) => set({ segmentIndex: idx }),
+
+  advanceSegment: () => set((state) => ({
+    segmentIndex: state.segmentIndex + 1,
+  })),
 
   setQueue: (queue) => set({ hardcodedQueue: queue }),
 
@@ -54,8 +74,9 @@ export const useRoutineStore = create((set, get) => ({
     savedInitialValue,
     savedInitialState,
     customQueue = null,
+    segments = null,
     isQuickRoutine = false,
-    flowType = null, // Optional: let caller specify, otherwise infer from isQuickRoutine
+    flowType = null,
   }) => set({
     totalBlocks,
     routineType,
@@ -66,8 +87,10 @@ export const useRoutineStore = create((set, get) => ({
     isQuickRoutine,
     flowType: flowType || (isQuickRoutine ? 'quick_routine' : 'daily_flow'),
     currentCycle: 1,
-    phase: 'interstitial', // Always start at interstitial
+    phase: 'interstitial',
     hardcodedQueue: customQueue || [],
+    segments: segments || [],
+    segmentIndex: 0,
     currentVideo: null,
     selectedVideoId: null,
     remainingSeconds: totalBlocks * 80,
@@ -80,8 +103,10 @@ export const useRoutineStore = create((set, get) => ({
   resetRoutine: () => set({
     currentCycle: 1,
     totalBlocks: 6,
-    phase: 'interstitial', // Reset to interstitial
+    phase: 'interstitial',
     hardcodedQueue: [],
+    segments: [],
+    segmentIndex: 0,
     currentVideo: null,
     selectedVideoId: null,
     savedInitialEnergy: null,

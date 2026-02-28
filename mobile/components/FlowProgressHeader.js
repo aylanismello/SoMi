@@ -4,7 +4,6 @@ import { BlurView } from 'expo-blur'
 import * as Haptics from 'expo-haptics'
 import { colors } from '../constants/theme'
 import { useRoutineStore } from '../stores/routineStore'
-import { useSettingsStore } from '../stores/settingsStore'
 import { deriveStateFromDeltas } from '../constants/polyvagalStates'
 
 // Polyvagal state emojis for the queue display (new 2D model)
@@ -17,7 +16,7 @@ const STATE_EMOJIS = {
 }
 
 const SECTION_LABELS = {
-  'warm-up': 'WARM UP',
+  'warm_up': 'WARM UP',
   'main': 'MAIN',
   'integration': 'INTEGRATION',
 }
@@ -31,9 +30,13 @@ export default function FlowProgressHeader() {
   const currentCycle = useRoutineStore(state => state.currentCycle)
   const totalBlocks = useRoutineStore(state => state.totalBlocks)
   const hardcodedQueue = useRoutineStore(state => state.hardcodedQueue)
+  const segments = useRoutineStore(state => state.segments)
   const phase = useRoutineStore(state => state.phase)
   const remainingSeconds = useRoutineStore(state => state.remainingSeconds)
-  const { bodyScanStart, bodyScanEnd } = useSettingsStore()
+
+  // Derive body scan presence from segments array (source of truth)
+  const bodyScanStart = segments.length > 0 && segments[0]?.type === 'body_scan'
+  const bodyScanEnd = segments.length > 0 && segments[segments.length - 1]?.type === 'body_scan' && segments[segments.length - 1]?.section === 'integration'
   const [showPlanSheet, setShowPlanSheet] = useState(false)
 
   // Progress: blocks completed / total

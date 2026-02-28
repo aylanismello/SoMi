@@ -1,6 +1,6 @@
-# SoMi Flow Engine v1 — Design Discussion
+# SoMi Flow Engine v1 — Design & Implementation
 
-This is a working design document, not a description of current code. It captures the proposed simplified algorithm to replace the current AI-first routine engine.
+This document describes the flow engine as implemented. It covers the algorithm, the API contract, and how the client consumes the segments array.
 
 ---
 
@@ -286,9 +286,53 @@ The frontend reads `type` to know what to render and `section` to know where to 
 
 ---
 
+## Client Architecture — Segments as Source of Truth
+
+The `segments` array returned by `POST /api/flows/generate` is **the single source of truth** for playback order. The client is a dumb player that walks the array sequentially.
+
+### Store (`routineStore.js`)
+
+```
+segments: []        // full ordered array from server
+segmentIndex: 0     // current position in segments
+```
+
+`advanceSegment()` increments `segmentIndex`. The current segment's `type` determines what renders.
+
+### Player Components
+
+`SoMiRoutineScreen.js` is a thin orchestrator that reads `segments[segmentIndex]` and dispatches:
+
+| Segment type | Renders | Component |
+|---|---|---|
+| `micro_integration` | 20s interstitial (ocean bg, breathing prompts, preview card) | `FlowIntegration.js` |
+| `somi_block` | 60s video playback (muted video, controls, progress) | `FlowVideoPlayer.js` |
+| `body_scan` | Navigates to `BodyScanCountdown` screen | existing screen |
+
+The orchestrator creates all video player instances (main, ocean, preview) at the top level and passes them as props. Shared UI (exit modal, settings modal) lives in the orchestrator.
+
+### Flow of Control
+
+1. `DailyFlowSetup` calls `initializeRoutine({ segments, ... })` and sets `segmentIndex`
+2. If `segments[0].type === 'body_scan'`, DailyFlowSetup advances `segmentIndex` to 1 and navigates to `BodyScanCountdown`
+3. `BodyScanCountdown` completes → navigates to `SoMiRoutine`
+4. `SoMiRoutine` reads `segments[segmentIndex]`:
+   - `micro_integration` → `FlowIntegration` renders, countdown runs, then `advanceSegment()` moves to the next `somi_block`
+   - `somi_block` → `FlowVideoPlayer` renders, video plays, then on completion calls `advanceToNextSegment()`
+5. `advanceToNextSegment()` checks what's next:
+   - Another `micro_integration` → advance and render interstitial
+   - A `body_scan` → navigate to `BodyScanCountdown` (end of flow)
+   - End of array → navigate to `SoMiCheckIn` (closing)
+
+### Key Principle
+
+If a `micro_integration` segment is removed from the server response, **no interstitial plays**. If a `body_scan` segment is removed, **no body scan plays**. The client never inserts, infers, or hardcodes any segment — it only walks what the server returned.
+
+---
+
 ## State → Block Selection
 
-Inherits existing polyvagal state filter logic from `videoSelectionAlgorithm.js`:
+Implemented in `server/lib/polyvagal.js`:
 
 | State | Filter |
 |-------|--------|
@@ -308,25 +352,21 @@ Falls back to unfiltered pool if no blocks match the filter.
 
 **Backend.** Integration segments are included in the server-returned `segments` array as first-class items. The client never inserts or infers them. See Step 4 and the example above.
 
-### Q2: AI as optional override, not default
+### Q2: AI as optional override, not default — RESOLVED
 
-Current behavior: AI path is the default when `polyvagalState` is provided (which is always).
-
-Proposed: flip the default. The deterministic algorithm runs first. AI is an opt-in override that can be toggled from the front end (e.g. a switch in the flow setup screen or a per-request flag in the API payload).
-
-This decouples reliability from AI availability and makes the core product testable without Claude.
+**Implemented.** Deterministic algorithm is the default. AI is opt-in via `use_ai: true` in the request body. The server wraps Claude's output into the same `segments` shape using the same assembly logic.
 
 ### Q3: Body scan bookends — RESOLVED
 
-**Folded into the server queue.** `body_scan_start` and `body_scan_end` are inputs to `POST /api/routines/generate`. The backend conditionally prepends/appends `body_scan` segments and accounts for their duration in `actual_duration_seconds`. The client no longer manages body scan logic or timing.
+**Folded into the server queue.** `body_scan_start` and `body_scan_end` are inputs to `POST /api/flows/generate`. The backend conditionally prepends/appends `body_scan` segments and accounts for their duration in `actual_duration_seconds`. The client no longer manages body scan logic or timing.
 
 ### Q4: Duration UX — RESOLVED
 
 Show the budget on the picker ("how much time do you have?"). Show `actual_duration_seconds` after assembly. No approximation needed — the displayed time is always exact. The budget framing makes the slight undershoot feel correct rather than broken.
 
-### Q5: Block selection — random vs. ordered
+### Q5: Block selection — shuffle-without-replacement — RESOLVED
 
-Within the state-filtered pool, is selection random (current behavior in `videoSelectionAlgorithm.js`) or ordered/curated? For v1, random is fine. Curation can come later.
+**Implemented.** `server/lib/polyvagal.js` uses Fisher-Yates shuffle of the filtered pool, walking sequentially and reshuffling when exhausted. Adjacent repeats are swapped. This maximises variety within any session.
 
 ---
 
@@ -341,4 +381,22 @@ Within the state-filtered pool, is selection random (current behavior in `videoS
 | Hardcoded fallback (morning/night fixed sequences) | Same deterministic path for all inputs |
 | Duration input treated as a target | Duration input treated as a budget (ceiling) |
 
-The AI path is not removed — it becomes an optional override callable from the front end via a flag in the existing `POST /api/routines/generate` payload.
+The AI path is not removed — it becomes an optional override via `use_ai: true` in the `POST /api/flows/generate` payload.
+
+---
+
+## File Map
+
+| File | Role |
+|------|------|
+| `server/lib/polyvagal.js` | Block filtering, selection (shuffle-without-replacement), section assignment, explanation generation |
+| `server/app/api/flows/generate/route.js` | Endpoint: algorithmic path (default) + AI path (opt-in), segment assembly |
+| `server/lib/claude.js` | AI routine generation via Claude Haiku (opt-in) |
+| `mobile/services/api.js` | `generateFlow()` — calls the endpoint |
+| `mobile/components/DailyFlowSetup.js` | Setup screen: state picker, duration, calls API, passes segments to store |
+| `mobile/stores/routineStore.js` | `segments[]`, `segmentIndex`, `advanceSegment()` — source of truth |
+| `mobile/components/SoMiRoutineScreen.js` | Orchestrator: walks segments, dispatches to FlowIntegration / FlowVideoPlayer / BodyScanCountdown |
+| `mobile/components/FlowIntegration.js` | Renders `micro_integration` segments (20s interstitial) |
+| `mobile/components/FlowVideoPlayer.js` | Renders `somi_block` segments (60s video) |
+| `mobile/components/BodyScanCountdown.js` | Renders `body_scan` segments (60s countdown) |
+| `mobile/components/FlowProgressHeader.js` | Progress bar + plan view, derives body scan presence from segments |

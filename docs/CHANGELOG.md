@@ -1,5 +1,19 @@
 # Changelog
 
+## 2026-02-27 — Segments as source of truth (Flow Engine v1 cont.)
+
+The `segments` array from the server now drives the player end-to-end. Key changes:
+
+- `routineStore.js`: added `segments[]`, `segmentIndex`, `advanceSegment()`, `setSegmentIndex()`
+- `SoMiRoutineScreen.js`: rewritten as thin orchestrator — walks `segments[segmentIndex]`, dispatches by type
+- New `FlowIntegration.js`: renders `micro_integration` segments (20s interstitial, ocean bg, preview card)
+- New `FlowVideoPlayer.js`: renders `somi_block` segments (60s video playback)
+- `body_scan` segments trigger navigation to `BodyScanCountdown` screen
+- `DailyFlowSetup.js`: passes full segments array to `initializeRoutine()`
+- `FlowProgressHeader.js`: derives body scan presence from segments (no longer reads settingsStore)
+- `BodyScanCountdown.js`: fixed section label `'warm-up'` → `'warm_up'`
+- Updated `docs/somi_flow_enginev1.md` with client architecture section and file map
+
 ## 2026-02-27 — Flow Engine v1
 
 Complete rewrite of the routine generation system. Key changes:

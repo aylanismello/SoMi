@@ -374,10 +374,13 @@ export default function DailyFlowSetup() {
       savedInitialValue:   0,
       savedInitialState:   derivedState.name,
       customQueue:         previewQueue || null,
+      segments:            segments,
       isQuickRoutine:      false,
       flowType:            'daily_flow',
     })
     if (hasBodyScanStart) {
+      // Skip past the body_scan segment so SoMiRoutine starts at micro_integration
+      useRoutineStore.getState().setSegmentIndex(1)
       navigation.replace('BodyScanCountdown', { isInitial: true, skipToRoutine: true })
     } else {
       navigation.replace('SoMiRoutine')
