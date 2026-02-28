@@ -70,3 +70,124 @@ Referenced in `chainService.js` and `routineStore.js` as `flowType: 'quick_routi
 - **SoMiTimer**: registered in navigation stack but entry point from UI is not obvious [INFERRED]
 - **Streak count** on CompletionScreen: shows "TODO" placeholder [VERIFIED — comment in CompletionScreen.js]
 - **Customization modal** on Home: toggles for music, SFX, body scan start/end [VERIFIED]
+
+---
+
+## Navigation Diagrams
+
+Each node shows the screen name, filenames, and key UI elements.
+
+### 1. Auth Flow
+
+```mermaid
+flowchart TD
+    INDEX["index.js<br/>─────────────────────<br/>auth state check on launch"]
+
+    WELCOME["WelcomeScreen<br/>welcome.js · WelcomeScreen.js<br/>─────────────────────<br/>ocean video background<br/>Sign in with Apple btn<br/>email sign-in link · Create Account link"]
+
+    SIGNIN["SignInModal<br/>SignInModal.js<br/>─────────────────────<br/>email + password fields<br/>submit btn"]
+
+    CREATE["CreateAccountScreen<br/>create-account.js · CreateAccountScreen.js<br/>─────────────────────<br/>email + password fields<br/>register btn"]
+
+    HOME["HomeScreen<br/>Home.js · HomeScreen.js"]
+
+    INDEX -->|"authenticated"| HOME
+    INDEX -->|"unauthenticated"| WELCOME
+    WELCOME -->|"Sign in with Apple"| HOME
+    WELCOME -->|"tap email sign-in"| SIGNIN
+    SIGNIN -->|"auth success"| HOME
+    WELCOME -->|"tap Create Account"| CREATE
+    CREATE -->|"register success"| HOME
+```
+
+---
+
+### 2. Main Tabs
+
+```mermaid
+flowchart LR
+    TABBAR["Tab Bar"]
+
+    HOME["HomeScreen<br/>Home.js · HomeScreen.js<br/>─────────────────────<br/>greeting · weekly streak<br/>Flow button<br/>music / settings access"]
+
+    EXPLORE["ExploreScreen<br/>Explore.js · ExploreScreen.js<br/>─────────────────────<br/>search bar<br/>category pills<br/>featured carousel<br/>daily flows 5 / 10 / 15 min"]
+
+    PROFILE["MySomiScreen<br/>Profile.js · MySomiScreen.js<br/>─────────────────────<br/>calendar streak view<br/>check-in history<br/>stats: blocks · minutes<br/>chain deletion"]
+
+    TABBAR --> HOME & EXPLORE & PROFILE
+```
+
+---
+
+### 3. Daily Flow Journey
+
+```mermaid
+flowchart TD
+    HOME["HomeScreen<br/>Home.js · HomeScreen.js<br/>─────────────────────<br/>Flow button"]
+
+    SETUP["DailyFlowSetup<br/>DailyFlowSetup.js<br/>─────────────────────<br/>StateXYPicker: energy + safety<br/>duration picker 1–60 min<br/>block queue preview<br/>Start Flow btn"]
+
+    CHECKIN_OPEN["SoMiCheckIn — opening<br/>SoMiCheckIn.js<br/>─────────────────────<br/>StateXYPicker confirmation<br/>energy + safety"]
+
+    BODYSCAN_INIT["BodyScanCountdown — initial<br/>BodyScanCountdown.js<br/>─────────────────────<br/>1 min countdown · ocean bg<br/>flow music starts here"]
+
+    ROUTINE["SoMiRoutine<br/>SoMiRoutine.js · SoMiRoutineScreen.js<br/>─────────────────────<br/>video phase: VideoView blocks<br/>interstitial: 20s integration msg<br/>pause · skip · infinity mode<br/>queue editing"]
+
+    BODYSCAN_FINAL["BodyScanCountdown — final<br/>BodyScanCountdown.js<br/>─────────────────────<br/>1 min countdown<br/>integration section"]
+
+    CHECKIN_CLOSE["SoMiCheckIn — closing<br/>SoMiCheckIn.js<br/>─────────────────────<br/>energy + safety<br/>somatic experience tags<br/>journal entry<br/>submit → saves chain to server"]
+
+    COMPLETION["CompletionScreen<br/>CompletionScreen.js<br/>─────────────────────<br/>celebration animation<br/>session stats: mins · blocks · delta<br/>Continue btn"]
+
+    HOME -->|"tap Flow"| SETUP
+    SETUP -->|"tap Start Flow"| CHECKIN_OPEN
+    CHECKIN_OPEN -->|"bodyScanStart ON"| BODYSCAN_INIT
+    CHECKIN_OPEN -->|"bodyScanStart OFF"| ROUTINE
+    BODYSCAN_INIT --> ROUTINE
+    ROUTINE -->|"done + bodyScanEnd ON"| BODYSCAN_FINAL
+    ROUTINE -->|"done + bodyScanEnd OFF"| CHECKIN_CLOSE
+    BODYSCAN_FINAL --> CHECKIN_CLOSE
+    CHECKIN_CLOSE -->|"submit"| COMPLETION
+    COMPLETION -->|"Continue"| HOME
+```
+
+---
+
+### 4. Explore Sub-Navigation
+
+```mermaid
+flowchart TD
+    EXPLORE["ExploreScreen<br/>Explore.js · ExploreScreen.js<br/>─────────────────────<br/>search bar · category pills<br/>featured practices carousel<br/>daily flows section"]
+
+    CATEGORY["CategoryDetailScreen<br/>CategoryDetail.js · CategoryDetailScreen.js<br/>─────────────────────<br/>practice list for category<br/>play buttons"]
+
+    PLAYER["PlayerScreen<br/>Player.js · PlayerScreen.js<br/>─────────────────────<br/>standalone video player<br/>PlayerControls.js"]
+
+    ROUTINE["SoMiRoutine — quick flow<br/>SoMiRoutine.js · SoMiRoutineScreen.js"]
+
+    EXPLORE -->|"tap category pill"| CATEGORY
+    EXPLORE -->|"tap practice play"| PLAYER
+    EXPLORE -->|"tap daily flow"| ROUTINE
+    CATEGORY -->|"tap practice"| PLAYER
+```
+
+---
+
+### 5. Home Modals & Settings
+
+```mermaid
+flowchart TD
+    HOME["HomeScreen<br/>Home.js · HomeScreen.js"]
+
+    CUSTOM["CustomizationModal<br/>CustomizationModal.js<br/>─────────────────────<br/>music toggle<br/>SFX toggle<br/>body scan start / end toggles"]
+
+    SETTINGS["AccountSettingsScreen<br/>AccountSettings.js · AccountSettingsScreen.js<br/>─────────────────────<br/>account management"]
+
+    SETUP["DailyFlowSetup<br/>DailyFlowSetup.js"]
+
+    QUEUE["RoutineQueuePreview<br/>RoutineQueuePreview.js<br/>─────────────────────<br/>view + swap blocks before start"]
+
+    HOME -->|"settings icon"| CUSTOM
+    HOME -->|"account"| SETTINGS
+    SETUP -->|"tap queue preview"| QUEUE
+```
