@@ -219,6 +219,10 @@ export default function CompletionScreen() {
 
   const stats = getStats()
   const streak = streakData?.current_streak ?? 0
+  const STREAK_THRESHOLD = 300
+  const totalPlaySeconds = latestChain?.duration_seconds
+    ?? (latestChain?.somi_chain_entries || []).reduce((sum, e) => sum + (e.seconds_elapsed || 0), 0)
+  const isQuickSession = totalPlaySeconds < STREAK_THRESHOLD
 
   const handleContinue = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium)
@@ -317,8 +321,12 @@ export default function CompletionScreen() {
 
         {/* Title */}
         <Animated.View style={[styles.titleContainer, { opacity: titleFade }]}>
-          <Text style={styles.mainTitle}>Incredible!</Text>
-          <Text style={styles.subtitle}>You completed your Daily Flow</Text>
+          <Text style={styles.mainTitle}>{isQuickSession ? 'That was quick ⚡' : 'Incredible!'}</Text>
+          <Text style={styles.subtitle}>
+            {isQuickSession
+              ? "Won't count toward your streak — you need 5 minutes."
+              : 'You completed your Daily Flow'}
+          </Text>
         </Animated.View>
 
         {/* Stats reveal */}
