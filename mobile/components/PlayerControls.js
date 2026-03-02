@@ -1,9 +1,10 @@
-import { useRef, useEffect } from 'react'
+import { useRef, useEffect, useState } from 'react'
 import { StyleSheet, View, Text, Animated, Pressable, TouchableOpacity } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
 import * as Haptics from 'expo-haptics'
 import { LinearGradient } from 'expo-linear-gradient'
 import { GlassView } from 'expo-glass-effect'
+import MusicPickerModal from './MusicPickerModal'
 
 /**
  * Combined transport bar + skip bar for all three player screens:
@@ -36,6 +37,7 @@ export default function PlayerControls({
   timeDisplay,
 }) {
   const opacity = useRef(new Animated.Value(0)).current
+  const [showMusicModal, setShowMusicModal] = useState(false)
 
   useEffect(() => {
     Animated.timing(opacity, {
@@ -67,13 +69,16 @@ export default function PlayerControls({
     >
       {/* ── Transport row ── */}
       <View style={styles.transportRow}>
-        {/* Left: haptic feedback */}
+        {/* Left: music picker */}
         <TouchableOpacity
           style={styles.sideBtn}
-          onPress={() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium)}
+          onPress={() => {
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
+            setShowMusicModal(true)
+          }}
           activeOpacity={0.75}
         >
-          <Ionicons name="phone-portrait-outline" size={20} color="rgba(255,255,255,0.75)" />
+          <Ionicons name="musical-notes" size={20} color="rgba(255,255,255,0.75)" />
         </TouchableOpacity>
 
         {/* Center controls */}
@@ -105,6 +110,8 @@ export default function PlayerControls({
           <Text style={styles.timeText}>{timeDisplay}</Text>
         </View>
       ) : null}
+
+      <MusicPickerModal visible={showMusicModal} onClose={() => setShowMusicModal(false)} />
 
       {/* ── Skip bar ── */}
       <Pressable onPress={onSkip} style={styles.skipPressable}>
