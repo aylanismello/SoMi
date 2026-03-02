@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect, useMemo, useCallback } from 'react'
 import { useFocusEffect, useNavigation } from '@react-navigation/native'
 import { router } from 'expo-router'
-import { StyleSheet, View, Text, Image, TouchableOpacity, ScrollView, ActivityIndicator, Animated, PanResponder, Modal } from 'react-native'
+import { StyleSheet, View, Text, Image, TouchableOpacity, ScrollView, ActivityIndicator, Animated, PanResponder, Modal, Switch } from 'react-native'
 import { LinearGradient } from 'expo-linear-gradient'
 import { BlurView } from 'expo-blur'
 import { Ionicons } from '@expo/vector-icons'
@@ -189,11 +189,13 @@ export default function DailyFlowSetup() {
   const [showPlanSheet, setShowPlanSheet]           = useState(false)
   const [showPolyvagalInfo, setShowPolyvagalInfo]   = useState(false)
 
+  const [useAi, setUseAi]               = useState(false)
   const [actualDuration, setActualDuration] = useState(null)
   const fullSegmentsRef = useRef(null)
 
   const energyRef  = useRef(50)
   const safetyRef  = useRef(50)
+  const useAiRef            = useRef(false)
   const hasInitializedRef      = useRef(false)
   const isReadyForInputRef     = useRef(false)
 
@@ -294,7 +296,7 @@ export default function DailyFlowSetup() {
         duration_minutes: durationMinutes,
         body_scan_start:  effectiveScanStart,
         body_scan_end:    effectiveScanEnd,
-        use_ai: false,
+        use_ai: useAiRef.current,
       })
       if (result.segments && result.segments.length > 0) {
         setActualDuration(result.actual_duration_seconds)
@@ -320,6 +322,8 @@ export default function DailyFlowSetup() {
       setSafetyLevel(50)
       energyRef.current = 50
       safetyRef.current = 50
+      setUseAi(false)
+      useAiRef.current = false
       setScrollEnabled(true)
       setReasoning(null)
       setBodyScanStart(true)
@@ -395,6 +399,14 @@ export default function DailyFlowSetup() {
     doGeneratePreview(selectedMinutes, energyLevel, safetyLevel, false, bodyScanStart, newVal)
   }, [bodyScanStart, bodyScanEnd, selectedMinutes, energyLevel, safetyLevel, isGenerating, doGeneratePreview])
 
+  const handleToggleAi = useCallback((newVal) => {
+    useAiRef.current = newVal
+    setUseAi(newVal)
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium)
+    if (!isReadyForInputRef.current || isGenerating) return
+    doGeneratePreview(selectedMinutes, energyLevel, safetyLevel, false)
+  }, [doGeneratePreview, selectedMinutes, energyLevel, safetyLevel, isGenerating])
+
   return (
     <View style={styles.container}>
       {/* Water background */}
@@ -458,6 +470,24 @@ export default function DailyFlowSetup() {
             onSafetyChange={(v) => { safetyRef.current = v; setSafetyLevel(v) }}
             onDragStart={() => setScrollEnabled(false)}
             onDragEnd={handlePickerDragEnd}
+          />
+        </View>
+
+        {/* AI toggle */}
+        <View style={[styles.aiToggleRow, useAi && styles.aiToggleRowActive]}>
+          <View style={styles.aiToggleLeft}>
+            <Ionicons name="sparkles" size={17} color={useAi ? '#fff' : 'rgba(255,255,255,0.38)'} />
+            <View>
+              <Text style={[styles.aiToggleLabel, useAi && styles.aiToggleLabelActive]}>AI-assisted</Text>
+              <Text style={styles.aiToggleSub}>{useAi ? 'Claude curates your flow' : 'Algorithm selects blocks'}</Text>
+            </View>
+          </View>
+          <Switch
+            value={useAi}
+            onValueChange={handleToggleAi}
+            trackColor={{ false: 'rgba(255,255,255,0.15)', true: colors.accent.primary }}
+            thumbColor="#fff"
+            ios_backgroundColor="rgba(255,255,255,0.15)"
           />
         </View>
 
@@ -703,6 +733,44 @@ const styles = StyleSheet.create({
     borderWidth: 1, borderColor: 'rgba(255,255,255,0.12)',
   },
   durationPillText: { color: '#fff', fontSize: 15, fontWeight: '600', letterSpacing: 0.2 },
+
+  // ── AI Toggle ────────────────────────────────────────────────────────────────
+  aiToggleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 14,
+    paddingHorizontal: 18,
+    borderRadius: 18,
+    backgroundColor: 'rgba(255,255,255,0.07)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.1)',
+    marginBottom: 8,
+  },
+  aiToggleRowActive: {
+    backgroundColor: 'rgba(255,107,107,0.07)',
+    borderColor: 'rgba(255,107,107,0.22)',
+  },
+  aiToggleLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  aiToggleLabel: {
+    color: 'rgba(255,255,255,0.45)',
+    fontSize: 15,
+    fontWeight: '600',
+    letterSpacing: 0.1,
+  },
+  aiToggleLabelActive: {
+    color: '#fff',
+  },
+  aiToggleSub: {
+    color: 'rgba(255,255,255,0.28)',
+    fontSize: 12,
+    fontWeight: '400',
+    marginTop: 1,
+  },
 
   // ── Reasoning Sheet ─────────────────────────────────────────────────────────
   reasoningOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' },
