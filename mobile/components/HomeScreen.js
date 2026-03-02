@@ -26,23 +26,23 @@ function WeekDay({ label, percentage, isToday, isFuture }) {
     <View style={styles.dayItem}>
       <View style={{ width: SIZE, height: SIZE, alignItems: 'center', justifyContent: 'center' }}>
         <Svg width={SIZE} height={SIZE} style={StyleSheet.absoluteFillObject}>
-          {/* Track ring — brighter for today */}
+          {/* Background circle — white fill for today, empty for others */}
           <Circle
             cx={SIZE / 2}
             cy={SIZE / 2}
             r={RADIUS}
-            stroke={isToday ? 'rgba(255,255,255,0.35)' : 'rgba(255,255,255,0.12)'}
+            stroke="rgba(255,255,255,0.12)"
             strokeWidth={2}
-            fill="none"
+            fill={isToday ? 'rgba(255,255,255,0.92)' : 'none'}
           />
-          {/* Progress arc — white for today, red for past */}
+          {/* Progress arc on top — accent color, shown for all days with progress */}
           {percentage > 0 && (
             <Circle
               cx={SIZE / 2}
               cy={SIZE / 2}
               r={RADIUS}
-              stroke={isToday ? 'rgba(255,255,255,0.95)' : colors.accent.primary}
-              strokeWidth={2.5}
+              stroke={colors.accent.primary}
+              strokeWidth={3}
               fill="none"
               strokeDasharray={`${progressLength} ${CIRCUMFERENCE}`}
               strokeLinecap="round"
@@ -239,7 +239,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   dayLabelToday: {
-    color: '#ffffff',
+    color: '#111111',
     fontWeight: '700',
   },
   dayLabelFuture: {
