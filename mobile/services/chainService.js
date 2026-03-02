@@ -5,6 +5,7 @@ import { api } from './api'
 const ACTIVE_CHAIN_KEY = 'active_somi_chain_id'
 const SESSION_CHECKS_KEY = 'session_embodiment_checks'
 const SESSION_BLOCKS_KEY = 'session_completed_blocks'
+const SESSION_EXTRA_SECONDS_KEY = 'session_extra_play_seconds'
 
 export const chainService = {
   // Session storage for checks and blocks (before chain creation)
@@ -63,10 +64,31 @@ export const chainService = {
     }
   },
 
+  async addExtraPlaySeconds(seconds) {
+    try {
+      const existing = await AsyncStorage.getItem(SESSION_EXTRA_SECONDS_KEY)
+      const current = existing ? parseInt(existing, 10) : 0
+      await AsyncStorage.setItem(SESSION_EXTRA_SECONDS_KEY, String(current + seconds))
+    } catch (error) {
+      console.error('Error adding extra play seconds:', error)
+    }
+  },
+
+  async getExtraPlaySeconds() {
+    try {
+      const existing = await AsyncStorage.getItem(SESSION_EXTRA_SECONDS_KEY)
+      return existing ? parseInt(existing, 10) : 0
+    } catch (error) {
+      console.error('Error getting extra play seconds:', error)
+      return 0
+    }
+  },
+
   async clearSessionData() {
     try {
       await AsyncStorage.removeItem(SESSION_CHECKS_KEY)
       await AsyncStorage.removeItem(SESSION_BLOCKS_KEY)
+      await AsyncStorage.removeItem(SESSION_EXTRA_SECONDS_KEY)
       console.log('🧹 Cleared session data')
     } catch (error) {
       console.error('Error clearing session data:', error)
@@ -80,11 +102,17 @@ export const chainService = {
 
       // Get all session data
       const { checks, blocks } = await this.getSessionData()
+      const extraPlaySeconds = await this.getExtraPlaySeconds()
 
       if (checks.length === 0) {
         console.error('❌ No checks in session, cannot create chain')
         return null
       }
+
+      // Compute total actual play time: somi blocks + body scans + interstitials
+      const blockPlaySeconds = blocks.reduce((sum, b) => sum + (b.secondsElapsed || 0), 0)
+      const totalPlaySeconds = blockPlaySeconds + extraPlaySeconds
+      console.log(`⏱️ Total play time: ${totalPlaySeconds}s (blocks: ${blockPlaySeconds}s, interstitials: ${extraPlaySeconds}s)`)
 
       // Create the chain
       const { chain } = await api.createChain(flowType)
@@ -113,6 +141,13 @@ export const chainService = {
           block.section || null
         )
         console.log(`  ✅ Uploaded block ${block.somiBlockId}`)
+      }
+
+      // Set duration_seconds to the client-computed actual play time
+      // This overrides the server-side entry sum and includes interstitial/body-scan time
+      if (totalPlaySeconds > 0) {
+        await api.updateChainDuration(chainId, totalPlaySeconds)
+        console.log(`  ✅ Set duration_seconds = ${totalPlaySeconds}s`)
       }
 
       // Clear session data

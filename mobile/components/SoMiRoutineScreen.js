@@ -71,6 +71,10 @@ export default function SoMiRoutineScreen() {
   const infinityModeRef = useRef(false)
   const countdownRef = useRef(interstitialDuration)
   const countdownIntervalRef = useRef(null)
+  // Track actual interstitial play time (wall clock minus pauses)
+  const interstitialStartMsRef = useRef(null)
+  const interstitialPausedMsRef = useRef(0)
+  const interstitialPauseStartMsRef = useRef(null)
   const interstitialProgressAnim = useRef(new Animated.Value(0)).current
   const oceanOpacity = useRef(new Animated.Value(0)).current
   const messageOpacity = useRef(new Animated.Value(1)).current
@@ -368,6 +372,10 @@ export default function SoMiRoutineScreen() {
     if (phase === 'interstitial' && !wasPausedRef.current) {
       const duration = segment?.duration_seconds ?? 20
       setCountdown(duration)
+      // Start interstitial play-time clock
+      interstitialStartMsRef.current = Date.now()
+      interstitialPausedMsRef.current = 0
+      interstitialPauseStartMsRef.current = null
 
       countdownIntervalRef.current = setInterval(() => {
         setCountdown(prev => {
@@ -441,6 +449,15 @@ export default function SoMiRoutineScreen() {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium)
     setInfinityMode(false)
     infinityModeRef.current = false
+
+    // Record actual interstitial play time (wall clock minus pauses) for streak accounting
+    if (interstitialStartMsRef.current != null && flowType === 'daily_flow') {
+      const wallMs = Date.now() - interstitialStartMsRef.current
+      const playedMs = wallMs - interstitialPausedMsRef.current
+      const playedSeconds = Math.max(0, Math.round(playedMs / 1000))
+      chainService.addExtraPlaySeconds(playedSeconds)
+      interstitialStartMsRef.current = null
+    }
 
     // Advance from micro_integration to the next segment (should be somi_block)
     advanceSegment()
@@ -517,14 +534,11 @@ export default function SoMiRoutineScreen() {
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success)
     soundManager.playBlockEnd().catch(err => console.error('Failed to play end sound:', err))
 
-    // Save the completed block
+    // Save the completed block using actual player position (not wall clock)
     if (currentVideo && !hasSavedCurrentBlockRef.current) {
       hasSavedCurrentBlockRef.current = true
       const cap = segment?.duration_seconds ?? 60
-      const elapsedSeconds = Math.min(
-        Math.round((Date.now() - startTimeRef.current) / 1000),
-        cap
-      )
+      const elapsedSeconds = Math.min(Math.round(player.currentTime || cap), cap)
       saveChainEntryMutation.mutate({
         somiBlockId: currentVideo.id,
         secondsElapsed: elapsedSeconds,
@@ -542,14 +556,11 @@ export default function SoMiRoutineScreen() {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium)
     soundManager.playBlockEnd().catch(err => console.error('Failed to play end sound:', err))
 
-    // Save current video progress
-    if (currentVideo && startTimeRef.current && !hasSavedCurrentBlockRef.current) {
+    // Save current video progress using actual player position (not wall clock)
+    if (currentVideo && !hasSavedCurrentBlockRef.current) {
       hasSavedCurrentBlockRef.current = true
       const cap = segment?.duration_seconds ?? 60
-      const elapsedSeconds = Math.min(
-        Math.round((Date.now() - startTimeRef.current) / 1000),
-        cap
-      )
+      const elapsedSeconds = Math.min(Math.round(player.currentTime || 0), cap)
       saveChainEntryMutation.mutate({
         somiBlockId: currentVideo.id,
         secondsElapsed: elapsedSeconds,
@@ -587,6 +598,8 @@ export default function SoMiRoutineScreen() {
       pauseFlowMusic()
       wasPausedRef.current = true
       pausedCountdownRef.current = countdown
+      // Track when pause started so we can subtract it from play time
+      interstitialPauseStartMsRef.current = Date.now()
       if (countdownIntervalRef.current) {
         clearInterval(countdownIntervalRef.current)
         countdownIntervalRef.current = null
@@ -596,6 +609,11 @@ export default function SoMiRoutineScreen() {
       setInterstitialPaused(false)
       resumeFlowMusic()
       wasPausedRef.current = false
+      // Accumulate pause duration
+      if (interstitialPauseStartMsRef.current != null) {
+        interstitialPausedMsRef.current += Date.now() - interstitialPauseStartMsRef.current
+        interstitialPauseStartMsRef.current = null
+      }
       const elapsedTime = segDuration - countdown
       const remainingTime = countdown * 1000
       const initialProgress = elapsedTime / segDuration

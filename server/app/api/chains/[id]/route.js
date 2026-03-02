@@ -1,6 +1,39 @@
 import { NextResponse } from 'next/server'
 import { getAuthenticatedUser, unauthorizedResponse } from '../../../../lib/auth'
 
+export async function PATCH(request, { params }) {
+  const { supabase, user, error: authError } = await getAuthenticatedUser(request)
+  if (authError) return unauthorizedResponse(authError)
+
+  try {
+    const { id } = await params
+    const { duration_seconds } = await request.json()
+
+    if (!id) {
+      return NextResponse.json({ error: 'Chain ID is required' }, { status: 400 })
+    }
+
+    if (duration_seconds == null || typeof duration_seconds !== 'number') {
+      return NextResponse.json({ error: 'duration_seconds is required' }, { status: 400 })
+    }
+
+    const { error } = await supabase
+      .from('somi_chains')
+      .update({ duration_seconds })
+      .eq('id', id)
+
+    if (error) {
+      console.error('Error updating chain duration:', error)
+      return NextResponse.json({ error: 'Failed to update chain' }, { status: 500 })
+    }
+
+    return NextResponse.json({ success: true })
+  } catch (error) {
+    console.error('Error in patch chain endpoint:', error)
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+  }
+}
+
 export async function DELETE(request, { params }) {
   const { supabase, user, error: authError } = await getAuthenticatedUser(request)
   if (authError) return unauthorizedResponse(authError)

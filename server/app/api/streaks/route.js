@@ -36,7 +36,7 @@ export async function GET(request) {
     // Fetch all chains with their entries (RLS scopes to this user)
     const { data: chains, error: dbError } = await supabase
       .from('somi_chains')
-      .select('id, created_at, somi_chain_entries(seconds_elapsed)')
+      .select('id, created_at, duration_seconds, somi_chain_entries(seconds_elapsed)')
 
     if (dbError) {
       console.error('Error fetching chains for streaks:', dbError)
@@ -44,11 +44,14 @@ export async function GET(request) {
     }
 
     // Group total seconds by local calendar date
+    // Prefer client-computed duration_seconds (includes interstitials + actual play time)
+    // Fall back to summing chain entries for older chains / quick routines
     const daySeconds = {}
     for (const chain of (chains || [])) {
       const localDate = toLocalDateStr(chain.created_at, tz)
-      const secs = (chain.somi_chain_entries || [])
-        .reduce((sum, e) => sum + (e.seconds_elapsed || 0), 0)
+      const secs = chain.duration_seconds != null
+        ? chain.duration_seconds
+        : (chain.somi_chain_entries || []).reduce((sum, e) => sum + (e.seconds_elapsed || 0), 0)
       daySeconds[localDate] = (daySeconds[localDate] || 0) + secs
     }
 

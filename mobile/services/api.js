@@ -92,6 +92,13 @@ export const api = {
     })
   },
 
+  updateChainDuration: async (chainId, durationSeconds) => {
+    return apiRequest(`/chains/${chainId}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ duration_seconds: durationSeconds }),
+    })
+  },
+
   // Embodiment checks
   saveEmbodimentCheck: async (chainId, energyLevel, safetyLevel, journalEntry = null, tags = null) => {
     return apiRequest('/embodiment-checks', {
