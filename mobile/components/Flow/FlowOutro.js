@@ -138,23 +138,13 @@ export default function SoMiCheckIn() {
     setShowExitModal(false)
   }
 
+  const currentStateObj = deriveState(energyLevel, safetyLevel)
+
   return (
     <LinearGradient
       colors={[colors.background.primary, colors.background.secondary, colors.background.primary]}
       style={styles.container}
     >
-      {/* Header Bar */}
-      <View style={styles.headerBar}>
-        <View style={{ width: 44 }} />
-        <TouchableOpacity
-          onPress={handleClosePress}
-          style={styles.headerCloseButton}
-          activeOpacity={0.7}
-        >
-          <Text style={styles.headerCloseText}>✕</Text>
-        </TouchableOpacity>
-      </View>
-
       <ScrollView
         style={styles.contentContainer}
         contentContainerStyle={styles.cardContent}
@@ -184,16 +174,15 @@ export default function SoMiCheckIn() {
           <Text style={styles.questionText}>how do you feel{'\n'}right now?</Text>
         </View>
 
-        {/* Before ghost: initial check-in reference */}
+        {/* Before → After state reference */}
         {initialStateObj && (
           <View style={styles.beforeRow}>
-            <Text style={styles.beforeLabel}>you started</Text>
-            <View style={styles.beforePill}>
-              <Text style={styles.beforeIcon}>{initialStateObj.icon}</Text>
-              <Text style={styles.beforeState}>{initialStateObj.label}</Text>
-              <Text style={styles.beforeDot}>·</Text>
-              <Text style={styles.beforeIntensity}>{intensityWord(initialIntensity)}</Text>
-            </View>
+            <Text style={styles.beforeLabel}>You Started</Text>
+            <Text style={styles.beforeIcon}>{initialStateObj.icon}</Text>
+            <Text style={styles.beforeState}>{initialStateObj.label}</Text>
+            <Text style={styles.beforeArrow}>→</Text>
+            <Text style={styles.beforeIcon}>{currentStateObj.icon}</Text>
+            <Text style={styles.beforeStateCurrent}>{currentStateObj.label}</Text>
           </View>
         )}
 
@@ -212,7 +201,11 @@ export default function SoMiCheckIn() {
         {/* Somatic experience tags */}
         <View style={styles.tagsSection}>
           <Text style={styles.tagsLabel}>did you experience any of these?</Text>
-          <View style={styles.tagsWrap}>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.tagsScrollContent}
+          >
             {PRESET_TAGS.map(tag => {
               const active = selectedTags.has(tag)
               return (
@@ -226,7 +219,7 @@ export default function SoMiCheckIn() {
                 </TouchableOpacity>
               )
             })}
-          </View>
+          </ScrollView>
         </View>
       </ScrollView>
 
@@ -373,42 +366,18 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingTop: 60,
   },
-  headerBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingVertical: 16,
-    paddingHorizontal: 20,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border.subtle,
-  },
-  headerCloseButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: colors.surface.tertiary,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: colors.border.default,
-  },
-  headerCloseText: {
-    color: colors.text.primary,
-    fontSize: 24,
-    fontWeight: '300',
-  },
   contentContainer: {
     flex: 1,
   },
   cardContent: {
     paddingHorizontal: 20,
-    paddingTop: 20,
+    paddingTop: 12,
     paddingBottom: 120,
   },
   questionSection: {
     position: 'relative',
     paddingTop: 8,
-    marginBottom: 24,
+    marginBottom: 16,
   },
   closingCheckInLabel: {
     color: colors.accent.primary,
@@ -425,7 +394,7 @@ const styles = StyleSheet.create({
     letterSpacing: 0.3,
   },
   pickerSection: {
-    marginBottom: 32,
+    marginBottom: 20,
   },
   tagsSection: {
     marginBottom: 16,
@@ -438,10 +407,10 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
     marginBottom: 14,
   },
-  tagsWrap: {
+  tagsScrollContent: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
     gap: 8,
+    paddingRight: 20,
   },
   tag: {
     flexDirection: 'row',
@@ -486,42 +455,33 @@ const styles = StyleSheet.create({
   beforeRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
-    marginBottom: 20,
-    opacity: 0.42,
+    gap: 6,
+    marginBottom: 16,
+    opacity: 0.65,
   },
   beforeLabel: {
     color: colors.text.muted,
-    fontSize: 10,
-    fontWeight: '700',
-    letterSpacing: 1.2,
+    fontSize: 11,
+    fontWeight: '600',
+    letterSpacing: 0.8,
     textTransform: 'uppercase',
   },
-  beforePill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 5,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    backgroundColor: 'rgba(255,255,255,0.07)',
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.12)',
-  },
-  beforeIcon: { fontSize: 12 },
+  beforeIcon: { fontSize: 13 },
   beforeState: {
     color: colors.text.secondary,
-    fontSize: 12,
+    fontSize: 13,
     fontWeight: '600',
   },
-  beforeDot: {
-    color: 'rgba(255,255,255,0.3)',
-    fontSize: 12,
+  beforeArrow: {
+    color: 'rgba(255,255,255,0.35)',
+    fontSize: 14,
+    fontWeight: '300',
+    marginHorizontal: 2,
   },
-  beforeIntensity: {
-    color: colors.text.muted,
-    fontSize: 11,
-    fontWeight: '400',
+  beforeStateCurrent: {
+    color: colors.text.primary,
+    fontSize: 13,
+    fontWeight: '700',
   },
   stickyBottom: {
     position: 'absolute',

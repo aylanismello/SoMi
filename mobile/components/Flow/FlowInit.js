@@ -475,7 +475,7 @@ export default function DailyFlowSetup() {
             <Ionicons name="sparkles" size={17} color={useAi ? '#fff' : 'rgba(255,255,255,0.38)'} />
             <View>
               <Text style={[styles.aiToggleLabel, useAi && styles.aiToggleLabelActive]}>AI-assisted</Text>
-              <Text style={styles.aiToggleSub}>{useAi ? 'SoMi curates your flow' : 'Algorithm selects blocks'}</Text>
+              <Text style={styles.aiToggleSub}>SoMi curates your flow</Text>
             </View>
           </View>
           <Switch
@@ -735,8 +735,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingVertical: 14,
-    paddingHorizontal: 18,
+    paddingVertical: 11,
+    paddingHorizontal: 16,
     borderRadius: 18,
     backgroundColor: 'rgba(255,255,255,0.07)',
     borderWidth: 1,
