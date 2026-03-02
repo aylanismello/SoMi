@@ -90,7 +90,6 @@ export default function CustomizationModal({ visible, onClose }) {
               />
             </View>
 
-            {/* Divider */}
             <View style={styles.divider} />
 
             {/* Section pickers */}
