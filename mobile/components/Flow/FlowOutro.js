@@ -1,8 +1,9 @@
 import React, { useState, useRef } from 'react'
 import { useNavigation } from '@react-navigation/native'
 import { router } from 'expo-router'
-import { StyleSheet, Text, View, TouchableOpacity, Modal, TextInput, Keyboard, KeyboardAvoidingView, Platform, TouchableWithoutFeedback, ScrollView, ActivityIndicator } from 'react-native'
+import { StyleSheet, Text, View, Image, TouchableOpacity, Modal, TextInput, Keyboard, KeyboardAvoidingView, Platform, TouchableWithoutFeedback, ScrollView, ActivityIndicator } from 'react-native'
 import { LinearGradient } from 'expo-linear-gradient'
+import { BlurView } from 'expo-blur'
 import * as Haptics from 'expo-haptics'
 import Svg, { Path } from 'react-native-svg'
 import StateXYPicker, { intensityWord } from '../StateXYPicker'
@@ -24,7 +25,6 @@ export default function SoMiCheckIn() {
   const navigation = useNavigation()
   const [energyLevel, setEnergyLevel] = useState(50)
   const [safetyLevel, setSafetyLevel] = useState(50)
-  const [scrollEnabled, setScrollEnabled] = useState(true)
 
   const [showExitModal, setShowExitModal] = useState(false)
 
@@ -141,16 +141,23 @@ export default function SoMiCheckIn() {
   const currentStateObj = deriveState(energyLevel, safetyLevel)
 
   return (
-    <LinearGradient
-      colors={[colors.background.primary, colors.background.secondary, colors.background.primary]}
-      style={styles.container}
-    >
-      <ScrollView
+    <View style={styles.container}>
+      {/* Water background */}
+      <Image
+        source={{ uri: 'https://qujifwhwntqxziymqdwu.supabase.co/storage/v1/object/public/test/home%20screen%20backgrounds/water_1.jpg' }}
+        style={StyleSheet.absoluteFillObject}
+        resizeMode="cover"
+      />
+      {/* Gaussian-style blur to soften image detail */}
+      <BlurView intensity={28} tint="dark" style={StyleSheet.absoluteFillObject} />
+      {/* Dark lens gradient overlay */}
+      <LinearGradient
+        colors={['rgba(0,0,0,0.40)', 'rgba(0,0,0,0.58)', 'rgba(0,0,0,0.82)']}
+        style={StyleSheet.absoluteFillObject}
+      />
+
+      <View
         style={styles.contentContainer}
-        contentContainerStyle={styles.cardContent}
-        showsVerticalScrollIndicator={false}
-        keyboardShouldPersistTaps="handled"
-        scrollEnabled={scrollEnabled}
       >
         {/* Question */}
         <View style={styles.questionSection}>
@@ -193,8 +200,6 @@ export default function SoMiCheckIn() {
             onEnergyChange={setEnergyLevel}
             safetyLevel={safetyLevel}
             onSafetyChange={setSafetyLevel}
-            onDragStart={() => setScrollEnabled(false)}
-            onDragEnd={() => setScrollEnabled(true)}
           />
         </View>
 
@@ -221,7 +226,7 @@ export default function SoMiCheckIn() {
             })}
           </ScrollView>
         </View>
-      </ScrollView>
+      </View>
 
       {/* Sticky Bottom: Complete Flow */}
       <View style={styles.stickyBottom}>
@@ -357,17 +362,19 @@ export default function SoMiCheckIn() {
           </TouchableOpacity>
         </TouchableOpacity>
       </Modal>
-    </LinearGradient>
+    </View>
   )
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    paddingTop: 60,
   },
   contentContainer: {
     flex: 1,
+    paddingTop: 60,
+    paddingHorizontal: 20,
+    paddingBottom: 120,
   },
   cardContent: {
     paddingHorizontal: 20,
@@ -491,7 +498,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingBottom: 40,
     paddingTop: 16,
-    backgroundColor: colors.background.primary + 'F0',
+    backgroundColor: 'rgba(0,0,0,0.45)',
   },
   completeButton: {
     height: 68,

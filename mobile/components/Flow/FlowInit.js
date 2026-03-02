@@ -412,9 +412,11 @@ export default function DailyFlowSetup() {
         style={StyleSheet.absoluteFillObject}
         resizeMode="cover"
       />
+      {/* Gaussian-style blur to soften image detail */}
+      <BlurView intensity={28} tint="dark" style={StyleSheet.absoluteFillObject} />
       {/* Dark lens gradient overlay */}
       <LinearGradient
-        colors={['rgba(0,0,0,0.48)', 'rgba(0,0,0,0.64)', 'rgba(0,0,0,0.86)']}
+        colors={['rgba(0,0,0,0.40)', 'rgba(0,0,0,0.58)', 'rgba(0,0,0,0.82)']}
         style={StyleSheet.absoluteFillObject}
       />
 

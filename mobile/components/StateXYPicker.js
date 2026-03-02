@@ -100,6 +100,11 @@ export default function StateXYPicker({
 
   return (
     <View style={{ width: '100%' }}>
+      {/* Readout: displayed above the picker box */}
+      <View style={styles.readout} pointerEvents="none">
+        <Text style={{ fontSize: 13 }}>{curState.icon}</Text>
+        <Text style={styles.readoutState}>{curState.label}</Text>
+      </View>
       <View
         {...panResponder.panHandlers}
         onLayout={(e) => {
@@ -211,12 +216,6 @@ export default function StateXYPicker({
           style={[styles.cursor, { left: curLeft, top: curTop }]}
         />
       </View>
-
-      {/* Readout: displayed below the picker box */}
-      <View style={styles.readout} pointerEvents="none">
-        <Text style={{ fontSize: 13 }}>{curState.icon}</Text>
-        <Text style={styles.readoutState}>{curState.label}</Text>
-      </View>
     </View>
   )
 }
@@ -267,7 +266,7 @@ const styles = StyleSheet.create({
     shadowRadius: 14,
   },
   readout: {
-    marginTop: 10,
+    marginBottom: 10,
     flexDirection: 'row',
     alignItems: 'center',
     alignSelf: 'center',
