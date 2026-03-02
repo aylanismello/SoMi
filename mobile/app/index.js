@@ -1,19 +1,25 @@
-import { Redirect } from 'expo-router'
+import { useRouter } from 'expo-router'
+import { useEffect } from 'react'
 import { View, ActivityIndicator } from 'react-native'
 import { useAuthStore } from '../stores/authStore'
 
 export default function Index() {
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated)
   const isLoading = useAuthStore((state) => state.isLoading)
+  const router = useRouter()
 
-  if (isLoading) {
-    return (
-      <View style={{ flex: 1, backgroundColor: '#000', alignItems: 'center', justifyContent: 'center' }}>
-        <ActivityIndicator color="#fff" />
-      </View>
-    )
-  }
+  useEffect(() => {
+    if (isLoading) return
+    if (isAuthenticated) {
+      router.replace('/(tabs)/Home')
+    } else {
+      router.replace('/(auth)/welcome')
+    }
+  }, [isAuthenticated, isLoading])
 
-  if (isAuthenticated) return <Redirect href="/(tabs)/Home" />
-  return <Redirect href="/(auth)/welcome" />
+  return (
+    <View style={{ flex: 1, backgroundColor: '#000', alignItems: 'center', justifyContent: 'center' }}>
+      <ActivityIndicator color="#fff" />
+    </View>
+  )
 }
