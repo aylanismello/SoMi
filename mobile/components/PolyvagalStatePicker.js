@@ -27,7 +27,7 @@ const QUAD_LABELS = [
 ]
 
 // ─── 2D Energy × Safety Picker ────────────────────────────────────────────────
-export default function StateXYPicker({
+export default function PolyvagalStatePicker({
   energyLevel,
   safetyLevel,
   onEnergyChange,
@@ -83,7 +83,7 @@ export default function StateXYPicker({
       onPanResponderMove: apply,
       onPanResponderRelease: () => {
         onDragEndRef.current?.()
-        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium)
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success)
       },
       onPanResponderTerminate: () => {
         onDragEndRef.current?.()

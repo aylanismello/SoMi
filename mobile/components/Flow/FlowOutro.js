@@ -6,7 +6,7 @@ import { LinearGradient } from 'expo-linear-gradient'
 import { BlurView } from 'expo-blur'
 import * as Haptics from 'expo-haptics'
 import Svg, { Path } from 'react-native-svg'
-import StateXYPicker, { intensityWord } from '../StateXYPicker'
+import PolyvagalStatePicker from '../PolyvagalStatePicker'
 import { deriveState, deriveIntensity, getPolyvagalExplanation } from '../../constants/polyvagalStates'
 import { chainService } from '../../services/chainService'
 import { colors } from '../../constants/theme'
@@ -217,7 +217,7 @@ export default function SoMiCheckIn() {
 
         {/* State × Intensity picker */}
         <View style={styles.pickerSection}>
-          <StateXYPicker
+          <PolyvagalStatePicker
             energyLevel={energyLevel}
             onEnergyChange={setEnergyLevel}
             safetyLevel={safetyLevel}

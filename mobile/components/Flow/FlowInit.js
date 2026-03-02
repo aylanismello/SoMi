@@ -10,7 +10,7 @@ import { colors } from '../../constants/theme'
 import { useSettingsStore } from '../../stores/settingsStore'
 import { useRoutineStore } from '../../stores/routineStore'
 import { chainService } from '../../services/chainService'
-import StateXYPicker from '../StateXYPicker'
+import PolyvagalStatePicker from '../PolyvagalStatePicker'
 import CustomizationModal from '../CustomizationModal'
 import MusicPickerModal from '../MusicPickerModal'
 import FlowPlanSheet from '../FlowPlanSheet'
@@ -477,7 +477,7 @@ export default function DailyFlowSetup() {
               </View>
             )
           })()}
-          <StateXYPicker
+          <PolyvagalStatePicker
             energyLevel={energyLevel}
             onEnergyChange={(v) => { energyRef.current = v; setEnergyLevel(v) }}
             safetyLevel={safetyLevel}
