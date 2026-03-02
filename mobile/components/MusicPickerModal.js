@@ -95,14 +95,24 @@ export default function MusicPickerModal({ visible, onClose }) {
                     onPress={() => handleSelect(track.id)}
                     activeOpacity={0.7}
                   >
-                    {/* Disc / artwork area */}
-                    <View style={[styles.disc, track.color && { backgroundColor: track.color }]}>
-                      {track.id === 'none' ? (
+                    {/* Disc / play button area */}
+                    {track.url ? (
+                      <TouchableOpacity
+                        style={[styles.disc, track.color && { backgroundColor: track.color }, isPreviewing && styles.discPlaying]}
+                        onPress={() => handlePreview(track)}
+                        hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+                      >
+                        <Ionicons
+                          name={isPreviewing ? 'stop' : 'play'}
+                          size={18}
+                          color="rgba(255,255,255,0.85)"
+                        />
+                      </TouchableOpacity>
+                    ) : (
+                      <View style={[styles.disc, track.color && { backgroundColor: track.color }]}>
                         <Text style={styles.discOff}>—</Text>
-                      ) : (
-                        <Ionicons name="musical-notes" size={18} color="rgba(255,255,255,0.7)" />
-                      )}
-                    </View>
+                      </View>
+                    )}
 
                     {/* Track info */}
                     <View style={styles.trackInfo}>
@@ -114,30 +124,14 @@ export default function MusicPickerModal({ visible, onClose }) {
                       )}
                     </View>
 
-                    {/* Right side: preview button + checkmark */}
-                    <View style={styles.rightControls}>
-                      {track.url && (
-                        <TouchableOpacity
-                          style={styles.previewBtn}
-                          onPress={() => handlePreview(track)}
-                          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                        >
-                          <Ionicons
-                            name={isPreviewing ? 'stop-circle' : 'play-circle'}
-                            size={26}
-                            color={isPreviewing ? colors.accent.primary : 'rgba(255,255,255,0.35)'}
-                          />
-                        </TouchableOpacity>
-                      )}
-                      {isSelected && (
-                        <Ionicons
-                          name="checkmark"
-                          size={18}
-                          color={colors.accent.primary}
-                          style={styles.checkmark}
-                        />
-                      )}
-                    </View>
+                    {/* Right side: checkmark only */}
+                    {isSelected && (
+                      <Ionicons
+                        name="checkmark"
+                        size={18}
+                        color={colors.accent.primary}
+                      />
+                    )}
                   </TouchableOpacity>
 
                   {!isLast && <View style={styles.separator} />}
@@ -202,6 +196,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  discPlaying: {
+    borderWidth: 2,
+    borderColor: colors.accent.primary,
+  },
   discOff: {
     color: 'rgba(255,255,255,0.3)',
     fontSize: 18,
@@ -226,17 +224,6 @@ const styles = StyleSheet.create({
     color: 'rgba(255,255,255,0.38)',
     fontSize: 13,
     fontWeight: '400',
-  },
-  rightControls: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  previewBtn: {
-    padding: 2,
-  },
-  checkmark: {
-    // no extra margin needed — gap handles spacing
   },
   separator: {
     height: 1,
