@@ -1,14 +1,21 @@
 import { NativeTabs, Icon } from 'expo-router/unstable-native-tabs'
-import { Redirect } from 'expo-router'
+import { useRouter } from 'expo-router'
+import { useEffect } from 'react'
 import { useAuthStore } from '../../stores/authStore'
 
 export default function TabsLayout() {
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated)
   const isLoading = useAuthStore((state) => state.isLoading)
   const userId = useAuthStore((state) => state.user?.id)
+  const router = useRouter()
 
-  if (isLoading) return null
-  if (!isAuthenticated) return <Redirect href="/(auth)/welcome" />
+  useEffect(() => {
+    if (!isLoading && !isAuthenticated) {
+      router.replace('/(auth)/welcome')
+    }
+  }, [isAuthenticated, isLoading])
+
+  if (isLoading || !isAuthenticated) return null
 
   return (
     <NativeTabs key={userId}>
