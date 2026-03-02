@@ -43,16 +43,15 @@ export async function GET(request) {
       return NextResponse.json({ error: 'Failed to fetch streak data' }, { status: 500 })
     }
 
-    // Group total seconds by local calendar date
-    // Prefer client-computed duration_seconds (includes interstitials + actual play time)
-    // Fall back to summing chain entries for older chains / quick routines
+    // Track the best (longest) single session per calendar day.
+    // Only chains with an explicit duration_seconds count — old chains without it are ignored.
     const daySeconds = {}
     for (const chain of (chains || [])) {
+      if (chain.duration_seconds == null) continue
       const localDate = toLocalDateStr(chain.created_at, tz)
-      const secs = chain.duration_seconds != null
-        ? chain.duration_seconds
-        : (chain.somi_chain_entries || []).reduce((sum, e) => sum + (e.seconds_elapsed || 0), 0)
-      daySeconds[localDate] = (daySeconds[localDate] || 0) + secs
+      if (chain.duration_seconds > (daySeconds[localDate] || 0)) {
+        daySeconds[localDate] = chain.duration_seconds
+      }
     }
 
     const todayStr = toLocalDateStr(Date.now(), tz)
