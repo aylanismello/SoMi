@@ -90,11 +90,12 @@ export async function GET(request) {
       }
     }
 
-    // week[]: Sunday–Saturday of the current week
+    // week[]: Monday–Sunday of the current week
     const todayDate = new Date(todayStr + 'T00:00:00Z')
-    const dayOfWeek = todayDate.getUTCDay()
-    const weekStartStr = addDays(todayStr, -dayOfWeek)
-    const DAY_LETTERS = ['S', 'M', 'T', 'W', 'T', 'F', 'S']
+    const dayOfWeek = todayDate.getUTCDay() // 0=Sun,1=Mon,...,6=Sat
+    const daysFromMonday = (dayOfWeek + 6) % 7 // Mon=0,Tue=1,...,Sun=6
+    const weekStartStr = addDays(todayStr, -daysFromMonday)
+    const DAY_LETTERS = ['M', 'T', 'W', 'T', 'F', 'S', 'S']
     const week = Array.from({ length: 7 }, (_, i) => {
       const dateStr = addDays(weekStartStr, i)
       return {

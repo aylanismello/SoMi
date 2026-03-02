@@ -14,7 +14,7 @@ import { useStreaks } from '../hooks/useSupabaseQueries'
 import { Ionicons } from '@expo/vector-icons'
 import SoMiHeader from './SoMiHeader'
 
-const DAY_LABELS = ['S', 'M', 'T', 'W', 'T', 'F', 'S']
+const DAY_LABELS = ['M', 'T', 'W', 'T', 'F', 'S', 'S']
 
 function WeekDay({ label, percentage, isToday, isFuture }) {
   const SIZE = 38
@@ -146,7 +146,7 @@ export default function HomeScreen() {
           {weekData.map((day, i) => (
             <WeekDay
               key={i}
-              label={DAY_LABELS[i]}
+              label={day.day ?? DAY_LABELS[i]}
               percentage={day.percentage}
               isToday={day.is_today}
               isFuture={day.is_future}
