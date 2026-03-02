@@ -121,7 +121,8 @@ export default function ExploreScreen() {
   const [searchText, setSearchText] = useState('')
   const user = useAuthStore((state) => state.user)
 
-  if (user?.email !== EXPLORE_BETA_EMAIL) return <ComingSoonScreen />
+  const userEmail = user?.email || user?.user_metadata?.email
+  if (userEmail !== EXPLORE_BETA_EMAIL) return <ComingSoonScreen />
 
   return (
     <View style={styles.container}>
