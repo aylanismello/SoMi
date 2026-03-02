@@ -47,7 +47,7 @@ export async function GET(request) {
     // Only chains with an explicit duration_seconds count — old chains without it are ignored.
     const daySeconds = {}
     for (const chain of (chains || [])) {
-      if (chain.duration_seconds == null) continue
+      if (!chain.duration_seconds) continue  // skip 0 and null
       const localDate = toLocalDateStr(chain.created_at, tz)
       if (chain.duration_seconds > (daySeconds[localDate] || 0)) {
         daySeconds[localDate] = chain.duration_seconds

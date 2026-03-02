@@ -85,12 +85,10 @@ export const api = {
     return apiRequest(`/chains/latest${params}`)
   },
 
-  createChain: async (flowType = 'daily_flow', durationSeconds = null) => {
-    const body = { flow_type: flowType }
-    if (durationSeconds != null) body.duration_seconds = durationSeconds
+  createChain: async (flowType = 'daily_flow', durationSeconds = 0) => {
     return apiRequest('/chains', {
       method: 'POST',
-      body: JSON.stringify(body),
+      body: JSON.stringify({ flow_type: flowType, duration_seconds: durationSeconds }),
     })
   },
 

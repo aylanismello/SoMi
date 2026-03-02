@@ -133,7 +133,7 @@ export const chainService = {
       console.log(`⏱️ Total play time: ${totalPlaySeconds}s (blocks: ${blockPlaySeconds}s, interstitials: ${extraPlaySeconds}s)`)
 
       // Create the chain with duration_seconds baked in from the start
-      const { chain } = await api.createChain(flowType, totalPlaySeconds > 0 ? totalPlaySeconds : null)
+      const { chain } = await api.createChain(flowType, totalPlaySeconds)
       const chainId = chain.id
       console.log(`✅ Created chain ${chainId} with duration_seconds=${totalPlaySeconds}s`)
 

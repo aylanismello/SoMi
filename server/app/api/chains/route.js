@@ -45,14 +45,11 @@ export async function POST(request) {
   try {
     const body = await request.json()
     const flowType = body.flow_type || 'daily_flow'
-    const durationSeconds = body.duration_seconds ?? null
-
-    const insertData = { user_id: user.id, flow_type: flowType }
-    if (durationSeconds != null) insertData.duration_seconds = durationSeconds
+    const durationSeconds = body.duration_seconds ?? 0
 
     const { data, error: dbError } = await supabase
       .from('somi_chains')
-      .insert(insertData)
+      .insert({ user_id: user.id, flow_type: flowType, duration_seconds: durationSeconds })
       .select()
       .single()
 
