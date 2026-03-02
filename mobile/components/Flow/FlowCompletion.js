@@ -6,10 +6,10 @@ import { LinearGradient } from 'expo-linear-gradient'
 import { BlurView } from 'expo-blur'
 import { Video } from 'expo-av'
 import * as Haptics from 'expo-haptics'
-import { colors } from '../constants/theme'
-import { useLatestChain } from '../hooks/useSupabaseQueries'
-import { useFlowMusicStore } from '../stores/flowMusicStore'
-import { deriveState } from '../constants/polyvagalStates'
+import { colors } from '../../constants/theme'
+import { useLatestChain } from '../../hooks/useSupabaseQueries'
+import { useFlowMusicStore } from '../../stores/flowMusicStore'
+import { deriveState } from '../../constants/polyvagalStates'
 
 const { width, height } = Dimensions.get('window')
 

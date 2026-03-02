@@ -5,13 +5,13 @@ import { StyleSheet, Text, View, TouchableOpacity, Modal, TextInput, Keyboard, K
 import { LinearGradient } from 'expo-linear-gradient'
 import * as Haptics from 'expo-haptics'
 import Svg, { Path } from 'react-native-svg'
-import StateXYPicker, { intensityWord } from './StateXYPicker'
-import { deriveState, deriveIntensity, getPolyvagalExplanation } from '../constants/polyvagalStates'
-import { chainService } from '../services/chainService'
-import { colors } from '../constants/theme'
-import { useFlowMusicStore } from '../stores/flowMusicStore'
-import { useRoutineStore } from '../stores/routineStore'
-import { useSaveEmbodimentCheck, QUERY_KEYS } from '../hooks/useSupabaseQueries'
+import StateXYPicker, { intensityWord } from '../StateXYPicker'
+import { deriveState, deriveIntensity, getPolyvagalExplanation } from '../../constants/polyvagalStates'
+import { chainService } from '../../services/chainService'
+import { colors } from '../../constants/theme'
+import { useFlowMusicStore } from '../../stores/flowMusicStore'
+import { useRoutineStore } from '../../stores/routineStore'
+import { useSaveEmbodimentCheck, QUERY_KEYS } from '../../hooks/useSupabaseQueries'
 import { useQueryClient } from '@tanstack/react-query'
 
 // Core somatic/polyvagal experiences that commonly arise during practice
@@ -106,7 +106,7 @@ export default function SoMiCheckIn() {
     routineStore.resetRoutine()
 
     if (isDaily) {
-      navigation.navigate('CompletionScreen')
+      navigation.navigate('FlowCompletion')
     } else {
       router.dismissAll()
     }

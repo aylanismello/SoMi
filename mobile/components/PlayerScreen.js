@@ -151,7 +151,7 @@ export default function PlayerScreen() {
         navigation.goBack()
       } else {
         // From Check In flow: navigate to Step 4 (post-session check-in)
-        navigation.replace('SoMiCheckIn', {
+        navigation.replace('FlowOutro', {
           fromPlayer: true,
           savedInitialValue,
           savedInitialState,
@@ -231,7 +231,7 @@ export default function PlayerScreen() {
       navigation.goBack()
     } else {
       // From Check In flow: navigate to Step 4 (post-session check-in)
-      navigation.replace('SoMiCheckIn', {
+      navigation.replace('FlowOutro', {
         fromPlayer: true,
         savedInitialValue,
         savedInitialState,

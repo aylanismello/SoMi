@@ -29,3 +29,16 @@ After completing a code change:
 1. Does this change affect any screen, flow, data model, or routine logic?
 2. If yes → update the relevant doc(s) listed above
 3. If the doc update is meaningful → add a short `CHANGELOG.md` entry
+
+## Task & Commit Workflow
+
+This applies to every coding request across the entire repo.
+
+### Before starting work
+- Create a backlog task (via Backlog.md MCP) capturing what the request is
+- Mark the task **In Progress**
+
+### After completing work
+- Mark the task **Done** in the backlog
+- Create a git commit for all changed files
+- **NEVER push to git** — commits only, no push

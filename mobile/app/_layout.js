@@ -57,12 +57,12 @@ export default function RootLayout() {
         <Stack.Screen name="(auth)" />
         <Stack.Screen name="(tabs)" />
         {/* Flow journey — tab bar hidden automatically */}
-        <Stack.Screen name="DailyFlowSetup" options={{ gestureEnabled: false }} />
-        <Stack.Screen name="SoMiCheckIn" options={{ gestureEnabled: false }} />
+        <Stack.Screen name="FlowInit" options={{ gestureEnabled: false }} />
+        <Stack.Screen name="FlowOutro" options={{ gestureEnabled: false }} />
         <Stack.Screen name="RoutineQueuePreview" />
         <Stack.Screen name="SoMiRoutine" options={{ presentation: 'fullScreenModal', gestureEnabled: false }} />
-        <Stack.Screen name="BodyScanCountdown" options={{ presentation: 'fullScreenModal', gestureEnabled: false }} />
-        <Stack.Screen name="CompletionScreen" options={{ presentation: 'fullScreenModal', gestureEnabled: false }} />
+        <Stack.Screen name="FlowBodyScan" options={{ presentation: 'fullScreenModal', gestureEnabled: false }} />
+        <Stack.Screen name="FlowCompletion" options={{ presentation: 'fullScreenModal', gestureEnabled: false }} />
         <Stack.Screen name="Player" options={{ presentation: 'fullScreenModal', gestureEnabled: false }} />
         <Stack.Screen name="CategoryDetail" />
         <Stack.Screen name="AccountSettings" />

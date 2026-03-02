@@ -4,7 +4,7 @@
   "description": "SoMi - iOS app and Next.js backend",
   "private": true,
   "scripts": {
-    "dev": "concurrently --raw \"npm run mobile:dev\" \"npm run server:dev\"",
+    "dev": "concurrently --raw \"npm run mobile:dev\" \"npm run server:dev\" \"backlog browser\"",
     "mobile:dev": "cd mobile && npx expo start",
     "server:dev": "cd server && npm run dev",
     "server:build": "cd server && npm run build",

@@ -133,7 +133,7 @@ export default function HomeScreen() {
 
   const handleStartFlow = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium)
-    router.push('/DailyFlowSetup')
+    router.push('/FlowInit')
   }
 
   const handleOpenSettings = () => {
