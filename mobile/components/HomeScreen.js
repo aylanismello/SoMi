@@ -17,33 +17,38 @@ import SoMiHeader from './SoMiHeader'
 const DAY_LABELS = ['M', 'T', 'W', 'T', 'F', 'S', 'S']
 
 function WeekDay({ label, percentage, isToday, isFuture }) {
-  const SIZE = 38
-  const RADIUS = 15
-  const CIRCUMFERENCE = 2 * Math.PI * RADIUS
+  const SIZE = 40
+  const FILL_R = 13   // inner white disk (today only)
+  const RING_R = 17   // ring track + progress arc radius
+  const SW = 2.5      // stroke width for ring and arc
+  const CIRCUMFERENCE = 2 * Math.PI * RING_R
   const progressLength = (percentage / 100) * CIRCUMFERENCE
 
   return (
     <View style={styles.dayItem}>
       <View style={{ width: SIZE, height: SIZE, alignItems: 'center', justifyContent: 'center' }}>
         <Svg width={SIZE} height={SIZE} style={StyleSheet.absoluteFillObject}>
-          {/* Background circle — white fill for today, empty for others */}
+          {/* 1. White fill disk — today's persistent circle */}
+          {isToday && (
+            <Circle
+              cx={SIZE / 2} cy={SIZE / 2} r={FILL_R}
+              fill="rgba(255,255,255,0.92)" stroke="none"
+            />
+          )}
+          {/* 2. Ring track — white for today, dim for others */}
           <Circle
-            cx={SIZE / 2}
-            cy={SIZE / 2}
-            r={RADIUS}
-            stroke="rgba(255,255,255,0.12)"
-            strokeWidth={2}
-            fill={isToday ? 'rgba(255,255,255,0.92)' : 'none'}
+            cx={SIZE / 2} cy={SIZE / 2} r={RING_R}
+            fill="none"
+            stroke={isToday ? 'rgba(255,255,255,0.55)' : 'rgba(255,255,255,0.12)'}
+            strokeWidth={SW}
           />
-          {/* Progress arc on top — accent color, shown for all days with progress */}
+          {/* 3. Green progress arc — grows clockwise from top, replacing white ring */}
           {percentage > 0 && (
             <Circle
-              cx={SIZE / 2}
-              cy={SIZE / 2}
-              r={RADIUS}
-              stroke={colors.accent.primary}
-              strokeWidth={3}
+              cx={SIZE / 2} cy={SIZE / 2} r={RING_R}
               fill="none"
+              stroke={colors.accent.primary}
+              strokeWidth={SW}
               strokeDasharray={`${progressLength} ${CIRCUMFERENCE}`}
               strokeLinecap="round"
               transform={`rotate(-90 ${SIZE / 2} ${SIZE / 2})`}
