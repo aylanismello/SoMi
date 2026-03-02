@@ -36,6 +36,17 @@ export async function POST(request) {
       )
     }
 
+    // Recompute and update duration_seconds on the chain
+    const { data: allEntries } = await supabase
+      .from('somi_chain_entries')
+      .select('seconds_elapsed')
+      .eq('somi_chain_id', chainId)
+    const totalSeconds = (allEntries || []).reduce((sum, e) => sum + (e.seconds_elapsed || 0), 0)
+    await supabase
+      .from('somi_chains')
+      .update({ duration_seconds: totalSeconds })
+      .eq('id', chainId)
+
     return NextResponse.json({ entry: data })
   } catch (error) {
     console.error('Error in chain entry endpoint:', error)

@@ -14,6 +14,7 @@ export const QUERY_KEYS = {
   chains: ['chains'],
   latestChain: ['latestChain'],
   latestDailyFlow: ['latestChain', 'daily_flow'],
+  streaks: ['streaks'],
 }
 
 /**
@@ -164,6 +165,19 @@ export function useWeeklyFlows() {
       const { chains } = await api.getChains(30)
       return chains || []
     },
+    staleTime: 30 * 1000,
+  })
+}
+
+/**
+ * Fetch server-computed streak data
+ * Single source of truth for all 4 streak surfaces
+ * @returns {UseQueryResult} { current_streak, all_time_streak, week[], month[] }
+ */
+export function useStreaks() {
+  return useQuery({
+    queryKey: QUERY_KEYS.streaks,
+    queryFn: () => api.getStreaks(),
     staleTime: 30 * 1000,
   })
 }

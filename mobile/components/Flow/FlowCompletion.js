@@ -7,7 +7,7 @@ import { BlurView } from 'expo-blur'
 import { Video } from 'expo-av'
 import * as Haptics from 'expo-haptics'
 import { colors } from '../../constants/theme'
-import { useLatestChain } from '../../hooks/useSupabaseQueries'
+import { useLatestChain, useStreaks } from '../../hooks/useSupabaseQueries'
 import { useFlowMusicStore } from '../../stores/flowMusicStore'
 import { deriveState } from '../../constants/polyvagalStates'
 
@@ -28,6 +28,7 @@ const generateConfetti = (count) => {
 export default function CompletionScreen() {
   const navigation = useNavigation()
   const { data: latestChain } = useLatestChain()
+  const { data: streakData } = useStreaks()
   const [confetti] = useState(generateConfetti(20))
   const { stopFlowMusic } = useFlowMusicStore()
 
@@ -216,15 +217,8 @@ export default function CompletionScreen() {
     }
   }
 
-  // Calculate streak (simple: just check if completed yesterday)
-  const getStreak = () => {
-    // TODO: Implement proper streak calculation from backend
-    // For now, return placeholder
-    return 1
-  }
-
   const stats = getStats()
-  const streak = getStreak()
+  const streak = streakData?.current_streak ?? 0
 
   const handleContinue = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium)

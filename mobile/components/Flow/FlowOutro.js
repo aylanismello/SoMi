@@ -37,6 +37,7 @@ export default function SoMiCheckIn() {
 
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [showPolyvagalInfo, setShowPolyvagalInfo] = useState(false)
+  const [showTooFastModal, setShowTooFastModal] = useState(false)
 
   const routineStore = useRoutineStore()
   const savedInitialEnergy = useRoutineStore(state => state.savedInitialEnergy)
@@ -83,8 +84,26 @@ export default function SoMiCheckIn() {
     Keyboard.dismiss()
   }
 
+  const handleTooFastDismiss = async () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
+    setShowTooFastModal(false)
+    await chainService.clearSessionData()
+    stopFlowMusic()
+    routineStore.resetRoutine()
+    router.dismissAll()
+  }
+
   const handleFinish = async () => {
     if (isSubmitting) return
+
+    // Skip-through gate: if total session time < 60s, don't save
+    const { blocks } = await chainService.getSessionData()
+    const totalSeconds = blocks.reduce((sum, b) => sum + (b.secondsElapsed || 0), 0)
+    if (totalSeconds < 60) {
+      setShowTooFastModal(true)
+      return
+    }
+
     setIsSubmitting(true)
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium)
 
@@ -98,6 +117,7 @@ export default function SoMiCheckIn() {
         await queryClient.invalidateQueries({ queryKey: QUERY_KEYS.chains })
         await queryClient.invalidateQueries({ queryKey: QUERY_KEYS.latestChain })
         await queryClient.invalidateQueries({ queryKey: QUERY_KEYS.latestDailyFlow })
+        await queryClient.invalidateQueries({ queryKey: QUERY_KEYS.streaks })
       }
     } else {
       await chainService.endActiveChain()
@@ -178,7 +198,7 @@ export default function SoMiCheckIn() {
               <Text style={styles.infoBtnText}>?</Text>
             </TouchableOpacity>
           </View>
-          <Text style={styles.questionText}>how do you feel{'\n'}right now?</Text>
+          <Text style={styles.questionText}>how do you feel{'\n'}after that flow?</Text>
         </View>
 
         {/* Before → After state reference */}
@@ -342,6 +362,27 @@ export default function SoMiCheckIn() {
             </View>
           </View>
         </KeyboardAvoidingView>
+      </Modal>
+
+      {/* Too Fast Bottom Sheet */}
+      <Modal
+        visible={showTooFastModal}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={handleTooFastDismiss}
+      >
+        <TouchableOpacity style={styles.sheetOverlay} activeOpacity={1} onPress={handleTooFastDismiss}>
+          <TouchableOpacity activeOpacity={1} style={styles.sheetContainer} onPress={() => {}}>
+            <View style={styles.sheetHandle} />
+            <Text style={styles.sheetTitle}>That was quick ⚡</Text>
+            <Text style={styles.sheetBody}>
+              This one won't count toward your streak — you moved through it pretty fast. Come back when you have a few minutes.
+            </Text>
+            <TouchableOpacity onPress={handleTooFastDismiss} style={styles.sheetCancelButton} activeOpacity={0.7}>
+              <Text style={styles.sheetCancelText}>Got it</Text>
+            </TouchableOpacity>
+          </TouchableOpacity>
+        </TouchableOpacity>
       </Modal>
 
       {/* Exit Bottom Sheet */}

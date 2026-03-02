@@ -10,12 +10,11 @@ import * as Haptics from 'expo-haptics'
 import CustomizationModal from './CustomizationModal'
 import MusicPickerModal from './MusicPickerModal'
 import { useAuthStore } from '../stores/authStore'
-import { useWeeklyFlows } from '../hooks/useSupabaseQueries'
+import { useStreaks } from '../hooks/useSupabaseQueries'
 import { Ionicons } from '@expo/vector-icons'
 import SoMiHeader from './SoMiHeader'
 
 const DAY_LABELS = ['S', 'M', 'T', 'W', 'T', 'F', 'S']
-const FLOW_TARGET_SECONDS = 300 // 5 minutes = full circle
 
 function WeekDay({ label, percentage, isToday, isFuture }) {
   const SIZE = 38
@@ -66,12 +65,12 @@ export default function HomeScreen() {
   const [showSettingsModal, setShowSettingsModal] = useState(false)
   const [showMusicModal, setShowMusicModal] = useState(false)
   const user = useAuthStore((state) => state.user)
-  const { data: weeklyChains, refetch: refetchWeekly } = useWeeklyFlows()
+  const { data: streakData, refetch: refetchStreaks } = useStreaks()
 
   useFocusEffect(
     useCallback(() => {
-      refetchWeekly()
-    }, [refetchWeekly])
+      refetchStreaks()
+    }, [refetchStreaks])
   )
 
   useEffect(() => {
@@ -101,35 +100,7 @@ export default function HomeScreen() {
     return 'tonight'
   }
 
-  const getWeekData = () => {
-    const today = new Date()
-    const dayOfWeek = today.getDay()
-    const startOfWeek = new Date(today)
-    startOfWeek.setDate(today.getDate() - dayOfWeek)
-    startOfWeek.setHours(0, 0, 0, 0)
-
-    return Array.from({ length: 7 }, (_, i) => {
-      const date = new Date(startOfWeek)
-      date.setDate(startOfWeek.getDate() + i)
-
-      const dayChains = (weeklyChains || []).filter((chain) => {
-        const chainDate = new Date(chain.created_at)
-        return chainDate.toDateString() === date.toDateString()
-      })
-
-      const totalSeconds = dayChains.reduce((sum, chain) => {
-        return sum + (chain.somi_chain_entries || []).reduce((s, entry) => s + (entry.seconds_elapsed || 0), 0)
-      }, 0)
-
-      return {
-        isToday: i === dayOfWeek,
-        isFuture: i > dayOfWeek,
-        percentage: Math.min(100, (totalSeconds / FLOW_TARGET_SECONDS) * 100),
-      }
-    })
-  }
-
-  const weekData = getWeekData()
+  const weekData = streakData?.week ?? []
   const firstName = getFirstName()
   const timeOfDay = getTimeOfDay()
 
@@ -177,8 +148,8 @@ export default function HomeScreen() {
               key={i}
               label={DAY_LABELS[i]}
               percentage={day.percentage}
-              isToday={day.isToday}
-              isFuture={day.isFuture}
+              isToday={day.is_today}
+              isFuture={day.is_future}
             />
           ))}
         </BlurView>

@@ -128,6 +128,12 @@ export const api = {
     return apiRequest(`/blocks?canonical_names=${namesParam}`)
   },
 
+  // Streaks
+  getStreaks: async () => {
+    const tz = Intl.DateTimeFormat().resolvedOptions().timeZone
+    return apiRequest(`/streaks?tz=${encodeURIComponent(tz)}`)
+  },
+
   // Delete chain
   deleteChain: async (chainId) => {
     return apiRequest(`/chains/${chainId}`, {

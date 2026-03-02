@@ -1,32 +1,12 @@
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
 import * as Haptics from 'expo-haptics'
-import { useWeeklyFlows } from '../hooks/useSupabaseQueries'
-
-function computeStreak(chains) {
-  if (!chains || chains.length === 0) return 0
-  const today = new Date()
-  today.setHours(0, 0, 0, 0)
-  const dayOfWeek = today.getDay()
-  let streak = 0
-  for (let i = 0; i <= dayOfWeek; i++) {
-    const d = new Date(today)
-    d.setDate(today.getDate() - i)
-    const has = chains.some(c => {
-      const cd = new Date(c.created_at)
-      cd.setHours(0, 0, 0, 0)
-      return cd.getTime() === d.getTime()
-    })
-    if (has) streak++
-    else break
-  }
-  return streak
-}
+import { useStreaks } from '../hooks/useSupabaseQueries'
 
 // style prop allows each screen to control positioning (absolute for Home, padding for others)
 export default function SoMiHeader({ onRightPress, rightIcon = 'heart', style }) {
-  const { data: weeklyChains = [] } = useWeeklyFlows()
-  const streak = computeStreak(weeklyChains)
+  const { data: streakData } = useStreaks()
+  const streak = streakData?.current_streak ?? 0
 
   const handleRight = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)

@@ -7,7 +7,7 @@ import Svg, { Circle, Line } from 'react-native-svg'
 import * as Haptics from 'expo-haptics'
 import { chainService } from '../services/chainService'
 import { colors } from '../constants/theme'
-import { useChains, useDeleteChain } from '../hooks/useSupabaseQueries'
+import { useChains, useDeleteChain, useStreaks } from '../hooks/useSupabaseQueries'
 import { useAuthStore } from '../stores/authStore'
 import { intensityWord } from './StateXYPicker'
 import { deriveState, deriveIntensity } from '../constants/polyvagalStates'
@@ -18,7 +18,7 @@ const MINI_GRAD_COLORS = ['#0D1B2A', '#3D2575', '#8B5CF6']
 const MINI_GRAD_LOCS = [0, 0.5, 1]
 
 // Calendar/Streak View Component
-function CalendarStreakView({ chains }) {
+function CalendarStreakView({ chains, monthData = [] }) {
   const today = new Date()
   const currentMonth = today.getMonth()
   const currentYear = today.getFullYear()
@@ -45,43 +45,13 @@ function CalendarStreakView({ chains }) {
     }
   })
 
-  // Calculate streak days (only from daily flows)
+  // Streak days from server data: consecutive counts: true days walking backward from today
   const streakDays = new Set()
-  const sortedChains = [...dailyFlowChains].sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
-  let lastDate = null
-
-  for (const chain of sortedChains) {
-    const chainDate = new Date(chain.created_at)
-    chainDate.setHours(0, 0, 0, 0)
-
-    if (!lastDate) {
-      const todayDate = new Date()
-      todayDate.setHours(0, 0, 0, 0)
-      const yesterday = new Date(todayDate)
-      yesterday.setDate(yesterday.getDate() - 1)
-
-      if (chainDate.getTime() === todayDate.getTime() || chainDate.getTime() === yesterday.getTime()) {
-        lastDate = chainDate
-        if (chainDate.getMonth() === currentMonth && chainDate.getFullYear() === currentYear) {
-          streakDays.add(chainDate.getDate())
-        }
-      } else {
-        break
-      }
+  for (let i = monthData.length - 1; i >= 0; i--) {
+    if (monthData[i].counts) {
+      streakDays.add(parseInt(monthData[i].date.slice(-2), 10))
     } else {
-      const expectedDate = new Date(lastDate)
-      expectedDate.setDate(expectedDate.getDate() - 1)
-
-      if (chainDate.getTime() === expectedDate.getTime()) {
-        lastDate = chainDate
-        if (chainDate.getMonth() === currentMonth && chainDate.getFullYear() === currentYear) {
-          streakDays.add(chainDate.getDate())
-        }
-      } else if (chainDate.getTime() === lastDate.getTime()) {
-        continue
-      } else {
-        break
-      }
+      break
     }
   }
 
@@ -332,6 +302,7 @@ export default function MySomiScreen() {
 
   // Use React Query for chains data
   const { data: allChains = [], isLoading: loading, refetch } = useChains(30)
+  const { data: streakData, refetch: refetchStreaks } = useStreaks()
   const deleteChainMutation = useDeleteChain()
 
   // MVP: Filter to only show daily flows (memoized to prevent infinite loops)
@@ -369,8 +340,9 @@ export default function MySomiScreen() {
   useFocusEffect(
     useCallback(() => {
       refetch()
+      refetchStreaks()
       scrollViewRef.current?.scrollTo({ y: 0, animated: false })
-    }, [refetch])
+    }, [refetch, refetchStreaks])
   )
 
   // Calculate stats whenever chains data changes
@@ -821,7 +793,7 @@ export default function MySomiScreen() {
         {/* Stats Row - Breathwork style */}
         <View style={styles.statsRow}>
           <View style={styles.statsRowItem}>
-            <Text style={styles.statsRowNumber}>{stats.currentStreak}</Text>
+            <Text style={styles.statsRowNumber}>{streakData?.all_time_streak ?? 0}</Text>
             <Text style={styles.statsRowLabel}>Top Streak</Text>
           </View>
           <View style={styles.statsRowDivider} />
@@ -839,7 +811,7 @@ export default function MySomiScreen() {
         {/* Calendar/Streak View */}
         <Text style={styles.sectionTitle}>flow calendar</Text>
         <BlurView intensity={20} tint="dark" style={styles.calendarCard}>
-          <CalendarStreakView chains={somiChains} />
+          <CalendarStreakView chains={somiChains} monthData={streakData?.month ?? []} />
           <View style={styles.calendarLegend}>
             <View style={styles.calendarLegendItem}>
               <View style={[styles.calendarLegendDot, styles.calendarLegendDotSession]} />
