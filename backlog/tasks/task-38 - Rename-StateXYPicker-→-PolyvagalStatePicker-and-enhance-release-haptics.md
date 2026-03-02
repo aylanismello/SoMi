@@ -1,9 +1,10 @@
 ---
 id: task-38
 title: Rename StateXYPicker → PolyvagalStatePicker and enhance release haptics
-status: In Progress
+status: Done
 assignee: []
 created_date: '2026-03-02 08:51'
+updated_date: '2026-03-02 08:53'
 labels: []
 dependencies: []
 priority: medium
