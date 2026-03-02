@@ -140,4 +140,9 @@ export const api = {
       method: 'DELETE',
     })
   },
+
+  // Grounding quotes
+  getRandomGroundingQuote: async () => {
+    return apiRequest('/grounding-quotes/random')
+  },
 }

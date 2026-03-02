@@ -1,5 +1,6 @@
 import { useState, useCallback, useRef, useEffect } from 'react'
 import { StyleSheet, View, Text, Image, TouchableOpacity, Animated } from 'react-native'
+import { api } from '../services/api'
 import { LinearGradient } from 'expo-linear-gradient'
 import { BlurView } from 'expo-blur'
 import Svg, { Circle } from 'react-native-svg'
@@ -71,6 +72,7 @@ export default function HomeScreen() {
   const glowAnim = useRef(new Animated.Value(0)).current
   const [showSettingsModal, setShowSettingsModal] = useState(false)
   const [showMusicModal, setShowMusicModal] = useState(false)
+  const [groundingQuote, setGroundingQuote] = useState(null)
   const user = useAuthStore((state) => state.user)
   const { data: streakData, refetch: refetchStreaks } = useStreaks()
 
@@ -87,6 +89,12 @@ export default function HomeScreen() {
         Animated.timing(glowAnim, { toValue: 0, duration: 2200, useNativeDriver: true }),
       ])
     ).start()
+  }, [])
+
+  useEffect(() => {
+    api.getRandomGroundingQuote()
+      .then(({ quote }) => { if (quote) setGroundingQuote(quote) })
+      .catch(() => {})
   }, [])
 
   const getFirstName = () => {
@@ -162,11 +170,18 @@ export default function HomeScreen() {
         </BlurView>
       </View>
 
-      {/* Greeting — centered in remaining space */}
+      {/* Quote or greeting — centered in remaining space */}
       <View style={styles.greetingContainer}>
-        <Text style={styles.greetingText}>
-          Hi {firstName},{'\n'}it's time to flow{'\n'}{timeOfDay}.
-        </Text>
+        {groundingQuote ? (
+          <>
+            <Text style={styles.quoteText}>"{groundingQuote.quote}"</Text>
+            <Text style={styles.quoteAuthor}>— {groundingQuote.author}</Text>
+          </>
+        ) : (
+          <Text style={styles.greetingText}>
+            Hi {firstName},{'\n'}it's time to flow{'\n'}{timeOfDay}.
+          </Text>
+        )}
       </View>
 
       {/* Action row — Flow button + flanking side buttons */}
@@ -267,6 +282,22 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     lineHeight: 46,
     letterSpacing: -0.3,
+  },
+  quoteText: {
+    color: '#FFFFFF',
+    fontSize: 22,
+    fontWeight: '600',
+    textAlign: 'center',
+    lineHeight: 32,
+    letterSpacing: -0.2,
+    marginBottom: 16,
+  },
+  quoteAuthor: {
+    color: 'rgba(255,255,255,0.55)',
+    fontSize: 14,
+    fontWeight: '500',
+    textAlign: 'center',
+    letterSpacing: 0.2,
   },
 
   // ── Action row ───────────────────────────────────────────
