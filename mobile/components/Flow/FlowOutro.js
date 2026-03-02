@@ -188,8 +188,10 @@ export default function SoMiCheckIn() {
             <Text style={styles.beforeIcon}>{initialStateObj.icon}</Text>
             <Text style={styles.beforeState}>{initialStateObj.label}</Text>
             <Text style={styles.beforeArrow}>→</Text>
-            <Text style={styles.beforeIcon}>{currentStateObj.icon}</Text>
-            <Text style={styles.beforeStateCurrent}>{currentStateObj.label}</Text>
+            <View style={styles.currentChip}>
+              <Text style={{ fontSize: 13 }}>{currentStateObj.icon}</Text>
+              <Text style={styles.currentChipText}>{currentStateObj.label}</Text>
+            </View>
           </View>
         )}
 
@@ -200,6 +202,7 @@ export default function SoMiCheckIn() {
             onEnergyChange={setEnergyLevel}
             safetyLevel={safetyLevel}
             onSafetyChange={setSafetyLevel}
+            hideReadout
           />
         </View>
 
@@ -464,7 +467,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 6,
     marginBottom: 16,
-    opacity: 0.65,
   },
   beforeLabel: {
     color: colors.text.muted,
@@ -484,6 +486,23 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '300',
     marginHorizontal: 2,
+  },
+  currentChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    backgroundColor: 'rgba(0,15,35,0.55)',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 12,
+    borderWidth: 0.5,
+    borderColor: 'rgba(0,210,255,0.28)',
+  },
+  currentChipText: {
+    color: 'rgba(190,240,255,0.92)',
+    fontSize: 12,
+    fontWeight: '700',
+    letterSpacing: 0.4,
   },
   beforeStateCurrent: {
     color: colors.text.primary,

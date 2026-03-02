@@ -462,12 +462,26 @@ export default function DailyFlowSetup() {
               <Text style={styles.infoBtnText}>?</Text>
             </TouchableOpacity>
           </View>
+          {/* "I'm feeling [chip]" — mirrors FlowOutro's live state display */}
+          {(() => {
+            const st = deriveState(energyLevel, safetyLevel)
+            return (
+              <View style={styles.feelingRow}>
+                <Text style={styles.feelingLabel}>I'm feeling</Text>
+                <View style={styles.stateChip}>
+                  <Text style={{ fontSize: 13 }}>{st.icon}</Text>
+                  <Text style={styles.stateChipText}>{st.label}</Text>
+                </View>
+              </View>
+            )
+          })()}
           <StateXYPicker
             energyLevel={energyLevel}
             onEnergyChange={(v) => { energyRef.current = v; setEnergyLevel(v) }}
             safetyLevel={safetyLevel}
             onSafetyChange={(v) => { safetyRef.current = v; setSafetyLevel(v) }}
             onDragEnd={handlePickerDragEnd}
+            hideReadout
           />
         </View>
 
@@ -656,6 +670,35 @@ const styles = StyleSheet.create({
     color: 'rgba(255,255,255,0.5)',
     fontSize: 10, fontWeight: '700',
     lineHeight: 12,
+  },
+  feelingRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginBottom: 12,
+  },
+  feelingLabel: {
+    color: 'rgba(255,255,255,0.45)',
+    fontSize: 13,
+    fontWeight: '500',
+    letterSpacing: 0.2,
+  },
+  stateChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    backgroundColor: 'rgba(0,15,35,0.55)',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 12,
+    borderWidth: 0.5,
+    borderColor: 'rgba(0,210,255,0.28)',
+  },
+  stateChipText: {
+    color: 'rgba(190,240,255,0.92)',
+    fontSize: 12,
+    fontWeight: '700',
+    letterSpacing: 0.4,
   },
 
   // ── Sticky bottom ───────────────────────────────────────────────────────────

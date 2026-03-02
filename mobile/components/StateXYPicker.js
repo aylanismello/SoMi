@@ -34,6 +34,7 @@ export default function StateXYPicker({
   onSafetyChange,
   onDragStart,
   onDragEnd,
+  hideReadout,
 }) {
   const defaultW = Dimensions.get('window').width - 40
   const [padSize, setPadSize] = useState(defaultW)
@@ -101,10 +102,12 @@ export default function StateXYPicker({
   return (
     <View style={{ width: '100%' }}>
       {/* Readout: displayed above the picker box */}
-      <View style={styles.readout} pointerEvents="none">
-        <Text style={{ fontSize: 13 }}>{curState.icon}</Text>
-        <Text style={styles.readoutState}>{curState.label}</Text>
-      </View>
+      {!hideReadout && (
+        <View style={styles.readout} pointerEvents="none">
+          <Text style={{ fontSize: 13 }}>{curState.icon}</Text>
+          <Text style={styles.readoutState}>{curState.label}</Text>
+        </View>
+      )}
       <View
         {...panResponder.panHandlers}
         onLayout={(e) => {
