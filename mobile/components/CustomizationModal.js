@@ -1,9 +1,8 @@
-import { StyleSheet, View, Text, TouchableOpacity, ScrollView, Modal, Switch } from 'react-native'
+import { StyleSheet, View, Text, TouchableOpacity, ScrollView, Modal } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
 import * as Haptics from 'expo-haptics'
 import { useState } from 'react'
 import { useSettingsStore } from '../stores/settingsStore'
-import { colors } from '../constants/theme'
 
 const H_PAD = 20
 
@@ -27,23 +26,13 @@ const CUST_SECTIONS = [
       { value: 'off',    label: 'Off',    type: 'off' },
     ],
   },
-  {
-    id: 'tone',
-    label: 'Block Change Tone',
-    options: [
-      { value: 'sine',  label: 'Sine',  type: 'icon', icon: 'pulse-outline' },
-      { value: 'synth', label: 'Synth', type: 'icon', icon: 'musical-notes-outline' },
-      { value: 'bowl',  label: 'Bowl',  type: 'icon', icon: 'radio-button-off-outline' },
-      { value: 'off',   label: 'Off',   type: 'off' },
-    ],
-  },
 ]
 
 export default function CustomizationModal({ visible, onClose }) {
-  const { isMusicEnabled, toggleMusic, isSfxEnabled, toggleSfx } = useSettingsStore()
+  const { isSfxEnabled, setSfxEnabled } = useSettingsStore()
 
   const [selections, setSelections] = useState({
-    background: 'river', soundscape: 'forest', tone: 'bowl',
+    background: 'river', soundscape: 'forest',
   })
 
   const pick = (sectionId, value) => {
@@ -51,15 +40,12 @@ export default function CustomizationModal({ visible, onClose }) {
     setSelections(s => ({ ...s, [sectionId]: value }))
   }
 
-  const handleToggleMusic = () => {
+  const pickTone = (value) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
-    toggleMusic()
+    setSfxEnabled(value === 'bleep')
   }
 
-  const handleToggleSfx = () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
-    toggleSfx()
-  }
+  const toneValue = isSfxEnabled ? 'bleep' : 'off'
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
@@ -67,30 +53,6 @@ export default function CustomizationModal({ visible, onClose }) {
         <TouchableOpacity activeOpacity={1} style={styles.sheet} onPress={() => {}}>
           <View style={styles.handle} />
           <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 24 }}>
-
-            {/* Music toggle */}
-            <View style={styles.toggleRow}>
-              <Text style={styles.toggleLabel}>Music</Text>
-              <Switch
-                value={isMusicEnabled}
-                onValueChange={handleToggleMusic}
-                trackColor={{ false: 'rgba(255,255,255,0.15)', true: colors.accent.primary }}
-                thumbColor="#ffffff"
-              />
-            </View>
-
-            {/* SFX toggle */}
-            <View style={[styles.toggleRow, styles.toggleRowLast]}>
-              <Text style={styles.toggleLabel}>SFX</Text>
-              <Switch
-                value={isSfxEnabled}
-                onValueChange={handleToggleSfx}
-                trackColor={{ false: 'rgba(255,255,255,0.15)', true: colors.accent.primary }}
-                thumbColor="#ffffff"
-              />
-            </View>
-
-            <View style={styles.divider} />
 
             {/* Section pickers */}
             {CUST_SECTIONS.map(section => (
@@ -109,11 +71,6 @@ export default function CustomizationModal({ visible, onClose }) {
                         {opt.type === 'sphere' && (
                           <View style={[styles.sphere, { backgroundColor: opt.color }]} />
                         )}
-                        {opt.type === 'icon' && (
-                          <View style={styles.iconCircle}>
-                            <Ionicons name={opt.icon} size={22} color="rgba(255,255,255,0.8)" />
-                          </View>
-                        )}
                         {opt.type === 'off' && (
                           <View style={styles.iconCircle}>
                             <Text style={{ color: 'rgba(255,255,255,0.3)', fontSize: 20, fontWeight: '300' }}>—</Text>
@@ -126,6 +83,34 @@ export default function CustomizationModal({ visible, onClose }) {
                 </View>
               </View>
             ))}
+
+            {/* Block Change Tone */}
+            <View style={{ marginBottom: 20 }}>
+              <Text style={styles.sectionLabel}>Block Change Tone</Text>
+              <View style={styles.optionBox}>
+                <TouchableOpacity
+                  style={[styles.option, toneValue === 'bleep' && styles.optionSelected]}
+                  onPress={() => pickTone('bleep')}
+                  activeOpacity={0.75}
+                >
+                  <View style={styles.iconCircle}>
+                    <Ionicons name="pulse-outline" size={22} color="rgba(255,255,255,0.8)" />
+                  </View>
+                  <Text style={styles.optionLabel}>Bleep</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.option, toneValue === 'off' && styles.optionSelected]}
+                  onPress={() => pickTone('off')}
+                  activeOpacity={0.75}
+                >
+                  <View style={styles.iconCircle}>
+                    <Text style={{ color: 'rgba(255,255,255,0.3)', fontSize: 20, fontWeight: '300' }}>—</Text>
+                  </View>
+                  <Text style={styles.optionLabel}>Off</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+
           </ScrollView>
         </TouchableOpacity>
       </TouchableOpacity>
@@ -153,34 +138,6 @@ const styles = StyleSheet.create({
     borderRadius: 2,
     alignSelf: 'center',
     marginBottom: 20,
-  },
-  title: {
-    color: '#fff',
-    fontSize: 20, fontWeight: '700',
-    marginBottom: 20, letterSpacing: 0.3,
-  },
-  toggleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingVertical: 14,
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255,255,255,0.08)',
-    marginBottom: 4,
-  },
-  toggleRowLast: {
-    marginBottom: 0,
-  },
-  toggleLabel: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '600',
-    letterSpacing: 0.2,
-  },
-  divider: {
-    height: 1,
-    backgroundColor: 'rgba(255,255,255,0.08)',
-    marginVertical: 20,
   },
   sectionLabel: {
     color: '#fff',
