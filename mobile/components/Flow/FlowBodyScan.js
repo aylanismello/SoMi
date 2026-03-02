@@ -109,6 +109,7 @@ export default function BodyScanCountdown() {
     const BODY_SCAN_BLOCK_ID = 20
     const section = isInitial ? 'warm_up' : 'integration'
     await chainService.saveCompletedBlock(BODY_SCAN_BLOCK_ID, elapsedSeconds, isInitial ? 0 : finalOrderIndex, null, flowType, section)
+    await chainService.logPlayTime(`body scan (${section}) complete — ${elapsedSeconds}s`)
 
     if (skipToRoutine) {
       navigation.replace('SoMiRoutine')

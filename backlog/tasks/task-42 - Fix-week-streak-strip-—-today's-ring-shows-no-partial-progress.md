@@ -1,9 +1,10 @@
 ---
 id: task-42
 title: Fix week streak strip — today's ring shows no partial progress
-status: In Progress
+status: Done
 assignee: []
 created_date: '2026-03-02 18:33'
+updated_date: '2026-03-02 18:35'
 labels: []
 dependencies: []
 priority: high

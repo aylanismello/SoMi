@@ -455,7 +455,9 @@ export default function SoMiRoutineScreen() {
       const wallMs = Date.now() - interstitialStartMsRef.current
       const playedMs = wallMs - interstitialPausedMsRef.current
       const playedSeconds = Math.max(0, Math.round(playedMs / 1000))
-      chainService.addExtraPlaySeconds(playedSeconds)
+      chainService.addExtraPlaySeconds(playedSeconds).then(() =>
+        chainService.logPlayTime(`interstitial → video (added ${playedSeconds}s interstitial)`)
+      )
       interstitialStartMsRef.current = null
     }
 
@@ -514,6 +516,7 @@ export default function SoMiRoutineScreen() {
   }
 
   const handleFlowComplete = () => {
+    chainService.logPlayTime('🏁 flow complete — heading to outro')
     if (isQuickRoutine) {
       stopFlowMusic()
       resetRoutine()
@@ -546,6 +549,8 @@ export default function SoMiRoutineScreen() {
         chainId: null,
         flowType: flowType,
         section: segment?.section ?? null,
+      }, {
+        onSettled: () => chainService.logPlayTime(`block #${somiBlockIndex + 1} complete (${elapsedSeconds}s)`),
       })
     }
 
@@ -568,6 +573,8 @@ export default function SoMiRoutineScreen() {
         chainId: null,
         flowType: flowType,
         section: segment?.section ?? null,
+      }, {
+        onSettled: () => chainService.logPlayTime(`block #${somiBlockIndex + 1} skipped (${elapsedSeconds}s)`),
       })
     }
 
