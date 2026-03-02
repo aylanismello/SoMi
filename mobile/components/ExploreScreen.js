@@ -13,6 +13,9 @@ import { BlurView } from 'expo-blur'
 import { Ionicons } from '@expo/vector-icons'
 import * as Haptics from 'expo-haptics'
 import SoMiHeader from './SoMiHeader'
+import { useAuthStore } from '../stores/authStore'
+
+const EXPLORE_BETA_EMAIL = 'francescoflows@gmail.com'
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window')
 const CARD_WIDTH = Math.round(SCREEN_WIDTH * 0.52)
@@ -96,8 +99,29 @@ const DAILY_FLOWS = [
 
 const tap = () => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
 
+function ComingSoonScreen() {
+  return (
+    <View style={styles.container}>
+      <LinearGradient
+        colors={['#0A1422', '#0F1B2D', '#0A1422']}
+        style={StyleSheet.absoluteFillObject}
+        start={{ x: 0.5, y: 0 }}
+        end={{ x: 0.5, y: 1 }}
+      />
+      <View style={styles.comingSoon}>
+        <Text style={styles.comingSoonEmoji}>🛠</Text>
+        <Text style={styles.comingSoonHeading}>Still wippin'</Text>
+        <Text style={styles.comingSoonSub}>Come back soon.</Text>
+      </View>
+    </View>
+  )
+}
+
 export default function ExploreScreen() {
   const [searchText, setSearchText] = useState('')
+  const user = useAuthStore((state) => state.user)
+
+  if (user?.email !== EXPLORE_BETA_EMAIL) return <ComingSoonScreen />
 
   return (
     <View style={styles.container}>
@@ -466,5 +490,28 @@ const styles = StyleSheet.create({
 
   bottomSpacer: {
     height: 40,
+  },
+
+  // ── Coming soon gate ──────────────────────────────────────────
+  comingSoon: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 12,
+  },
+  comingSoonEmoji: {
+    fontSize: 48,
+    marginBottom: 8,
+  },
+  comingSoonHeading: {
+    color: '#ffffff',
+    fontSize: 28,
+    fontWeight: '700',
+    letterSpacing: -0.3,
+  },
+  comingSoonSub: {
+    color: 'rgba(255,255,255,0.42)',
+    fontSize: 16,
+    fontWeight: '500',
   },
 })
