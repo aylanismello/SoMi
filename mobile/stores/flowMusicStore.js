@@ -65,6 +65,12 @@ export const useFlowMusicStore = create((set, get) => ({
     const state = get()
     if (state.isPlaying) return
 
+    // Stop any lingering fade-out animations so they can't drive volume back to 0
+    fluidsVolumeAnim.stopAnimation()
+    fluidsVolumeAnim.removeAllListeners()
+    togetherVolumeAnim.stopAnimation()
+    togetherVolumeAnim.removeAllListeners()
+
     const flowStartedAt = Date.now()
     const activePlayer = playerFor(state, trackId)
 

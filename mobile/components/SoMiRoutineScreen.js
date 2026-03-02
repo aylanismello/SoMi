@@ -57,7 +57,7 @@ export default function SoMiRoutineScreen() {
   // ── Settings & music ──────────────────────────────────────────────────────
   const { isMusicEnabled, selectedTrackId } = useSettingsStore()
   const flowMusicStore = useFlowMusicStore()
-  const { startFlowMusic, setVolume: setFlowMusicVolume, updateMusicSetting, stopFlowMusic, audioPlayer, pauseFlowMusic, resumeFlowMusic } = flowMusicStore
+  const { startFlowMusic, updateMusicSetting, stopFlowMusic, audioPlayer, pauseFlowMusic, resumeFlowMusic } = flowMusicStore
 
   // ── Mutation for saving completed blocks ──────────────────────────────────
   const saveChainEntryMutation = useSaveChainEntry()
@@ -150,12 +150,12 @@ export default function SoMiRoutineScreen() {
     }
   }, [])
 
-  // Start flow music for quick routines
+  // Start flow music when players are ready — startFlowMusic guards against double-starts internally
   useEffect(() => {
-    if (audioPlayer && isQuickRoutine) {
+    if (audioPlayer) {
       startFlowMusic(isMusicEnabled, selectedTrackId)
     }
-  }, [audioPlayer, isQuickRoutine])
+  }, [audioPlayer])
 
   // Set initial currentVideo from the first somi_block segment
   useEffect(() => {
@@ -256,8 +256,7 @@ export default function SoMiRoutineScreen() {
     }
   }, [phase, interstitialPaused, previewPlayer])
 
-  // Flow music volume
-  useEffect(() => { setFlowMusicVolume(isMusicEnabled ? 1 : 0) }, [isMusicEnabled])
+  // Flow music volume — updateMusicSetting handles both player.volume and volumeAnim
   useEffect(() => { updateMusicSetting(isMusicEnabled) }, [isMusicEnabled])
 
   // Mark unmounted for stall recovery
