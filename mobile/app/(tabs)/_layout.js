@@ -6,8 +6,10 @@ const EXPLORE_BETA_EMAIL = 'francescoflows@gmail.com'
 
 export default function TabsLayout() {
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated)
+  const isLoading = useAuthStore((state) => state.isLoading)
   const user = useAuthStore((state) => state.user)
 
+  if (isLoading) return null
   if (!isAuthenticated) return <Redirect href="/(auth)/welcome" />
 
   const canSeeExplore = user?.email === EXPLORE_BETA_EMAIL
