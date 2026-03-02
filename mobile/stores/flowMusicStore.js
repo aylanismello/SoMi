@@ -1,209 +1,235 @@
 import { create } from 'zustand'
 import { Animated, Easing } from 'react-native'
 
-/**
- * Flow Music Store - Manages global flow music state
- * Replaces FlowMusicContext
- */
-// Create animated value for volume (outside store)
-const volumeAnim = new Animated.Value(0)
+export const TRACKS = [
+  {
+    id: 'fluids',
+    label: 'Fluids',
+    artist: 'Fluendo',
+    color: '#1A4A7A',
+    url: 'https://qujifwhwntqxziymqdwu.supabase.co/storage/v1/object/public/test/somi%20og%20music/fluids%20v2.mp3',
+  },
+  {
+    id: 'together',
+    label: 'Together',
+    artist: 'Nine Inch Nails',
+    color: '#5A1A1A',
+    url: 'https://qujifwhwntqxziymqdwu.supabase.co/storage/v1/object/public/test/somi%20music/Nine%20Inch%20Nails%20-%20Together.mp3',
+  },
+  {
+    id: 'none',
+    label: 'Off',
+    artist: null,
+    color: null,
+    url: null,
+  },
+]
+
+// Per-player volume animators (outside store — non-serializable)
+const fluidsVolumeAnim = new Animated.Value(0)
+const togetherVolumeAnim = new Animated.Value(0)
+
+const FADE_IN_MS = 2000
+const FADE_CROSS_MS = 800
+
+function volumeAnimFor(trackId) {
+  if (trackId === 'fluids') return fluidsVolumeAnim
+  if (trackId === 'together') return togetherVolumeAnim
+  return null
+}
+
+function playerFor(state, trackId) {
+  if (trackId === 'fluids') return state.fluidsPlayer
+  if (trackId === 'together') return state.togetherPlayer
+  return null
+}
 
 export const useFlowMusicStore = create((set, get) => ({
-  // State
-  isPlaying: false,
-  volume: 1,
+  // Players (set once at boot from _layout.js)
+  fluidsPlayer: null,
+  togetherPlayer: null,
+
+  // audioPlayer kept for backward-compat (checked for readiness in FlowBodyScan / SoMiRoutineScreen)
   audioPlayer: null,
 
-  // Actions
-  setAudioPlayer: (player) => {
-    console.log('🎵 setAudioPlayer called:', {
-      hasPlayer: !!player,
-      playerType: player?.constructor?.name,
-      volume: player?.volume,
-      loop: player?.loop
-    })
-    set({ audioPlayer: player })
+  // Live playback state
+  isPlaying: false,
+  currentTrackId: 'fluids',
+  flowStartedAt: null, // Date.now() when flow music session began (music clock origin)
+
+  setTrackPlayers: (fluidsPlayer, togetherPlayer) => {
+    set({ fluidsPlayer, togetherPlayer, audioPlayer: fluidsPlayer })
   },
 
-  startFlowMusic: (isMusicEnabled = true) => {
-    const { audioPlayer, isPlaying } = get()
-    console.log('🎵 startFlowMusic called:', { hasPlayer: !!audioPlayer, isPlaying, isMusicEnabled })
+  startFlowMusic: (isMusicEnabled = true, trackId = 'fluids') => {
+    const state = get()
+    if (state.isPlaying) return
 
-    if (!audioPlayer) {
-      console.warn('❌ Cannot start flow music: audio player not initialized')
-      return
-    }
+    const flowStartedAt = Date.now()
+    const activePlayer = playerFor(state, trackId)
 
-    if (isPlaying) {
-      console.log('🎵 Flow music already playing, skipping')
-      return
-    }
+    set({ isPlaying: true, currentTrackId: trackId, flowStartedAt, audioPlayer: activePlayer })
+
+    if (!isMusicEnabled || trackId === 'none' || !activePlayer) return
+
+    const volumeAnim = volumeAnimFor(trackId)
 
     try {
-      // Ensure audio player is ready before playing
-      // Some audio players need a brief moment to initialize
-      const attemptPlay = () => {
-        try {
-          console.log('🎵 Attempting to start flow music...')
-          console.log('🎵 Player state before play:', {
-            volume: audioPlayer.volume,
-            playing: audioPlayer.playing,
-            loop: audioPlayer.loop,
-            muted: audioPlayer.muted
-          })
+      activePlayer.seekTo(0)
+      activePlayer.loop = true
+      activePlayer.volume = 0
+      activePlayer.muted = false
+      activePlayer.play()
 
-          // Ensure player is ready
-          audioPlayer.seekTo(0)
-          audioPlayer.loop = true
-          audioPlayer.volume = 0
-          audioPlayer.muted = false // Make sure it's not muted
+      volumeAnim.setValue(0)
+      volumeAnim.removeAllListeners()
 
-          console.log('🎵 Calling player.play()...')
-          audioPlayer.play()
+      Animated.timing(volumeAnim, {
+        toValue: 1,
+        duration: FADE_IN_MS,
+        easing: Easing.inOut(Easing.ease),
+        useNativeDriver: false,
+      }).start()
 
-          set({ isPlaying: true })
+      volumeAnim.addListener(({ value }) => {
+        activePlayer.volume = value
+      })
+    } catch (e) {
+      console.error('❌ Error starting flow music:', e)
+      set({ isPlaying: false, flowStartedAt: null })
+    }
+  },
 
-          console.log('🎵 Player state after play:', {
-            volume: audioPlayer.volume,
-            playing: audioPlayer.playing,
-            loop: audioPlayer.loop,
-            muted: audioPlayer.muted
-          })
+  // Switch to a different track, seeking to the current flow-clock position.
+  // Safe to call even when not in a flow (just updates preference with no audio change).
+  switchTrack: (newTrackId) => {
+    const state = get()
+    if (newTrackId === state.currentTrackId) return
 
-          // Smooth fade in using Animated API
-          const targetVolume = isMusicEnabled ? 1 : 0
-          console.log(`🎵 Fading in to volume: ${targetVolume}`)
-          volumeAnim.setValue(0)
+    const currentPlayer = playerFor(state, state.currentTrackId)
+    const currentVolumeAnim = volumeAnimFor(state.currentTrackId)
+    const newPlayer = playerFor(state, newTrackId)
+    const newVolumeAnim = volumeAnimFor(newTrackId)
 
-          Animated.timing(volumeAnim, {
-            toValue: targetVolume,
-            duration: 2000,
-            easing: Easing.inOut(Easing.ease),
-            useNativeDriver: false,
-          }).start(({ finished }) => {
-            if (finished) {
-              console.log(`✅ Fade in complete. Final volume: ${audioPlayer.volume}`)
-            }
-          })
+    set({ currentTrackId: newTrackId, audioPlayer: newPlayer })
 
-          // Listen to animated value and update audio volume
-          volumeAnim.addListener(({ value }) => {
-            if (audioPlayer) {
-              audioPlayer.volume = value
-              set({ volume: value })
-            }
-          })
+    if (!state.isPlaying) return
 
-          console.log('✅ Flow music started with smooth fade in')
-        } catch (playError) {
-          console.error('❌ Error playing flow music:', playError)
-          console.error('Error details:', playError.message, playError.stack)
-          // Reset state if play fails
-          set({ isPlaying: false })
+    // Fade out current track
+    if (currentPlayer && currentVolumeAnim) {
+      currentVolumeAnim.removeAllListeners()
+      Animated.timing(currentVolumeAnim, {
+        toValue: 0,
+        duration: FADE_CROSS_MS,
+        easing: Easing.inOut(Easing.ease),
+        useNativeDriver: false,
+      }).start(({ finished }) => {
+        if (finished) {
+          currentPlayer.pause()
+          currentVolumeAnim.setValue(0)
         }
-      }
+      })
+      currentVolumeAnim.addListener(({ value }) => {
+        currentPlayer.volume = value
+      })
+    }
 
-      // Try to play immediately
-      attemptPlay()
-    } catch (error) {
-      console.error('❌ Error starting flow music:', error)
-      console.error('Error details:', error.message, error.stack)
-      set({ isPlaying: false })
+    // Fade in new track at the right flow-clock position
+    if (newPlayer && newVolumeAnim && newTrackId !== 'none') {
+      try {
+        const elapsedSec = state.flowStartedAt ? (Date.now() - state.flowStartedAt) / 1000 : 0
+        const duration = newPlayer.duration ?? 0
+        const seekPos = duration > 0 ? elapsedSec % duration : 0
+
+        newPlayer.seekTo(seekPos)
+        newPlayer.loop = true
+        newPlayer.volume = 0
+        newPlayer.muted = false
+        newPlayer.play()
+
+        newVolumeAnim.setValue(0)
+        newVolumeAnim.removeAllListeners()
+
+        Animated.timing(newVolumeAnim, {
+          toValue: 1,
+          duration: FADE_CROSS_MS,
+          easing: Easing.inOut(Easing.ease),
+          useNativeDriver: false,
+        }).start()
+
+        newVolumeAnim.addListener(({ value }) => {
+          newPlayer.volume = value
+        })
+      } catch (e) {
+        console.error('❌ Error switching track:', e)
+      }
     }
   },
 
   stopFlowMusic: () => {
-    const { audioPlayer, volume: currentVolume, isPlaying } = get()
-    console.log('🎵 stopFlowMusic called:', { hasPlayer: !!audioPlayer, isPlaying, currentVolume })
+    const state = get()
+    if (!state.isPlaying) return
 
-    if (!audioPlayer) {
-      console.warn('❌ Cannot stop flow music: audio player not initialized')
-      return
-    }
+    const activePlayer = playerFor(state, state.currentTrackId)
+    const activeVolumeAnim = volumeAnimFor(state.currentTrackId)
 
-    if (!isPlaying) {
-      console.log('🎵 Flow music not playing, skipping stop')
-      return
-    }
+    set({ isPlaying: false, flowStartedAt: null })
 
-    try {
-      console.log(`🎵 Fading out from volume: ${currentVolume}`)
-      // Smooth fade out using Animated API
-      volumeAnim.setValue(currentVolume)
+    if (!activePlayer) return
 
-      Animated.timing(volumeAnim, {
+    if (activeVolumeAnim) {
+      activeVolumeAnim.removeAllListeners()
+      Animated.timing(activeVolumeAnim, {
         toValue: 0,
         duration: 2000,
         easing: Easing.inOut(Easing.ease),
         useNativeDriver: false,
       }).start(({ finished }) => {
-        if (finished && audioPlayer) {
-          audioPlayer.pause()
-          volumeAnim.removeAllListeners()
-          set({ isPlaying: false, volume: 1 })
-          console.log('✅ Flow music stopped with smooth fade out')
+        if (finished) {
+          activePlayer.pause()
+          activeVolumeAnim.setValue(0)
+          activeVolumeAnim.removeAllListeners()
         }
       })
-
-      // Update audio volume as it animates
-      volumeAnim.addListener(({ value }) => {
-        if (audioPlayer) {
-          audioPlayer.volume = value
-          set({ volume: value })
-        }
+      activeVolumeAnim.addListener(({ value }) => {
+        activePlayer.volume = value
       })
-    } catch (error) {
-      console.error('❌ Error stopping flow music:', error)
-      console.error('Error details:', error.message, error.stack)
-      if (audioPlayer) {
-        audioPlayer.pause()
-      }
-      set({ isPlaying: false, volume: 1 })
+    } else {
+      activePlayer.pause()
     }
   },
 
   pauseFlowMusic: () => {
-    const { audioPlayer, isPlaying } = get()
-    if (!audioPlayer || !isPlaying) return
-    try {
-      audioPlayer.pause()
-      set({ isPlaying: false })
-    } catch (error) {
-      console.error('Error pausing flow music:', error)
-    }
+    const state = get()
+    if (!state.isPlaying) return
+    const player = playerFor(state, state.currentTrackId)
+    if (player) player.pause()
+    set({ isPlaying: false })
   },
 
   resumeFlowMusic: () => {
-    const { audioPlayer, isPlaying } = get()
-    if (!audioPlayer || isPlaying) return
-    try {
-      audioPlayer.play()
-      set({ isPlaying: true })
-    } catch (error) {
-      console.error('Error resuming flow music:', error)
-    }
+    const state = get()
+    if (state.isPlaying) return
+    const player = playerFor(state, state.currentTrackId)
+    if (player && state.currentTrackId !== 'none') player.play()
+    set({ isPlaying: true })
   },
 
   setVolume: (volume) => {
-    const { audioPlayer } = get()
-    if (audioPlayer) {
-      try {
-        audioPlayer.volume = volume
-        set({ volume })
-      } catch (error) {
-        console.error('Error setting volume:', error)
-      }
-    }
+    const state = get()
+    const player = playerFor(state, state.currentTrackId)
+    if (player) player.volume = volume
   },
 
   updateMusicSetting: (isMusicEnabled) => {
-    const { audioPlayer, isPlaying } = get()
-    if (audioPlayer && isPlaying) {
-      try {
-        audioPlayer.volume = isMusicEnabled ? get().volume : 0
-      } catch (error) {
-        console.error('Error updating music setting:', error)
-      }
+    const state = get()
+    if (!state.isPlaying) return
+    const player = playerFor(state, state.currentTrackId)
+    const volumeAnim = volumeAnimFor(state.currentTrackId)
+    if (player) {
+      const v = isMusicEnabled ? 1 : 0
+      player.volume = v
+      if (volumeAnim) volumeAnim.setValue(v)
     }
   },
 }))

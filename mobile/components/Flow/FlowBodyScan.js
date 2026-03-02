@@ -56,7 +56,7 @@ export default function BodyScanCountdown() {
   const startTimeRef = useRef(null)
   const overlayTimeoutRef = useRef(null)
 
-  const { isMusicEnabled } = useSettingsStore()
+  const { isMusicEnabled, selectedTrackId } = useSettingsStore()
   const { startFlowMusic, stopFlowMusic, updateMusicSetting, audioPlayer, pauseFlowMusic, resumeFlowMusic } = useFlowMusicStore()
 
   const progressAnim = useRef(new Animated.Value(0)).current
@@ -64,7 +64,7 @@ export default function BodyScanCountdown() {
   useEffect(() => {
     startTimeRef.current = Date.now()
     if (isInitial && audioPlayer) {
-      startFlowMusic(isMusicEnabled)
+      startFlowMusic(isMusicEnabled, selectedTrackId)
     }
   }, [isInitial, audioPlayer])
 

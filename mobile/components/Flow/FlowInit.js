@@ -12,6 +12,7 @@ import { useRoutineStore } from '../../stores/routineStore'
 import { chainService } from '../../services/chainService'
 import StateXYPicker from '../StateXYPicker'
 import CustomizationModal from '../CustomizationModal'
+import MusicPickerModal from '../MusicPickerModal'
 import FlowPlanSheet from '../FlowPlanSheet'
 import { api } from '../../services/api'
 import { deriveState, getPolyvagalExplanation } from '../../constants/polyvagalStates'
@@ -185,6 +186,7 @@ export default function DailyFlowSetup() {
   const [showReasoningSheet, setShowReasoningSheet] = useState(false)
   const [showDurationPicker, setShowDurationPicker] = useState(false)
   const [showCustomization, setShowCustomization]   = useState(false)
+  const [showMusicPicker, setShowMusicPicker]       = useState(false)
   const [showPlanSheet, setShowPlanSheet]           = useState(false)
   const [showPolyvagalInfo, setShowPolyvagalInfo]   = useState(false)
 
@@ -490,14 +492,14 @@ export default function DailyFlowSetup() {
       {/* Sticky bottom: action row + duration pill */}
       <View style={styles.stickyBottom}>
         <View style={styles.actionRow}>
-          {/* Music toggle button — matches HomeScreen left-button style */}
+          {/* Music picker button */}
           <TouchableOpacity
             style={styles.sideBtn}
-            onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); toggleMusic() }}
+            onPress={() => setShowMusicPicker(true)}
             activeOpacity={0.75}
           >
             <Ionicons
-              name={isMusicEnabled ? 'musical-notes' : 'musical-notes-outline'}
+              name="musical-notes"
               size={20}
               color="rgba(255,255,255,0.78)"
             />
@@ -547,6 +549,7 @@ export default function DailyFlowSetup() {
 
       {/* Customization modal */}
       <CustomizationModal visible={showCustomization} onClose={() => setShowCustomization(false)} />
+      <MusicPickerModal visible={showMusicPicker} onClose={() => setShowMusicPicker(false)} />
 
       {/* Unified "Your Flow" plan sheet */}
       <FlowPlanSheet

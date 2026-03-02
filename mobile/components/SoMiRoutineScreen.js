@@ -55,7 +55,7 @@ export default function SoMiRoutineScreen() {
   const segmentType = segment?.type ?? null
 
   // ── Settings & music ──────────────────────────────────────────────────────
-  const { isMusicEnabled } = useSettingsStore()
+  const { isMusicEnabled, selectedTrackId } = useSettingsStore()
   const flowMusicStore = useFlowMusicStore()
   const { startFlowMusic, setVolume: setFlowMusicVolume, updateMusicSetting, stopFlowMusic, audioPlayer, pauseFlowMusic, resumeFlowMusic } = flowMusicStore
 
@@ -149,7 +149,7 @@ export default function SoMiRoutineScreen() {
   // Start flow music for quick routines
   useEffect(() => {
     if (audioPlayer && isQuickRoutine) {
-      startFlowMusic(isMusicEnabled)
+      startFlowMusic(isMusicEnabled, selectedTrackId)
     }
   }, [audioPlayer, isQuickRoutine])
 

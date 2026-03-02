@@ -9,7 +9,8 @@ import { useFlowMusicStore } from '../stores/flowMusicStore'
 import { soundManager } from '../utils/SoundManager'
 import { prefetchVideoBlocks } from '../constants/media'
 
-const FLOW_MUSIC_URL = 'https://qujifwhwntqxziymqdwu.supabase.co/storage/v1/object/public/test/somi%20og%20music/fluids%20v2.mp3'
+const FLUIDS_URL = 'https://qujifwhwntqxziymqdwu.supabase.co/storage/v1/object/public/test/somi%20og%20music/fluids%20v2.mp3'
+const TOGETHER_URL = 'https://qujifwhwntqxziymqdwu.supabase.co/storage/v1/object/public/test/somi%20music/Nine%20Inch%20Nails%20-%20Together.mp3'
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -23,8 +24,9 @@ const queryClient = new QueryClient({
 
 export default function RootLayout() {
   const initialize = useAuthStore((state) => state.initialize)
-  const flowAudioPlayer = useAudioPlayer(FLOW_MUSIC_URL)
-  const { setAudioPlayer } = useFlowMusicStore()
+  const fluidsPlayer = useAudioPlayer(FLUIDS_URL)
+  const togetherPlayer = useAudioPlayer(TOGETHER_URL)
+  const { setTrackPlayers } = useFlowMusicStore()
 
   useEffect(() => {
     const subscription = initialize()
@@ -32,10 +34,10 @@ export default function RootLayout() {
   }, [])
 
   useEffect(() => {
-    if (flowAudioPlayer) {
-      setAudioPlayer(flowAudioPlayer)
+    if (fluidsPlayer && togetherPlayer) {
+      setTrackPlayers(fluidsPlayer, togetherPlayer)
     }
-  }, [flowAudioPlayer])
+  }, [fluidsPlayer, togetherPlayer])
 
   useEffect(() => {
     // Configure iOS audio session: play sounds even when silent switch is on,

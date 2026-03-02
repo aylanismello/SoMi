@@ -14,6 +14,7 @@ export const useSettingsStore = create(
       isSfxEnabled: true,
       bodyScanStart: true,
       bodyScanEnd: true,
+      selectedTrackId: 'fluids', // 'fluids' | 'together' | 'none'
 
       // Actions
       toggleMusic: () => set((state) => ({
@@ -28,6 +29,7 @@ export const useSettingsStore = create(
       setSfxEnabled: (enabled) => set({ isSfxEnabled: enabled }),
       setBodyScanStart: (val) => set({ bodyScanStart: val }),
       setBodyScanEnd: (val) => set({ bodyScanEnd: val }),
+      setSelectedTrack: (id) => set({ selectedTrackId: id }),
     }),
     {
       name: 'somi-settings',

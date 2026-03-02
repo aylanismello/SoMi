@@ -8,6 +8,7 @@ import { router } from 'expo-router'
 import { colors } from '../constants/theme'
 import * as Haptics from 'expo-haptics'
 import CustomizationModal from './CustomizationModal'
+import MusicPickerModal from './MusicPickerModal'
 import { useAuthStore } from '../stores/authStore'
 import { useWeeklyFlows } from '../hooks/useSupabaseQueries'
 import { Ionicons } from '@expo/vector-icons'
@@ -63,6 +64,7 @@ function WeekDay({ label, percentage, isToday, isFuture }) {
 export default function HomeScreen() {
   const glowAnim = useRef(new Animated.Value(0)).current
   const [showSettingsModal, setShowSettingsModal] = useState(false)
+  const [showMusicModal, setShowMusicModal] = useState(false)
   const user = useAuthStore((state) => state.user)
   const { data: weeklyChains, refetch: refetchWeekly } = useWeeklyFlows()
 
@@ -193,7 +195,7 @@ export default function HomeScreen() {
       <View style={styles.actionRow}>
         <TouchableOpacity
           style={styles.sideBtn}
-          onPress={() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)}
+          onPress={() => setShowMusicModal(true)}
           activeOpacity={0.75}
         >
           <Ionicons name="musical-notes" size={20} color="rgba(255,255,255,0.75)" />
@@ -215,6 +217,7 @@ export default function HomeScreen() {
       </View>
 
       <CustomizationModal visible={showSettingsModal} onClose={() => setShowSettingsModal(false)} />
+      <MusicPickerModal visible={showMusicModal} onClose={() => setShowMusicModal(false)} />
     </View>
   )
 }
