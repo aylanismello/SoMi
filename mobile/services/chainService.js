@@ -84,6 +84,24 @@ export const chainService = {
     }
   },
 
+  async logPlayTime(label) {
+    try {
+      const { blocks } = await this.getSessionData()
+      const extra = await this.getExtraPlaySeconds()
+      const blockSecs = blocks.reduce((sum, b) => sum + (b.secondsElapsed || 0), 0)
+      const total = blockSecs + extra
+      console.log(
+        `\n⏱️  [PLAY TIME] ${label}\n` +
+        `   blocks (${blocks.length}): ${blockSecs}s\n` +
+        `   interstitials:  ${extra}s\n` +
+        `   ─────────────────────\n` +
+        `   TOTAL SO FAR:   ${total}s  (need ${Math.max(0, 300 - total)}s more for streak)\n`
+      )
+    } catch (e) {
+      console.error('logPlayTime error:', e)
+    }
+  },
+
   async clearSessionData() {
     try {
       await AsyncStorage.removeItem(SESSION_CHECKS_KEY)
@@ -114,10 +132,10 @@ export const chainService = {
       const totalPlaySeconds = blockPlaySeconds + extraPlaySeconds
       console.log(`⏱️ Total play time: ${totalPlaySeconds}s (blocks: ${blockPlaySeconds}s, interstitials: ${extraPlaySeconds}s)`)
 
-      // Create the chain
-      const { chain } = await api.createChain(flowType)
+      // Create the chain with duration_seconds baked in from the start
+      const { chain } = await api.createChain(flowType, totalPlaySeconds > 0 ? totalPlaySeconds : null)
       const chainId = chain.id
-      console.log(`✅ Created chain ${chainId}`)
+      console.log(`✅ Created chain ${chainId} with duration_seconds=${totalPlaySeconds}s`)
 
       // Upload all embodiment checks
       for (const check of checks) {
@@ -141,13 +159,6 @@ export const chainService = {
           block.section || null
         )
         console.log(`  ✅ Uploaded block ${block.somiBlockId}`)
-      }
-
-      // Set duration_seconds to the client-computed actual play time
-      // This overrides the server-side entry sum and includes interstitial/body-scan time
-      if (totalPlaySeconds > 0) {
-        await api.updateChainDuration(chainId, totalPlaySeconds)
-        console.log(`  ✅ Set duration_seconds = ${totalPlaySeconds}s`)
       }
 
       // Clear session data

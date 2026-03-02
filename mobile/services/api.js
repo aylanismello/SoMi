@@ -85,17 +85,12 @@ export const api = {
     return apiRequest(`/chains/latest${params}`)
   },
 
-  createChain: async (flowType = 'daily_flow') => {
+  createChain: async (flowType = 'daily_flow', durationSeconds = null) => {
+    const body = { flow_type: flowType }
+    if (durationSeconds != null) body.duration_seconds = durationSeconds
     return apiRequest('/chains', {
       method: 'POST',
-      body: JSON.stringify({ flow_type: flowType }),
-    })
-  },
-
-  updateChainDuration: async (chainId, durationSeconds) => {
-    return apiRequest(`/chains/${chainId}`, {
-      method: 'PATCH',
-      body: JSON.stringify({ duration_seconds: durationSeconds }),
+      body: JSON.stringify(body),
     })
   },
 
