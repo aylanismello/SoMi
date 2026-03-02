@@ -13,7 +13,7 @@ export function intensityWord(v) {
 }
 
 const CURSOR_R = 16
-const ASPECT = 0.52  // height / width — landscape rectangle
+const ASPECT = 1.0  // height / width — square
 
 // State positions in the 2D space (cx/cy as 0-1 fractions of pad)
 // X=0 left=low energy, X=1 right=high energy
@@ -210,12 +210,12 @@ export default function StateXYPicker({
           pointerEvents="none"
           style={[styles.cursor, { left: curLeft, top: curTop }]}
         />
+      </View>
 
-        {/* Readout: ocean glass pill */}
-        <View style={styles.readout} pointerEvents="none">
-          <Text style={{ fontSize: 13 }}>{curState.icon}</Text>
-          <Text style={styles.readoutState}>{curState.label}</Text>
-        </View>
+      {/* Readout: displayed below the picker box */}
+      <View style={styles.readout} pointerEvents="none">
+        <Text style={{ fontSize: 13 }}>{curState.icon}</Text>
+        <Text style={styles.readoutState}>{curState.label}</Text>
       </View>
     </View>
   )
@@ -267,15 +267,15 @@ const styles = StyleSheet.create({
     shadowRadius: 14,
   },
   readout: {
-    position: 'absolute',
-    top: 11, left: 13,
+    marginTop: 10,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 5,
+    alignSelf: 'center',
+    gap: 6,
     backgroundColor: 'rgba(0,15,35,0.55)',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+    borderRadius: 14,
     borderWidth: 0.5,
     borderColor: 'rgba(0,210,255,0.28)',
   },

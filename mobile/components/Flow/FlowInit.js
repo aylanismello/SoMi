@@ -180,7 +180,6 @@ export default function DailyFlowSetup() {
   const [selectedMinutes, setSelectedMinutes] = useState(10)
   const [energyLevel, setEnergyLevel]         = useState(50)
   const [safetyLevel, setSafetyLevel]         = useState(50)
-  const [scrollEnabled, setScrollEnabled]     = useState(true)
   const [isGenerating, setIsGenerating]       = useState(false)
   const [reasoning, setReasoning]             = useState(null)
   const [showReasoningSheet, setShowReasoningSheet] = useState(false)
@@ -324,7 +323,6 @@ export default function DailyFlowSetup() {
       safetyRef.current = 50
       setUseAi(false)
       useAiRef.current = false
-      setScrollEnabled(true)
       setReasoning(null)
       setBodyScanStart(true)
       setBodyScanEnd(true)
@@ -372,7 +370,6 @@ export default function DailyFlowSetup() {
 
   // Trigger re-generate when user lifts finger from the XY picker
   const handlePickerDragEnd = useCallback(() => {
-    setScrollEnabled(true)
     if (!isReadyForInputRef.current || isGenerating) return
     doGeneratePreview(selectedMinutes, energyRef.current, safetyRef.current, false)
   }, [doGeneratePreview, selectedMinutes, isGenerating])
@@ -449,7 +446,7 @@ export default function DailyFlowSetup() {
         style={styles.scrollView}
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
-        scrollEnabled={scrollEnabled}
+        scrollEnabled={false}
       >
         {/* How do you feel */}
         <View style={styles.section}>
@@ -468,7 +465,6 @@ export default function DailyFlowSetup() {
             onEnergyChange={(v) => { energyRef.current = v; setEnergyLevel(v) }}
             safetyLevel={safetyLevel}
             onSafetyChange={(v) => { safetyRef.current = v; setSafetyLevel(v) }}
-            onDragStart={() => setScrollEnabled(false)}
             onDragEnd={handlePickerDragEnd}
           />
         </View>
@@ -479,7 +475,7 @@ export default function DailyFlowSetup() {
             <Ionicons name="sparkles" size={17} color={useAi ? '#fff' : 'rgba(255,255,255,0.38)'} />
             <View>
               <Text style={[styles.aiToggleLabel, useAi && styles.aiToggleLabelActive]}>AI-assisted</Text>
-              <Text style={styles.aiToggleSub}>{useAi ? 'Claude curates your flow' : 'Algorithm selects blocks'}</Text>
+              <Text style={styles.aiToggleSub}>{useAi ? 'SoMi curates your flow' : 'Algorithm selects blocks'}</Text>
             </View>
           </View>
           <Switch
