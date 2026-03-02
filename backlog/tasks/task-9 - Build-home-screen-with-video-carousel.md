@@ -4,7 +4,7 @@ title: Build home screen with video carousel
 status: Done
 assignee: []
 created_date: '2025-11-02 06:24'
-updated_date: '2025-11-02 06:32'
+updated_date: '2026-03-02 05:25'
 labels:
   - feature
   - home
@@ -13,6 +13,7 @@ labels:
   - mvp
 dependencies: []
 priority: high
+ordinal: 26000
 ---
 
 ## Description

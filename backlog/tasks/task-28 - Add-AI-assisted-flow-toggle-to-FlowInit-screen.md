@@ -1,9 +1,10 @@
 ---
 id: task-28
 title: Add AI-assisted flow toggle to FlowInit screen
-status: In Progress
+status: Done
 assignee: []
 created_date: '2026-03-02 05:28'
+updated_date: '2026-03-02 05:29'
 labels: []
 dependencies: []
 priority: medium

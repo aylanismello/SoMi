@@ -4,12 +4,13 @@ title: Remove skip from daily flow check-ins
 status: Done
 assignee: []
 created_date: '2026-02-02 02:13'
-updated_date: '2026-02-02 02:16'
+updated_date: '2026-03-02 05:25'
 labels:
   - ux
   - validation
 dependencies: []
 priority: high
+ordinal: 10000
 ---
 
 ## Description

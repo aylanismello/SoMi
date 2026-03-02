@@ -4,12 +4,13 @@ title: Add body_scan block logging to somi_chain
 status: Done
 assignee: []
 created_date: '2026-01-25 18:37'
-updated_date: '2026-01-25 18:38'
+updated_date: '2026-03-02 05:25'
 labels:
   - feature
   - database
 dependencies: []
 priority: medium
+ordinal: 19000
 ---
 
 ## Description

@@ -4,13 +4,14 @@ title: Implement global settings menu with music toggle
 status: Done
 assignee: []
 created_date: '2026-01-25 18:37'
-updated_date: '2026-01-25 18:40'
+updated_date: '2026-03-02 05:25'
 labels:
   - feature
   - ui
   - refactor
 dependencies: []
 priority: high
+ordinal: 17000
 ---
 
 ## Description

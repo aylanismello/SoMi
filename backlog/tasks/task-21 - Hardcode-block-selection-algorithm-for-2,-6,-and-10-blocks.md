@@ -4,12 +4,13 @@ title: 'Hardcode block selection algorithm for 2, 6, and 10 blocks'
 status: Done
 assignee: []
 created_date: '2026-01-25 18:40'
-updated_date: '2026-01-25 18:41'
+updated_date: '2026-03-02 05:25'
 labels:
   - feature
   - algorithm
 dependencies: []
 priority: high
+ordinal: 16000
 ---
 
 ## Description

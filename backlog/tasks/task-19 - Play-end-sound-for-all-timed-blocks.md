@@ -4,12 +4,13 @@ title: Play end sound for all timed blocks
 status: Done
 assignee: []
 created_date: '2026-01-25 18:37'
-updated_date: '2026-01-25 18:37'
+updated_date: '2026-03-02 05:25'
 labels:
   - feature
   - audio
 dependencies: []
 priority: medium
+ordinal: 21000
 ---
 
 ## Description

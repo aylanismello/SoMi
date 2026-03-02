@@ -4,12 +4,13 @@ title: Add Daily Flow card to HomeScreen
 status: Done
 assignee: []
 created_date: '2026-02-02 02:13'
-updated_date: '2026-02-02 02:13'
+updated_date: '2026-03-02 05:25'
 labels:
   - ui
   - navigation
 dependencies: []
 priority: high
+ordinal: 13000
 ---
 
 ## Description

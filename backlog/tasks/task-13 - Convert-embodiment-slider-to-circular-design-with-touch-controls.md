@@ -4,9 +4,10 @@ title: Convert embodiment slider to circular design with touch controls
 status: Done
 assignee: []
 created_date: '2025-11-04 00:27'
-updated_date: '2025-11-04 00:27'
+updated_date: '2026-03-02 05:25'
 labels: []
 dependencies: []
+ordinal: 22000
 ---
 
 ## Description

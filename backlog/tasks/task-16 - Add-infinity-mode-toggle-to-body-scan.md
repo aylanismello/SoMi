@@ -4,12 +4,13 @@ title: Add infinity mode toggle to body scan
 status: Done
 assignee: []
 created_date: '2026-01-25 18:37'
-updated_date: '2026-01-25 18:43'
+updated_date: '2026-03-02 05:25'
 labels:
   - feature
   - ui
 dependencies: []
 priority: medium
+ordinal: 15000
 ---
 
 ## Description

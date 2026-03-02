@@ -4,6 +4,7 @@ title: Complete UX/UI redesign with polyvagal-inspired visual language
 status: Done
 assignee: []
 created_date: '2025-11-02 08:12'
+updated_date: '2026-03-02 05:25'
 labels:
   - ui/ux
   - design
@@ -11,6 +12,7 @@ labels:
   - polyvagal
 dependencies: []
 priority: high
+ordinal: 23000
 ---
 
 ## Description

@@ -4,12 +4,13 @@ title: Differentiate SoMi Flow from Quick Routines
 status: Done
 assignee: []
 created_date: '2026-02-02 02:13'
-updated_date: '2026-02-02 02:16'
+updated_date: '2026-03-02 05:25'
 labels:
   - ux
   - flow
 dependencies: []
 priority: high
+ordinal: 9000
 ---
 
 ## Description

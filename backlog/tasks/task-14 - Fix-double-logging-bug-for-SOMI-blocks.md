@@ -4,12 +4,13 @@ title: Fix double logging bug for SOMI blocks
 status: Done
 assignee: []
 created_date: '2026-01-25 18:37'
-updated_date: '2026-01-25 18:38'
+updated_date: '2026-03-02 05:25'
 labels:
   - bug
   - database
 dependencies: []
 priority: high
+ordinal: 18000
 ---
 
 ## Description

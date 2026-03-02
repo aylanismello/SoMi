@@ -4,12 +4,13 @@ title: Mute all videos in media player
 status: Done
 assignee: []
 created_date: '2026-01-25 18:37'
-updated_date: '2026-01-25 18:37'
+updated_date: '2026-03-02 05:25'
 labels:
   - bug
   - media
 dependencies: []
 priority: high
+ordinal: 20000
 ---
 
 ## Description

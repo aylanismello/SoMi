@@ -4,10 +4,11 @@ title: Connect Supabase DB to save embodiment check data on 'regulate' button pr
 status: Done
 assignee: []
 created_date: '2025-11-02 07:32'
-updated_date: '2025-11-02 07:45'
+updated_date: '2026-03-02 05:25'
 labels: []
 dependencies: []
 priority: high
+ordinal: 24000
 ---
 
 ## Description

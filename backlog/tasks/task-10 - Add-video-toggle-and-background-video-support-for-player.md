@@ -4,13 +4,14 @@ title: Add video toggle and background video support for player
 status: Done
 assignee: []
 created_date: '2025-10-31 23:39'
-updated_date: '2025-11-02 06:48'
+updated_date: '2026-03-02 05:25'
 labels:
   - feature
   - player
   - ux
 dependencies: []
 priority: high
+ordinal: 25000
 ---
 
 ## Description

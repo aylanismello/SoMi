@@ -4,13 +4,14 @@ title: Refactor integration interstitial with collapsible categories
 status: Done
 assignee: []
 created_date: '2026-01-25 18:37'
-updated_date: '2026-01-25 18:44'
+updated_date: '2026-03-02 05:25'
 labels:
   - feature
   - ui
   - refactor
 dependencies: []
 priority: medium
+ordinal: 14000
 ---
 
 ## Description
