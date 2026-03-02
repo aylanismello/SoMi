@@ -18,8 +18,7 @@ export const useRoutineStore = create((set, get) => ({
   phase: 'interstitial', // 'video' | 'interstitial' - derived from segment type
   remainingSeconds: 0, // live countdown updated every second by SoMiRoutineScreen
 
-  // Queue management — hardcodedQueue holds somi_block segments only (for plan view, edit modal, chain entries)
-  hardcodedQueue: [],
+  // Video state
   currentVideo: null,
   selectedVideoId: null,
 
@@ -53,12 +52,9 @@ export const useRoutineStore = create((set, get) => ({
     segmentIndex: state.segmentIndex + 1,
   })),
 
-  setQueue: (queue) => set({ hardcodedQueue: queue }),
-
-  updateBlockInQueue: (index, block) => set((state) => ({
-    hardcodedQueue: state.hardcodedQueue.map((b, i) =>
-      i === index ? block : b
-    )
+  // Update a single segment by index (used for block swapping in RoutineQueuePreview)
+  updateSegment: (index, data) => set((state) => ({
+    segments: state.segments.map((s, i) => i === index ? { ...s, ...data } : s),
   })),
 
   setCurrentVideo: (video) => set({
@@ -73,7 +69,6 @@ export const useRoutineStore = create((set, get) => ({
     savedInitialSafety = null,
     savedInitialValue,
     savedInitialState,
-    customQueue = null,
     segments = null,
     isQuickRoutine = false,
     flowType = null,
@@ -88,7 +83,6 @@ export const useRoutineStore = create((set, get) => ({
     flowType: flowType || (isQuickRoutine ? 'quick_routine' : 'daily_flow'),
     currentCycle: 1,
     phase: 'interstitial',
-    hardcodedQueue: customQueue || [],
     segments: segments || [],
     segmentIndex: 0,
     currentVideo: null,
@@ -104,7 +98,6 @@ export const useRoutineStore = create((set, get) => ({
     currentCycle: 1,
     totalBlocks: 6,
     phase: 'interstitial',
-    hardcodedQueue: [],
     segments: [],
     segmentIndex: 0,
     currentVideo: null,

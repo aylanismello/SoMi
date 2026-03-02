@@ -9,7 +9,6 @@ export default function FlowProgressHeader() {
   // Use individual selectors for proper Zustand reactivity
   const currentCycle = useRoutineStore(state => state.currentCycle)
   const totalBlocks = useRoutineStore(state => state.totalBlocks)
-  const hardcodedQueue = useRoutineStore(state => state.hardcodedQueue)
   const segments = useRoutineStore(state => state.segments)
   const phase = useRoutineStore(state => state.phase)
   const remainingSeconds = useRoutineStore(state => state.remainingSeconds)
@@ -60,7 +59,7 @@ export default function FlowProgressHeader() {
       <FlowPlanSheet
         visible={showPlanSheet}
         onClose={handleClosePlan}
-        queue={hardcodedQueue}
+        queue={segments.filter(s => s.type === 'somi_block')}
         fullSegments={segments}
         title="Your Flow"
         subtitle={`${displayCompleted} of ${totalBlocks} completed`}

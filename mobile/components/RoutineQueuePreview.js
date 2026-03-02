@@ -35,10 +35,9 @@ export default function RoutineQueuePreview() {
 
   const {
     totalBlocks,
-    hardcodedQueue: storeQueue,
     segments: routineSegments,
     currentCycle,
-    setQueue,
+    updateSegment,
   } = useRoutineStore()
 
   // Handle edit mode from route params
@@ -62,12 +61,15 @@ export default function RoutineQueuePreview() {
     routineSegments[routineSegments.length - 1]?.type === 'body_scan' &&
     routineSegments[routineSegments.length - 1]?.section === 'integration'
 
-  // Initialize queue from store
+  // Initialize enriched queue from somi_block segments, tagging each with its segment index
   useEffect(() => {
-    if (storeQueue && storeQueue.length > 0 && enrichedQueue.length === 0) {
-      setEnrichedQueue(storeQueue)
+    if (routineSegments.length > 0 && enrichedQueue.length === 0) {
+      const somiBlocks = routineSegments
+        .map((seg, i) => ({ ...seg, _segmentIndex: i }))
+        .filter(seg => seg.type === 'somi_block')
+      if (somiBlocks.length > 0) setEnrichedQueue(somiBlocks)
     }
-  }, [storeQueue])
+  }, [routineSegments])
 
   // Load library blocks for swap
   useEffect(() => {
@@ -86,7 +88,6 @@ export default function RoutineQueuePreview() {
 
   const handleBack = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
-    setQueue(enrichedQueue)
     if (onQueueUpdate) onQueueUpdate(enrichedQueue)
     navigation.goBack()
   }
@@ -103,19 +104,21 @@ export default function RoutineQueuePreview() {
 
   const handleBlockSelect = (libraryBlock) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium)
-    const newQueue = [...enrichedQueue]
-    newQueue[swapIndex] = {
+    const swapData = {
       somi_block_id:  libraryBlock.id,
       name:           libraryBlock.name,
       canonical_name: libraryBlock.canonical_name,
       url:            libraryBlock.media_url,
-      type:           'video',
+      type:           'somi_block',
       description:    libraryBlock.description,
       energy_delta:   libraryBlock.energy_delta,
       safety_delta:   libraryBlock.safety_delta,
     }
+    const newQueue = [...enrichedQueue]
+    newQueue[swapIndex] = { ...newQueue[swapIndex], ...swapData }
     setEnrichedQueue(newQueue)
-    setQueue(newQueue)
+    // Update the full segments array in the store
+    updateSegment(newQueue[swapIndex]._segmentIndex, swapData)
     setShowLibrary(false)
     setSwapIndex(null)
   }

@@ -43,7 +43,7 @@ export async function POST(request) {
     // ── Fetch all active vagal_toning blocks ─────────────────────────────────
     const { data: allBlocks, error: dbError } = await supabase
       .from('somi_blocks')
-      .select('id, canonical_name, name, description, energy_delta, safety_delta, media_url')
+      .select('id, canonical_name, name, description, energy_delta, safety_delta, media_url, duration_seconds')
       .eq('active', true)
       .eq('block_type', 'vagal_toning')
 
@@ -156,7 +156,7 @@ function assembleSegments(blocksWithSections, scanStart, scanEnd) {
     segments.push({
       type: 'somi_block',
       section: block.section,
-      duration_seconds: 60,
+      duration_seconds: block.duration_seconds ?? 60,
       somi_block_id: block.id,
       canonical_name: block.canonical_name,
       name: block.name,
