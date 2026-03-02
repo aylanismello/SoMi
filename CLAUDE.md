@@ -40,5 +40,5 @@ This applies to every coding request across the entire repo.
 
 ### After completing work
 - Mark the task **Done** in the backlog
-- Create a git commit for all changed files
+- Create a git commit for all changed files - including the Backlog MD file(s)
 - **NEVER push to git** — commits only, no push

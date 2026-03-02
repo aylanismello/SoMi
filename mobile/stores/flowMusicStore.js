@@ -5,7 +5,7 @@ export const TRACKS = [
   {
     id: 'fluids',
     label: 'Fluids',
-    artist: 'Fluendo',
+    artist: 'Fluindo',
     color: '#1A4A7A',
     url: 'https://qujifwhwntqxziymqdwu.supabase.co/storage/v1/object/public/test/somi%20og%20music/fluids%20v2.mp3',
   },

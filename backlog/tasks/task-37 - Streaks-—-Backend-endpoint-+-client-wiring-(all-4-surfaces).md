@@ -1,10 +1,10 @@
 ---
 id: task-37
 title: Streaks — Backend endpoint + client wiring (all 4 surfaces)
-status: In Progress
+status: Done
 assignee: []
 created_date: '2026-03-02 08:26'
-updated_date: '2026-03-02 08:28'
+updated_date: '2026-03-02 08:38'
 labels:
   - streaks
   - backend
