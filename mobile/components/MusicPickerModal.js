@@ -1,22 +1,78 @@
 import { StyleSheet, View, Text, TouchableOpacity, Modal } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
 import * as Haptics from 'expo-haptics'
+import { useEffect, useRef, useState } from 'react'
+import { useAudioPlayer } from 'expo-audio'
 import { useSettingsStore } from '../stores/settingsStore'
 import { useFlowMusicStore, TRACKS } from '../stores/flowMusicStore'
 import { colors } from '../constants/theme'
+
+const PREVIEW_DURATION_MS = 15000
 
 export default function MusicPickerModal({ visible, onClose }) {
   const { selectedTrackId, setSelectedTrack } = useSettingsStore()
   const { isPlaying, switchTrack } = useFlowMusicStore()
 
+  const [previewingId, setPreviewingId] = useState(null)
+  const previewTimerRef = useRef(null)
+  const previewPlayer = useAudioPlayer(null)
+
+  const stopPreview = () => {
+    clearTimeout(previewTimerRef.current)
+    previewTimerRef.current = null
+    try { previewPlayer.pause() } catch (_) {}
+    setPreviewingId(null)
+  }
+
+  const handlePreview = (track) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
+
+    if (previewingId === track.id) {
+      stopPreview()
+      return
+    }
+
+    // Stop any in-progress preview first
+    clearTimeout(previewTimerRef.current)
+    try { previewPlayer.pause() } catch (_) {}
+
+    try {
+      previewPlayer.replace({ uri: track.url })
+      previewPlayer.volume = 1
+      previewPlayer.play()
+      setPreviewingId(track.id)
+
+      previewTimerRef.current = setTimeout(() => {
+        try { previewPlayer.pause() } catch (_) {}
+        setPreviewingId(null)
+        previewTimerRef.current = null
+      }, PREVIEW_DURATION_MS)
+    } catch (e) {
+      console.error('❌ Preview error:', e)
+      setPreviewingId(null)
+    }
+  }
+
   const handleSelect = (trackId) => {
+    stopPreview()
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
     setSelectedTrack(trackId)
-    if (isPlaying) {
-      switchTrack(trackId)
-    }
+    if (isPlaying) switchTrack(trackId)
     onClose()
   }
+
+  // Stop preview when modal closes
+  useEffect(() => {
+    if (!visible) stopPreview()
+  }, [visible])
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      clearTimeout(previewTimerRef.current)
+      try { previewPlayer.pause() } catch (_) {}
+    }
+  }, [])
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
@@ -29,6 +85,7 @@ export default function MusicPickerModal({ visible, onClose }) {
           <View style={styles.trackList}>
             {TRACKS.map((track, index) => {
               const isSelected = selectedTrackId === track.id
+              const isPreviewing = previewingId === track.id
               const isLast = index === TRACKS.length - 1
 
               return (
@@ -57,15 +114,30 @@ export default function MusicPickerModal({ visible, onClose }) {
                       )}
                     </View>
 
-                    {/* Selection indicator */}
-                    {isSelected && (
-                      <Ionicons
-                        name="checkmark"
-                        size={18}
-                        color={colors.accent.primary}
-                        style={styles.checkmark}
-                      />
-                    )}
+                    {/* Right side: preview button + checkmark */}
+                    <View style={styles.rightControls}>
+                      {track.url && (
+                        <TouchableOpacity
+                          style={styles.previewBtn}
+                          onPress={() => handlePreview(track)}
+                          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                        >
+                          <Ionicons
+                            name={isPreviewing ? 'stop-circle' : 'play-circle'}
+                            size={26}
+                            color={isPreviewing ? colors.accent.primary : 'rgba(255,255,255,0.35)'}
+                          />
+                        </TouchableOpacity>
+                      )}
+                      {isSelected && (
+                        <Ionicons
+                          name="checkmark"
+                          size={18}
+                          color={colors.accent.primary}
+                          style={styles.checkmark}
+                        />
+                      )}
+                    </View>
                   </TouchableOpacity>
 
                   {!isLast && <View style={styles.separator} />}
@@ -155,8 +227,16 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '400',
   },
+  rightControls: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  previewBtn: {
+    padding: 2,
+  },
   checkmark: {
-    marginLeft: 10,
+    // no extra margin needed — gap handles spacing
   },
   separator: {
     height: 1,
