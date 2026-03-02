@@ -11,19 +11,7 @@ const CUST_SECTIONS = [
     id: 'background',
     label: 'Background',
     options: [
-      { value: 'river', label: 'River', type: 'sphere', color: '#5BAEE8' },
       { value: 'ocean', label: 'Ocean', type: 'sphere', color: '#1A4A8A' },
-      { value: 'lake',  label: 'Lake',  type: 'sphere', color: '#2E7BC4' },
-    ],
-  },
-  {
-    id: 'soundscape',
-    label: 'Soundscape',
-    options: [
-      { value: 'forest', label: 'Forest', type: 'sphere', color: '#5B7B42' },
-      { value: 'river',  label: 'River',  type: 'sphere', color: '#5BA4CF' },
-      { value: 'drone',  label: 'Drone',  type: 'sphere', color: '#B0B0B0' },
-      { value: 'off',    label: 'Off',    type: 'off' },
     ],
   },
 ]
@@ -32,7 +20,7 @@ export default function CustomizationModal({ visible, onClose }) {
   const { isSfxEnabled, setSfxEnabled } = useSettingsStore()
 
   const [selections, setSelections] = useState({
-    background: 'river', soundscape: 'forest',
+    background: 'ocean',
   })
 
   const pick = (sectionId, value) => {
@@ -52,6 +40,7 @@ export default function CustomizationModal({ visible, onClose }) {
       <TouchableOpacity style={styles.overlay} activeOpacity={1} onPress={onClose}>
         <TouchableOpacity activeOpacity={1} style={styles.sheet} onPress={() => {}}>
           <View style={styles.handle} />
+          <Text style={styles.title}>Customization</Text>
           <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 24 }}>
 
             {/* Section pickers */}
@@ -137,7 +126,15 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255,255,255,0.2)',
     borderRadius: 2,
     alignSelf: 'center',
-    marginBottom: 20,
+    marginBottom: 16,
+  },
+  title: {
+    color: '#fff',
+    fontSize: 18,
+    fontWeight: '700',
+    textAlign: 'center',
+    marginBottom: 24,
+    letterSpacing: 0.1,
   },
   sectionLabel: {
     color: '#fff',
