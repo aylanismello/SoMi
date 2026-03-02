@@ -5,12 +5,13 @@ import { useAuthStore } from '../../stores/authStore'
 export default function TabsLayout() {
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated)
   const isLoading = useAuthStore((state) => state.isLoading)
+  const userId = useAuthStore((state) => state.user?.id)
 
   if (isLoading) return null
   if (!isAuthenticated) return <Redirect href="/(auth)/welcome" />
 
   return (
-    <NativeTabs>
+    <NativeTabs key={userId}>
       <NativeTabs.Trigger name="Home">
         <Icon sf="house.fill" />
       </NativeTabs.Trigger>
