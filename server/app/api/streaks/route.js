@@ -65,9 +65,14 @@ export async function GET(request) {
       }
     }
 
-    // current_streak: consecutive qualifying days walking backward from today
+    // current_streak: consecutive qualifying days.
+    // If today hasn't reached the threshold yet, we count backward from yesterday
+    // so a streak earned on previous days stays visible all day until midnight.
     let currentStreak = 0
     let cursor = todayStr
+    if ((daySeconds[cursor] || 0) < STREAK_THRESHOLD) {
+      cursor = addDays(cursor, -1)
+    }
     while ((daySeconds[cursor] || 0) >= STREAK_THRESHOLD) {
       currentStreak++
       cursor = addDays(cursor, -1)

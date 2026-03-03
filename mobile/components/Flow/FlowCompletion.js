@@ -317,10 +317,10 @@ export default function CompletionScreen() {
 
         {/* Title */}
         <Animated.View style={[styles.titleContainer, { opacity: titleFade }]}>
-          <Text style={styles.mainTitle}>{isQuickSession ? 'That was quick ⚡' : 'Incredible!'}</Text>
+          <Text style={styles.mainTitle}>{isQuickSession ? 'Nice work! ⚡' : 'Incredible!'}</Text>
           <Text style={styles.subtitle}>
             {isQuickSession
-              ? "Won't count toward your streak — you need 5 minutes."
+              ? 'Good start — aim for 5+ minutes to build your streak.'
               : 'You completed your Daily Flow'}
           </Text>
         </Animated.View>
@@ -412,7 +412,11 @@ export default function CompletionScreen() {
                       {streak} {streak === 1 ? 'day' : 'days'}
                     </Text>
                     <Text style={styles.streakLabel}>
-                      {streak === 1 ? 'Keep it going!' : 'On fire!'}
+                      {streak === 0
+                        ? (isQuickSession ? '5+ min sessions build your streak' : 'Streak starts today!')
+                        : streak === 1
+                          ? 'Keep it going!'
+                          : 'On fire!'}
                     </Text>
                   </View>
                 </View>
