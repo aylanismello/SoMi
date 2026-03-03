@@ -2,7 +2,7 @@ import { useState, useRef, useMemo, useEffect } from 'react'
 import { StyleSheet, View, Text, Dimensions, PanResponder } from 'react-native'
 import { LinearGradient } from 'expo-linear-gradient'
 import * as Haptics from 'expo-haptics'
-import { deriveState } from '../constants/polyvagalStates'
+import { deriveState } from '../../constants/polyvagalStates'
 
 export function intensityWord(v) {
   if (v < 20) return 'barely'

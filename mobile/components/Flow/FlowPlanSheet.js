@@ -3,7 +3,7 @@ import { BlurView } from 'expo-blur'
 import { Ionicons } from '@expo/vector-icons'
 import * as Haptics from 'expo-haptics'
 import BlockDeltaViz from './BlockDeltaViz'
-import { colors } from '../constants/theme'
+import { colors } from '../../constants/theme'
 
 const SECTION_LABELS = {
   warm_up:     'WARM UP',

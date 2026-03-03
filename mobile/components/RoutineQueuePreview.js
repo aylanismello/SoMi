@@ -9,7 +9,7 @@ import { supabase } from '../supabase'
 import { useRoutineStore } from '../stores/routineStore'
 import { useSettingsStore } from '../stores/settingsStore'
 import { deriveStateFromDeltas } from '../constants/polyvagalStates'
-import BlockDeltaViz from './BlockDeltaViz'
+import BlockDeltaViz from './Flow/BlockDeltaViz'
 
 const SECTION_LABELS = {
   warm_up:     'WARM UP',

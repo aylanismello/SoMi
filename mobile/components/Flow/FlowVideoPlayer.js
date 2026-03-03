@@ -2,9 +2,9 @@ import React from 'react'
 import { StyleSheet, View, Text, Pressable } from 'react-native'
 import { VideoView } from 'expo-video'
 import { LinearGradient } from 'expo-linear-gradient'
-import { colors } from '../constants/theme'
+import { colors } from '../../constants/theme'
 import FlowProgressHeader from './FlowProgressHeader'
-import PlayerControls from './PlayerControls'
+import PlayerControls from '../PlayerControls'
 
 export default function FlowVideoPlayer({
   player,

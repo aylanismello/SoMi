@@ -9,7 +9,7 @@ import { chainService } from '../services/chainService'
 import { colors } from '../constants/theme'
 import { useChains, useDeleteChain, useStreaks } from '../hooks/useSupabaseQueries'
 import { useAuthStore } from '../stores/authStore'
-import { intensityWord } from './PolyvagalStatePicker'
+import { intensityWord } from './Flow/PolyvagalStatePicker'
 import { deriveState, deriveIntensity } from '../constants/polyvagalStates'
 import SoMiHeader from './SoMiHeader'
 

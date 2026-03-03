@@ -9,7 +9,7 @@ import { chainService } from '../../services/chainService'
 import { useSettingsStore } from '../../stores/settingsStore'
 import { useFlowMusicStore } from '../../stores/flowMusicStore'
 import { useRoutineStore } from '../../stores/routineStore'
-import FlowProgressHeader from '../FlowProgressHeader'
+import FlowProgressHeader from './FlowProgressHeader'
 import PlayerControls from '../PlayerControls'
 import CustomizationModal from '../CustomizationModal'
 

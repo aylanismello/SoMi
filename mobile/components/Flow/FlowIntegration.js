@@ -2,7 +2,7 @@ import React from 'react'
 import { StyleSheet, View, Text, Pressable, Animated } from 'react-native'
 import { VideoView } from 'expo-video'
 import { LinearGradient } from 'expo-linear-gradient'
-import FlowProgressHeader from '../FlowProgressHeader'
+import FlowProgressHeader from './FlowProgressHeader'
 import PlayerControls from '../PlayerControls'
 
 // Integration messages that rotate every 10 seconds

@@ -1,8 +1,8 @@
 import { useState } from 'react'
 import { StyleSheet, View, Text, TouchableOpacity } from 'react-native'
 import * as Haptics from 'expo-haptics'
-import { colors } from '../constants/theme'
-import { useRoutineStore } from '../stores/routineStore'
+import { colors } from '../../constants/theme'
+import { useRoutineStore } from '../../stores/routineStore'
 import FlowPlanSheet from './FlowPlanSheet'
 
 export default function FlowProgressHeader() {

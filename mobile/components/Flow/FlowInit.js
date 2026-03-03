@@ -10,15 +10,15 @@ import { colors } from '../../constants/theme'
 import { useSettingsStore } from '../../stores/settingsStore'
 import { useRoutineStore } from '../../stores/routineStore'
 import { chainService } from '../../services/chainService'
-import PolyvagalStatePicker from '../PolyvagalStatePicker'
+import PolyvagalStatePicker from './PolyvagalStatePicker'
 import CustomizationModal from '../CustomizationModal'
 import MusicPickerModal from '../MusicPickerModal'
-import FlowPlanSheet from '../FlowPlanSheet'
+import FlowPlanSheet from './FlowPlanSheet'
 import { api } from '../../services/api'
 import { deriveState, getPolyvagalExplanation } from '../../constants/polyvagalStates'
 
 const _H_PAD = 20
-const MIN_DURATION = 1
+const MIN_DURATION = 2
 const MAX_DURATION = 60
 
 // ─── Duration Picker Modal ────────────────────────────────────────────────────

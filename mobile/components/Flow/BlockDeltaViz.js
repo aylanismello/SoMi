@@ -1,5 +1,5 @@
 import Svg, { Line, Circle, Rect } from 'react-native-svg'
-import { deriveStateFromDeltas } from '../constants/polyvagalStates'
+import { deriveStateFromDeltas } from '../../constants/polyvagalStates'
 
 const STATE_COLORS = {
   shutdown: '#4A5A72',
