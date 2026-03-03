@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useRef, useMemo } from 'react'
-import { StyleSheet, Text, View, ScrollView, ActivityIndicator, TouchableOpacity, Animated, Modal } from 'react-native'
+import { StyleSheet, Text, View, Image, ScrollView, ActivityIndicator, TouchableOpacity, Animated, Modal } from 'react-native'
 import { useFocusEffect, useNavigation } from '@react-navigation/native'
 import { LinearGradient } from 'expo-linear-gradient'
 import { BlurView } from 'expo-blur'
@@ -12,6 +12,7 @@ import { useAuthStore } from '../stores/authStore'
 import { intensityWord } from './Flow/PolyvagalStatePicker'
 import { deriveState, deriveIntensity } from '../constants/polyvagalStates'
 import SoMiHeader from './SoMiHeader'
+import { WATER_BG_URI } from '../constants/media'
 
 // Mini bar gradient for check-in display (energy axis: left=low, right=high)
 const MINI_GRAD_COLORS = ['#0D1B2A', '#3D2575', '#8B5CF6']
@@ -684,6 +685,7 @@ export default function MySomiScreen() {
   if (loading) {
     return (
       <View style={styles.container}>
+        <Image source={{ uri: WATER_BG_URI }} style={StyleSheet.absoluteFillObject} resizeMode="cover" />
         <LinearGradient
           colors={[colors.background.primary + 'BF', colors.background.secondary + 'CC', colors.background.primary + 'BF']}
           style={StyleSheet.absoluteFillObject}
@@ -699,6 +701,7 @@ export default function MySomiScreen() {
   if (somiChains.length === 0) {
     return (
       <View style={styles.container}>
+        <Image source={{ uri: WATER_BG_URI }} style={StyleSheet.absoluteFillObject} resizeMode="cover" />
         <LinearGradient
           colors={[colors.background.primary + 'BF', colors.background.secondary + 'CC', colors.background.primary + 'BF']}
           style={StyleSheet.absoluteFillObject}
@@ -714,6 +717,7 @@ export default function MySomiScreen() {
 
   return (
     <View style={styles.container}>
+      <Image source={{ uri: WATER_BG_URI }} style={StyleSheet.absoluteFillObject} resizeMode="cover" />
       <LinearGradient
         colors={[colors.background.primary + 'BF', colors.background.secondary + 'CC', colors.background.primary + 'BF']}
         style={StyleSheet.absoluteFillObject}
@@ -1196,7 +1200,7 @@ export default function MySomiScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: 'transparent',
+    backgroundColor: '#000',
   },
   soMiHeader: {
     paddingTop: 58,

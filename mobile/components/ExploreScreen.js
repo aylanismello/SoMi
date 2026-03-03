@@ -3,6 +3,7 @@ import {
   StyleSheet,
   View,
   Text,
+  Image,
   ScrollView,
   TouchableOpacity,
   TextInput,
@@ -13,6 +14,7 @@ import { BlurView } from 'expo-blur'
 import { Ionicons } from '@expo/vector-icons'
 import * as Haptics from 'expo-haptics'
 import SoMiHeader from './SoMiHeader'
+import { WATER_BG_URI } from '../constants/media'
 import { useAuthStore } from '../stores/authStore'
 
 const EXPLORE_BETA_EMAIL = 'francescoflows@gmail.com'
@@ -102,6 +104,7 @@ const tap = () => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
 function ComingSoonScreen() {
   return (
     <View style={styles.container}>
+      <Image source={{ uri: WATER_BG_URI }} style={StyleSheet.absoluteFillObject} resizeMode="cover" />
       <LinearGradient
         colors={['rgba(10,20,34,0.75)', 'rgba(15,27,45,0.82)', 'rgba(10,20,34,0.75)']}
         style={StyleSheet.absoluteFillObject}
@@ -126,6 +129,7 @@ export default function ExploreScreen() {
 
   return (
     <View style={styles.container}>
+      <Image source={{ uri: WATER_BG_URI }} style={StyleSheet.absoluteFillObject} resizeMode="cover" />
       <LinearGradient
         colors={['rgba(10,20,34,0.75)', 'rgba(15,27,45,0.82)', 'rgba(10,20,34,0.75)']}
         style={StyleSheet.absoluteFillObject}
@@ -274,7 +278,7 @@ export default function ExploreScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: 'transparent',
+    backgroundColor: '#0A1422',
   },
   header: {
     paddingTop: 58,
