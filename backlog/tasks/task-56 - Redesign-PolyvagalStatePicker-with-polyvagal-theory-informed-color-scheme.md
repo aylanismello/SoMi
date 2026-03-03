@@ -1,10 +1,10 @@
 ---
 id: task-56
 title: Redesign PolyvagalStatePicker with polyvagal-theory-informed color scheme
-status: In Progress
+status: Done
 assignee: []
 created_date: '2026-03-03 09:26'
-updated_date: '2026-03-03 09:27'
+updated_date: '2026-03-03 09:30'
 labels: []
 dependencies: []
 priority: high

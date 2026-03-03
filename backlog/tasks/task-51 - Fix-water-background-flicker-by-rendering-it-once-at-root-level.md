@@ -1,9 +1,10 @@
 ---
 id: task-51
 title: Fix water background flicker by rendering it once at root level
-status: In Progress
+status: Done
 assignee: []
 created_date: '2026-03-03 07:21'
+updated_date: '2026-03-03 07:34'
 labels: []
 dependencies: []
 ---

@@ -1,9 +1,10 @@
 ---
 id: task-52
 title: Fix streak calculation and completion screen copy
-status: In Progress
+status: Done
 assignee: []
 created_date: '2026-03-03 08:19'
+updated_date: '2026-03-03 08:21'
 labels: []
 dependencies: []
 priority: high

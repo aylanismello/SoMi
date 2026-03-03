@@ -1,4 +1,4 @@
-const IS_DEV = process.env.EAS_BUILD_PROFILE === 'development'
+const IS_DEV = process.env.APP_VARIANT === 'development' || process.env.EAS_BUILD_PROFILE === 'development'
 
 module.exports = {
   expo: {

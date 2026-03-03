@@ -643,7 +643,7 @@ const styles = StyleSheet.create({
 
   // ── Scroll ─────────────────────────────────────────────────────────────────
   scrollView: { flex: 1 },
-  scrollContent: { flexGrow: 1, paddingHorizontal: _H_PAD, paddingTop: 48, paddingBottom: 240 },
+  scrollContent: { flexGrow: 1, paddingHorizontal: _H_PAD, paddingTop: 24, paddingBottom: 240 },
   section: { marginBottom: 24 },
   sectionLabelRow: {
     flexDirection: 'row',
