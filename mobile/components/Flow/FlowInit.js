@@ -643,7 +643,7 @@ const styles = StyleSheet.create({
 
   // ── Scroll ─────────────────────────────────────────────────────────────────
   scrollView: { flex: 1 },
-  scrollContent: { flexGrow: 1, paddingHorizontal: _H_PAD, paddingTop: 8, paddingBottom: 240 },
+  scrollContent: { flexGrow: 1, paddingHorizontal: _H_PAD, justifyContent: 'center', paddingBottom: 16 },
   section: { marginBottom: 24 },
   sectionLabelRow: {
     flexDirection: 'row',
@@ -653,7 +653,7 @@ const styles = StyleSheet.create({
   },
   sectionLabel: {
     color: '#ffffff',
-    fontSize: 13, fontWeight: '700',
+    fontSize: 15, fontWeight: '700',
     letterSpacing: 0.4,
     textTransform: 'uppercase',
     textShadowColor: 'rgba(0,0,0,0.85)',

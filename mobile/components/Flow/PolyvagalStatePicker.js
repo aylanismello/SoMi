@@ -291,11 +291,14 @@ const styles = StyleSheet.create({
     position: 'absolute',
   },
   axisCornerText: {
-    color: 'rgba(255,255,255,0.28)',
+    color: 'rgba(255,255,255,0.75)',
     fontSize: 7,
-    fontWeight: '600',
+    fontWeight: '700',
     letterSpacing: 0.5,
     textTransform: 'uppercase',
     lineHeight: 10,
+    textShadowColor: 'rgba(0,0,0,0.7)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 3,
   },
 })
