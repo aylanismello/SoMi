@@ -6,8 +6,9 @@ import React from 'react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { useAuthStore } from '../stores/authStore'
 import { useFlowMusicStore } from '../stores/flowMusicStore'
+import { Image } from 'react-native'
 import { soundManager } from '../utils/SoundManager'
-import { prefetchVideoBlocks } from '../constants/media'
+import { prefetchVideoBlocks, WATER_BG_URI } from '../constants/media'
 
 const FLUIDS_URL = 'https://qujifwhwntqxziymqdwu.supabase.co/storage/v1/object/public/test/somi%20og%20music/fluids%20v2.mp3'
 const TOGETHER_URL = 'https://qujifwhwntqxziymqdwu.supabase.co/storage/v1/object/public/test/somi%20music/Nine%20Inch%20Nails%20-%20Together.mp3'
@@ -49,6 +50,7 @@ export default function RootLayout() {
     })
     prefetchVideoBlocks()
     soundManager.preloadSounds()
+    Image.prefetch(WATER_BG_URI)
   }, [])
 
   return (
@@ -63,7 +65,7 @@ export default function RootLayout() {
         <Stack.Screen name="FlowOutro" options={{ gestureEnabled: false }} />
         <Stack.Screen name="RoutineQueuePreview" />
         <Stack.Screen name="SoMiRoutine" options={{ presentation: 'fullScreenModal', gestureEnabled: false }} />
-        <Stack.Screen name="FlowBodyScan" options={{ presentation: 'fullScreenModal', gestureEnabled: false }} />
+        <Stack.Screen name="FlowBodyScan" options={{ gestureEnabled: false }} />
         <Stack.Screen name="FlowCompletion" options={{ presentation: 'fullScreenModal', gestureEnabled: false }} />
         <Stack.Screen name="Player" options={{ presentation: 'fullScreenModal', gestureEnabled: false }} />
         <Stack.Screen name="CategoryDetail" />

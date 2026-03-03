@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useRef, useMemo } from 'react'
-import { StyleSheet, Text, View, ScrollView, ActivityIndicator, TouchableOpacity, Animated, Modal } from 'react-native'
+import { StyleSheet, Text, View, ScrollView, ActivityIndicator, TouchableOpacity, Animated, Modal, Image } from 'react-native'
 import { useFocusEffect, useNavigation } from '@react-navigation/native'
 import { LinearGradient } from 'expo-linear-gradient'
 import { BlurView } from 'expo-blur'
@@ -12,6 +12,7 @@ import { useAuthStore } from '../stores/authStore'
 import { intensityWord } from './Flow/PolyvagalStatePicker'
 import { deriveState, deriveIntensity } from '../constants/polyvagalStates'
 import SoMiHeader from './SoMiHeader'
+import { WATER_BG_URI } from '../constants/media'
 
 // Mini bar gradient for check-in display (energy axis: left=low, right=high)
 const MINI_GRAD_COLORS = ['#0D1B2A', '#3D2575', '#8B5CF6']
@@ -683,27 +684,31 @@ export default function MySomiScreen() {
 
   if (loading) {
     return (
-      <LinearGradient
-        colors={[colors.background.primary, colors.background.secondary, colors.background.primary]}
-        style={styles.container}
-      >
+      <View style={styles.container}>
+        <Image source={{ uri: WATER_BG_URI }} style={StyleSheet.absoluteFillObject} resizeMode="cover" />
+        <LinearGradient
+          colors={[colors.background.primary + 'BF', colors.background.secondary + 'CC', colors.background.primary + 'BF']}
+          style={StyleSheet.absoluteFillObject}
+        />
         <SoMiHeader style={styles.soMiHeader} rightIcon="settings" onRightPress={handleOpenSettings} />
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={colors.accent.primary} />
         </View>
-      </LinearGradient>
+      </View>
     )
   }
 
   if (somiChains.length === 0) {
     return (
-      <LinearGradient
-        colors={[colors.background.primary, colors.background.secondary, colors.background.primary]}
-        style={styles.container}
-      >
+      <View style={styles.container}>
+        <Image source={{ uri: WATER_BG_URI }} style={StyleSheet.absoluteFillObject} resizeMode="cover" />
+        <LinearGradient
+          colors={[colors.background.primary + 'BF', colors.background.secondary + 'CC', colors.background.primary + 'BF']}
+          style={StyleSheet.absoluteFillObject}
+        />
         <SoMiHeader style={styles.soMiHeader} rightIcon="settings" onRightPress={handleOpenSettings} />
         {renderEmptyState()}
-      </LinearGradient>
+      </View>
     )
   }
 
@@ -711,10 +716,12 @@ export default function MySomiScreen() {
   const allChecksForRiver = somiChains.flatMap(chain => chain.embodiment_checks)
 
   return (
-    <LinearGradient
-      colors={[colors.background.primary, colors.background.secondary, colors.background.primary]}
-      style={styles.container}
-    >
+    <View style={styles.container}>
+      <Image source={{ uri: WATER_BG_URI }} style={StyleSheet.absoluteFillObject} resizeMode="cover" />
+      <LinearGradient
+        colors={[colors.background.primary + 'BF', colors.background.secondary + 'CC', colors.background.primary + 'BF']}
+        style={StyleSheet.absoluteFillObject}
+      />
       <SoMiHeader style={styles.soMiHeader} rightIcon="settings" onRightPress={handleOpenSettings} />
 
       <ScrollView
@@ -1186,13 +1193,14 @@ export default function MySomiScreen() {
           </View>
         </View>
       </Modal>
-    </LinearGradient>
+    </View>
   )
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    backgroundColor: '#000',
   },
   soMiHeader: {
     paddingTop: 58,

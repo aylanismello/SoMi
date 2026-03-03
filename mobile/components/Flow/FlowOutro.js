@@ -14,6 +14,7 @@ import { useFlowMusicStore } from '../../stores/flowMusicStore'
 import { useRoutineStore } from '../../stores/routineStore'
 import { useSaveEmbodimentCheck, QUERY_KEYS } from '../../hooks/useSupabaseQueries'
 import { useQueryClient } from '@tanstack/react-query'
+import { WATER_BG_URI } from '../../constants/media'
 
 // Core somatic/polyvagal experiences that commonly arise during practice
 const PRESET_TAGS = [
@@ -146,7 +147,7 @@ export default function SoMiCheckIn() {
     <View style={styles.container}>
       {/* Water background */}
       <Image
-        source={{ uri: 'https://qujifwhwntqxziymqdwu.supabase.co/storage/v1/object/public/test/home%20screen%20backgrounds/water_1.jpg' }}
+        source={{ uri: WATER_BG_URI }}
         style={StyleSheet.absoluteFillObject}
         resizeMode="cover"
       />

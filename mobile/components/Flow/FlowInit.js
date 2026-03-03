@@ -16,6 +16,7 @@ import MusicPickerModal from '../MusicPickerModal'
 import FlowPlanSheet from './FlowPlanSheet'
 import { api } from '../../services/api'
 import { deriveState, getPolyvagalExplanation } from '../../constants/polyvagalStates'
+import { WATER_BG_URI } from '../../constants/media'
 
 const _H_PAD = 20
 const MIN_DURATION = 2
@@ -410,7 +411,7 @@ export default function DailyFlowSetup() {
     <View style={styles.container}>
       {/* Water background */}
       <Image
-        source={{ uri: 'https://qujifwhwntqxziymqdwu.supabase.co/storage/v1/object/public/test/home%20screen%20backgrounds/water_1.jpg' }}
+        source={{ uri: WATER_BG_URI }}
         style={StyleSheet.absoluteFillObject}
         resizeMode="cover"
       />

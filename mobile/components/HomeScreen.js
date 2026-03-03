@@ -14,6 +14,7 @@ import { useAuthStore } from '../stores/authStore'
 import { useStreaks } from '../hooks/useSupabaseQueries'
 import { Ionicons } from '@expo/vector-icons'
 import SoMiHeader from './SoMiHeader'
+import { WATER_BG_URI } from '../constants/media'
 
 const DAY_LABELS = ['M', 'T', 'W', 'T', 'F', 'S', 'S']
 
@@ -136,7 +137,7 @@ export default function HomeScreen() {
     <View style={styles.container}>
       {/* Water background — blurred for text readability */}
       <Image
-        source={{ uri: 'https://qujifwhwntqxziymqdwu.supabase.co/storage/v1/object/public/test/home%20screen%20backgrounds/water_1.jpg' }}
+        source={{ uri: WATER_BG_URI }}
         style={StyleSheet.absoluteFillObject}
         resizeMode="cover"
         blurRadius={3}

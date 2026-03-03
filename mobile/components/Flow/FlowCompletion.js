@@ -226,12 +226,9 @@ export default function CompletionScreen() {
 
   const handleContinue = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium)
-
-    // Fade out flow music when user presses Continue
-    console.log('🎵 CompletionScreen: Fading out flow music on Continue...')
     stopFlowMusic()
-
-    router.dismissAll()
+    // Navigate to Home tab — dismisses all modals and ensures we land on Home, not Profile
+    router.navigate('/(tabs)/Home')
   }
 
   const badgeRotateInterpolate = badgeRotate.interpolate({
