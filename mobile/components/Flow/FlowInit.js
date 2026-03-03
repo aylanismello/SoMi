@@ -409,6 +409,8 @@ export default function DailyFlowSetup() {
   return (
     <View style={styles.container}>
       {/* Water background comes from the root layout — always pre-rendered, zero flicker */}
+      {/* Subtle blur to reduce image noise without significant darkening */}
+      <BlurView intensity={10} tint="dark" style={StyleSheet.absoluteFillObject} />
       {/* Gradient overlay — matches Home screen brightness */}
       <LinearGradient
         colors={['rgba(0,0,0,0.08)', 'rgba(0,0,0,0.18)', 'rgba(0,0,0,0.72)']}
@@ -652,7 +654,7 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   sectionLabel: {
-    color: 'rgba(255,255,255,0.65)',
+    color: 'rgba(255,255,255,0.85)',
     fontSize: 13, fontWeight: '600',
     letterSpacing: 0.4,
     textTransform: 'uppercase',
@@ -674,7 +676,7 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   feelingLabel: {
-    color: 'rgba(255,255,255,0.45)',
+    color: 'rgba(255,255,255,0.75)',
     fontSize: 13,
     fontWeight: '500',
     letterSpacing: 0.2,

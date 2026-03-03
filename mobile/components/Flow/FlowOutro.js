@@ -3,6 +3,7 @@ import { useNavigation } from '@react-navigation/native'
 import { router } from 'expo-router'
 import { StyleSheet, Text, View, TouchableOpacity, Modal, TextInput, Keyboard, KeyboardAvoidingView, Platform, TouchableWithoutFeedback, ScrollView, ActivityIndicator } from 'react-native'
 import { LinearGradient } from 'expo-linear-gradient'
+import { BlurView } from 'expo-blur'
 import * as Haptics from 'expo-haptics'
 import Svg, { Path } from 'react-native-svg'
 import PolyvagalStatePicker from './PolyvagalStatePicker'
@@ -144,6 +145,8 @@ export default function SoMiCheckIn() {
   return (
     <View style={styles.container}>
       {/* Water background comes from the root layout — always pre-rendered, zero flicker */}
+      {/* Subtle blur to reduce image noise without significant darkening */}
+      <BlurView intensity={10} tint="dark" style={StyleSheet.absoluteFillObject} />
       {/* Gradient overlay — matches Home screen brightness */}
       <LinearGradient
         colors={['rgba(0,0,0,0.08)', 'rgba(0,0,0,0.18)', 'rgba(0,0,0,0.72)']}
@@ -404,7 +407,7 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   tagsLabel: {
-    color: 'rgba(255,255,255,0.35)',
+    color: 'rgba(255,255,255,0.7)',
     fontSize: 11,
     fontWeight: '600',
     letterSpacing: 1.2,
@@ -431,7 +434,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.accent.primary + '18',
   },
   tagText: {
-    color: 'rgba(255,255,255,0.55)',
+    color: 'rgba(255,255,255,0.85)',
     fontSize: 13,
     fontWeight: '500',
   },
@@ -476,7 +479,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   beforeArrow: {
-    color: 'rgba(255,255,255,0.35)',
+    color: 'rgba(255,255,255,0.6)',
     fontSize: 14,
     fontWeight: '300',
     marginHorizontal: 2,
@@ -534,7 +537,7 @@ const styles = StyleSheet.create({
     letterSpacing: 0.3,
   },
   completeButtonArrow: {
-    color: 'rgba(255,255,255,0.45)',
+    color: 'rgba(255,255,255,0.7)',
     fontSize: 28,
     fontWeight: '300',
   },
@@ -691,7 +694,7 @@ const styles = StyleSheet.create({
     alignItems: 'center', justifyContent: 'center',
   },
   infoBtnText: {
-    color: 'rgba(255,255,255,0.5)',
+    color: 'rgba(255,255,255,0.75)',
     fontSize: 10, fontWeight: '700',
     lineHeight: 12,
   },
