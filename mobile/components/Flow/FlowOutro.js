@@ -1,7 +1,7 @@
 import React, { useState, useRef } from 'react'
 import { useNavigation } from '@react-navigation/native'
 import { router } from 'expo-router'
-import { StyleSheet, Text, View, Image, TouchableOpacity, Modal, TextInput, Keyboard, KeyboardAvoidingView, Platform, TouchableWithoutFeedback, ScrollView, ActivityIndicator } from 'react-native'
+import { StyleSheet, Text, View, TouchableOpacity, Modal, TextInput, Keyboard, KeyboardAvoidingView, Platform, TouchableWithoutFeedback, ScrollView, ActivityIndicator } from 'react-native'
 import { LinearGradient } from 'expo-linear-gradient'
 import { BlurView } from 'expo-blur'
 import * as Haptics from 'expo-haptics'
@@ -14,7 +14,6 @@ import { useFlowMusicStore } from '../../stores/flowMusicStore'
 import { useRoutineStore } from '../../stores/routineStore'
 import { useSaveEmbodimentCheck, QUERY_KEYS } from '../../hooks/useSupabaseQueries'
 import { useQueryClient } from '@tanstack/react-query'
-import { WATER_BG_URI } from '../../constants/media'
 
 // Core somatic/polyvagal experiences that commonly arise during practice
 const PRESET_TAGS = [
@@ -145,12 +144,7 @@ export default function SoMiCheckIn() {
 
   return (
     <View style={styles.container}>
-      {/* Water background */}
-      <Image
-        source={{ uri: WATER_BG_URI }}
-        style={StyleSheet.absoluteFillObject}
-        resizeMode="cover"
-      />
+      {/* Water background comes from the root layout — always pre-rendered, zero flicker */}
       {/* Gaussian-style blur to soften image detail */}
       <BlurView intensity={28} tint="dark" style={StyleSheet.absoluteFillObject} />
       {/* Dark lens gradient overlay */}

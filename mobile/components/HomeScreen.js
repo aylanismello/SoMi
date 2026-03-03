@@ -1,5 +1,5 @@
 import { useState, useCallback, useRef, useEffect } from 'react'
-import { StyleSheet, View, Text, Image, TouchableOpacity, Animated } from 'react-native'
+import { StyleSheet, View, Text, TouchableOpacity, Animated } from 'react-native'
 import { api } from '../services/api'
 import { LinearGradient } from 'expo-linear-gradient'
 import { BlurView } from 'expo-blur'
@@ -14,7 +14,6 @@ import { useAuthStore } from '../stores/authStore'
 import { useStreaks } from '../hooks/useSupabaseQueries'
 import { Ionicons } from '@expo/vector-icons'
 import SoMiHeader from './SoMiHeader'
-import { WATER_BG_URI } from '../constants/media'
 
 const DAY_LABELS = ['M', 'T', 'W', 'T', 'F', 'S', 'S']
 
@@ -135,13 +134,7 @@ export default function HomeScreen() {
 
   return (
     <View style={styles.container}>
-      {/* Water background — blurred for text readability */}
-      <Image
-        source={{ uri: WATER_BG_URI }}
-        style={StyleSheet.absoluteFillObject}
-        resizeMode="cover"
-        blurRadius={3}
-      />
+      {/* Water background comes from the root layout — always pre-rendered, zero flicker */}
 
       {/* Gradient overlay — darker at bottom for button contrast */}
       <LinearGradient
@@ -219,7 +212,7 @@ export default function HomeScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#000',
+    backgroundColor: 'transparent',
   },
 
   // ── Header ──────────────────────────────────────────────

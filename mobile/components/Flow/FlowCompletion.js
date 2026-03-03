@@ -227,8 +227,7 @@ export default function CompletionScreen() {
   const handleContinue = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium)
     stopFlowMusic()
-    // Navigate to Home tab — dismisses all modals and ensures we land on Home, not Profile
-    router.navigate('/(tabs)/Home')
+    router.dismissAll()
   }
 
   const badgeRotateInterpolate = badgeRotate.interpolate({

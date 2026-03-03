@@ -1,9 +1,10 @@
 ---
 id: task-49
 title: 'Fix FlowBodyScan flash, completion navigation, and background image flicker'
-status: In Progress
+status: Done
 assignee: []
 created_date: '2026-03-03 04:51'
+updated_date: '2026-03-03 04:55'
 labels: []
 dependencies: []
 priority: high

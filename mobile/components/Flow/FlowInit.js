@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect, useMemo, useCallback } from 'react'
 import { useFocusEffect, useNavigation } from '@react-navigation/native'
 import { router } from 'expo-router'
-import { StyleSheet, View, Text, Image, TouchableOpacity, ScrollView, ActivityIndicator, Animated, PanResponder, Modal } from 'react-native'
+import { StyleSheet, View, Text, TouchableOpacity, ScrollView, ActivityIndicator, Animated, PanResponder, Modal } from 'react-native'
 import { LinearGradient } from 'expo-linear-gradient'
 import { BlurView } from 'expo-blur'
 import { Ionicons } from '@expo/vector-icons'
@@ -16,7 +16,6 @@ import MusicPickerModal from '../MusicPickerModal'
 import FlowPlanSheet from './FlowPlanSheet'
 import { api } from '../../services/api'
 import { deriveState, getPolyvagalExplanation } from '../../constants/polyvagalStates'
-import { WATER_BG_URI } from '../../constants/media'
 
 const _H_PAD = 20
 const MIN_DURATION = 2
@@ -409,12 +408,7 @@ export default function DailyFlowSetup() {
 
   return (
     <View style={styles.container}>
-      {/* Water background */}
-      <Image
-        source={{ uri: WATER_BG_URI }}
-        style={StyleSheet.absoluteFillObject}
-        resizeMode="cover"
-      />
+      {/* Water background comes from the root layout — always pre-rendered, zero flicker */}
       {/* Gaussian-style blur to soften image detail */}
       <BlurView intensity={28} tint="dark" style={StyleSheet.absoluteFillObject} />
       {/* Dark lens gradient overlay */}
@@ -630,7 +624,7 @@ export default function DailyFlowSetup() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#000' },
+  container: { flex: 1, backgroundColor: 'transparent' },
 
   // ── Header ─────────────────────────────────────────────────────────────────
   header: {

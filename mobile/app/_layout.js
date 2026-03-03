@@ -6,7 +6,7 @@ import React from 'react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { useAuthStore } from '../stores/authStore'
 import { useFlowMusicStore } from '../stores/flowMusicStore'
-import { Image } from 'react-native'
+import { View, Image, StyleSheet } from 'react-native'
 import { soundManager } from '../utils/SoundManager'
 import { prefetchVideoBlocks, WATER_BG_URI } from '../constants/media'
 
@@ -50,13 +50,15 @@ export default function RootLayout() {
     })
     prefetchVideoBlocks()
     soundManager.preloadSounds()
-    Image.prefetch(WATER_BG_URI)
   }, [])
 
   return (
     <QueryClientProvider client={queryClient}>
       <StatusBar style="light" />
-      <Stack screenOptions={{ headerShown: false }}>
+      <View style={styles.root}>
+        {/* Water background — rendered once here, never unmounted, always in GPU memory */}
+        <Image source={{ uri: WATER_BG_URI }} style={StyleSheet.absoluteFillObject} resizeMode="cover" />
+        <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: 'transparent' } }}>
         <Stack.Screen name="index" />
         <Stack.Screen name="(auth)" />
         <Stack.Screen name="(tabs)" />
@@ -71,6 +73,11 @@ export default function RootLayout() {
         <Stack.Screen name="CategoryDetail" />
         <Stack.Screen name="AccountSettings" />
       </Stack>
+      </View>
     </QueryClientProvider>
   )
 }
+
+const styles = StyleSheet.create({
+  root: { flex: 1 },
+})
