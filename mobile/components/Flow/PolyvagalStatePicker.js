@@ -26,6 +26,22 @@ const QUAD_LABELS = [
   { name: 'wired',    label: 'Wired',    icon: '🌪', cx: 0.78, cy: 0.72 },
 ]
 
+// Somatic Compass palette — polyvagal-theory-informed:
+// Base     #0F1020  Deep midnight indigo — dorsal vagal floor, the resting darkness
+//
+// Restful  (TL safe+low)  → sage green    — parasympathetic rest, grounded calm
+// Glowing  (TR safe+high) → golden amber  — peak ventral vagal, radiant aliveness
+// Shutdown (BL unsf+low)  → cold steel    — dorsal collapse, frozen withdrawal
+// Wired    (BR unsf+high) → coral-red     — sympathetic activation, fight/flight
+// Steady   (center blend) — natural complex mid, all four states in equilibrium
+const ZONE_COLORS = {
+  restful:  { label: '#0A3D0A', readout: '#82D28C' },  // dark forest on sage
+  glowing:  { label: '#6B3200', readout: '#FFC346' },  // dark umber on amber gold
+  steady:   { label: '#FFFFFF', readout: '#E0F0FF' },  // white on center blend
+  shutdown: { label: '#A8CDE8', readout: '#7BAECF' },  // ice on cold steel
+  wired:    { label: '#FFF3F0', readout: '#FFBCBA' },  // warm cream on coral
+}
+
 // ─── 2D Energy × Safety Picker ────────────────────────────────────────────────
 export default function PolyvagalStatePicker({
   energyLevel,
@@ -94,6 +110,7 @@ export default function PolyvagalStatePicker({
   const energy = Math.round(cursor.x * 100)
   const safety = Math.round((1 - cursor.y) * 100)
   const curState = deriveState(energy, safety)
+  const zoneColors = ZONE_COLORS[curState.name] ?? ZONE_COLORS.steady
 
   const padHeight = padSize * ASPECT
   const curLeft = Math.max(0, Math.min(padSize - CURSOR_R * 2, cursor.x * padSize - CURSOR_R))
@@ -105,7 +122,9 @@ export default function PolyvagalStatePicker({
       {!hideReadout && (
         <View style={styles.readout} pointerEvents="none">
           <Text style={{ fontSize: 13 }}>{curState.icon}</Text>
-          <Text style={styles.readoutState}>{curState.label}</Text>
+          <Text style={[styles.readoutState, { color: zoneColors.readout }]}>
+            {curState.label}
+          </Text>
         </View>
       )}
       <View
@@ -117,54 +136,51 @@ export default function PolyvagalStatePicker({
         }}
         style={[styles.pad, { height: padHeight }]}
       >
-        {/* Deep ocean abyss base */}
+        {/* Base: Deep midnight indigo — the dorsal vagal floor */}
         <View style={[StyleSheet.absoluteFillObject, styles.padBase]} />
 
-        {/* RESTFUL 🌦 — cool rain, calm lake surface: aquamarine from top-left */}
+        {/* RESTFUL 🌦 — sage green, top-left: parasympathetic rest, grounded calm */}
         <LinearGradient
-          colors={['rgba(0,215,195,0.75)', 'rgba(20,160,220,0.30)', 'rgba(0,215,195,0)']}
+          colors={['rgba(130,210,140,0.87)', 'rgba(130,210,140,0.48)', 'rgba(130,210,140,0)']}
           start={{ x: 0, y: 0 }}
-          end={{ x: 0.85, y: 1 }}
+          end={{ x: 0.78, y: 0.78 }}
           style={StyleSheet.absoluteFillObject}
         />
 
-        {/* GLOWING ☀️ — sun blazing on tropical water: golden amber from top-right */}
+        {/* GLOWING ☀️ — golden amber, top-right: peak ventral vagal, radiant aliveness */}
         <LinearGradient
-          colors={['rgba(255,200,30,0.92)', 'rgba(255,100,20,0.35)', 'rgba(255,200,30,0)']}
+          colors={['rgba(255,195,70,0.90)', 'rgba(255,195,70,0.50)', 'rgba(255,195,70,0)']}
           start={{ x: 1, y: 0 }}
-          end={{ x: 0.05, y: 1 }}
+          end={{ x: 0.14, y: 0.80 }}
           style={StyleSheet.absoluteFillObject}
         />
 
-        {/* WIRED 🌪 — underwater electric storm: vivid indigo-violet from bottom-right */}
+        {/* SHUTDOWN 🌑 — cold steel blue, bottom-left: dorsal freeze, withdrawal */}
         <LinearGradient
-          colors={['rgba(90,50,255,0.88)', 'rgba(190,30,240,0.45)', 'rgba(90,50,255,0)']}
-          start={{ x: 1, y: 1 }}
-          end={{ x: 0.08, y: 0.08 }}
-          style={StyleSheet.absoluteFillObject}
-        />
-
-        {/* SHUTDOWN 🌑 — cold deep abyss: dark navy from bottom-left */}
-        <LinearGradient
-          colors={['rgba(5,10,70,0.70)', 'rgba(5,10,70,0)']}
+          colors={['rgba(55,80,110,0.88)', 'rgba(55,80,110,0.48)', 'rgba(55,80,110,0)']}
           start={{ x: 0, y: 1 }}
-          end={{ x: 0.75, y: 0.1 }}
+          end={{ x: 0.80, y: 0.14 }}
           style={StyleSheet.absoluteFillObject}
         />
 
-        {/* Depth vignette: bottom darkens into the unsafe deep */}
+        {/* WIRED 🌪 — coral-red, bottom-right: sympathetic activation, fight/flight */}
         <LinearGradient
-          colors={['rgba(0,0,0,0)', 'rgba(0,2,18,0.65)']}
-          start={{ x: 0.5, y: 0.15 }}
+          colors={['rgba(215,75,75,0.92)', 'rgba(215,75,75,0.52)', 'rgba(215,75,75,0)']}
+          start={{ x: 1, y: 1 }}
+          end={{ x: 0.14, y: 0.14 }}
+          style={StyleSheet.absoluteFillObject}
+        />
+
+        {/* Safety axis: warm golden kiss at safe top, cold dark sink at unsafe bottom */}
+        <LinearGradient
+          colors={[
+            'rgba(255,220,160,0.12)',   // warm ventral glow at top
+            'rgba(255,220,160,0.03)',
+            'rgba(10,6,24,0.00)',
+            'rgba(10,6,24,0.28)',       // cold collapse weight at bottom
+          ]}
+          start={{ x: 0.5, y: 0 }}
           end={{ x: 0.5, y: 1 }}
-          style={StyleSheet.absoluteFillObject}
-        />
-
-        {/* Bioluminescence: subtle cyan shimmer through the center */}
-        <LinearGradient
-          colors={['rgba(0,210,255,0)', 'rgba(0,210,255,0.14)', 'rgba(0,210,255,0)']}
-          start={{ x: 0.15, y: 0.45 }}
-          end={{ x: 0.85, y: 0.55 }}
           style={StyleSheet.absoluteFillObject}
         />
 
@@ -189,6 +205,9 @@ export default function PolyvagalStatePicker({
         {/* State zone labels — floating, no dividers */}
         {QUAD_LABELS.map(ql => {
           const isActive = curState.name === ql.name
+          const labelColor = isActive
+            ? ZONE_COLORS[ql.name]?.label ?? '#FFFFFF'
+            : 'rgba(255,255,255,0.22)'  // neutral dim white — readable across all quadrant colors
           return (
             <View
               key={ql.name}
@@ -199,21 +218,21 @@ export default function PolyvagalStatePicker({
                   left: ql.cx * padSize,
                   top: ql.cy * padHeight,
                   transform: [{ translateX: -28 }, { translateY: -22 }],
-                  opacity: isActive ? 1 : 0.20,
+                  opacity: isActive ? 1 : 0.25,
                 },
               ]}
             >
               <Text style={[styles.stateLabelIcon, isActive && styles.stateLabelIconActive]}>
                 {ql.icon}
               </Text>
-              <Text style={[styles.stateLabelText, isActive && styles.stateLabelTextActive]}>
+              <Text style={[styles.stateLabelText, { color: labelColor }, isActive && styles.stateLabelTextActive]}>
                 {ql.label}
               </Text>
             </View>
           )
         })}
 
-        {/* Cursor: bioluminescent water orb */}
+        {/* Cursor: white ring so it reads clearly across all blue tones */}
         <View
           pointerEvents="none"
           style={[styles.cursor, { left: curLeft, top: curTop }]}
@@ -230,7 +249,7 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   padBase: {
-    backgroundColor: '#020B18',
+    backgroundColor: '#0F1020',
   },
   stateLabel: {
     position: 'absolute',
@@ -245,13 +264,11 @@ const styles = StyleSheet.create({
     fontSize: 20,
   },
   stateLabelText: {
-    color: 'rgba(180,235,255,0.55)',
     fontSize: 8,
     fontWeight: '600',
     letterSpacing: 0.3,
   },
   stateLabelTextActive: {
-    color: '#ffffff',
     fontWeight: '700',
     fontSize: 9,
   },
@@ -260,13 +277,13 @@ const styles = StyleSheet.create({
     width: CURSOR_R * 2,
     height: CURSOR_R * 2,
     borderRadius: CURSOR_R,
-    borderWidth: 2,
-    borderColor: 'rgba(100,240,255,0.95)',
-    backgroundColor: 'rgba(0,180,230,0.22)',
-    shadowColor: '#00E8FF',
+    borderWidth: 2.5,
+    borderColor: 'rgba(255,255,255,0.95)',
+    backgroundColor: 'rgba(15,16,32,0.35)',    // midnight tinted fill
+    shadowColor: '#FFC346',                    // warm golden glow — aspirational ventral warmth
     shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 1,
-    shadowRadius: 14,
+    shadowOpacity: 0.85,
+    shadowRadius: 11,
   },
   readout: {
     marginBottom: 10,
@@ -274,15 +291,14 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     alignSelf: 'center',
     gap: 6,
-    backgroundColor: 'rgba(0,15,35,0.55)',
+    backgroundColor: 'rgba(15,16,32,0.72)',    // midnight base pill
     paddingHorizontal: 14,
     paddingVertical: 7,
     borderRadius: 14,
     borderWidth: 0.5,
-    borderColor: 'rgba(0,210,255,0.28)',
+    borderColor: 'rgba(255,255,255,0.18)',      // neutral subtle border
   },
   readoutState: {
-    color: 'rgba(190,240,255,0.92)',
     fontSize: 12,
     fontWeight: '700',
     letterSpacing: 0.4,
@@ -291,11 +307,14 @@ const styles = StyleSheet.create({
     position: 'absolute',
   },
   axisCornerText: {
-    color: 'rgba(255,255,255,0.28)',
+    color: 'rgba(255,255,255,0.72)',
     fontSize: 7,
-    fontWeight: '600',
+    fontWeight: '700',
     letterSpacing: 0.5,
     textTransform: 'uppercase',
     lineHeight: 10,
+    textShadowColor: 'rgba(0,0,20,0.70)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 3,
   },
 })

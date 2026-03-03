@@ -409,11 +409,9 @@ export default function DailyFlowSetup() {
   return (
     <View style={styles.container}>
       {/* Water background comes from the root layout — always pre-rendered, zero flicker */}
-      {/* Subtle blur to reduce image noise without significant darkening */}
-      <BlurView intensity={10} tint="dark" style={StyleSheet.absoluteFillObject} />
-      {/* Gradient overlay — matches Home screen brightness */}
+      {/* Gradient overlay — deep ocean-blue tint matching Profile screen */}
       <LinearGradient
-        colors={['rgba(0,0,0,0.08)', 'rgba(0,0,0,0.18)', 'rgba(0,0,0,0.72)']}
+        colors={[colors.background.primary + 'BF', colors.background.secondary + 'CC', colors.background.primary + 'BF']}
         style={StyleSheet.absoluteFillObject}
       />
 
@@ -654,10 +652,13 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   sectionLabel: {
-    color: 'rgba(255,255,255,0.85)',
-    fontSize: 13, fontWeight: '600',
+    color: '#ffffff',
+    fontSize: 13, fontWeight: '700',
     letterSpacing: 0.4,
     textTransform: 'uppercase',
+    textShadowColor: 'rgba(0,0,0,0.85)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 4,
   },
   infoBtn: {
     width: 18, height: 18, borderRadius: 9,
@@ -676,10 +677,13 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   feelingLabel: {
-    color: 'rgba(255,255,255,0.75)',
+    color: 'rgba(255,255,255,0.95)',
     fontSize: 13,
     fontWeight: '500',
     letterSpacing: 0.2,
+    textShadowColor: 'rgba(0,0,0,0.85)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 4,
   },
   stateChip: {
     flexDirection: 'row',

@@ -135,12 +135,11 @@ export default function HomeScreen() {
 
   return (
     <View style={styles.container}>
-      <Image source={{ uri: WATER_BG_URI }} style={StyleSheet.absoluteFillObject} resizeMode="cover" blurRadius={3} />
+      <Image source={{ uri: WATER_BG_URI }} style={StyleSheet.absoluteFillObject} resizeMode="cover" />
 
-      {/* Gradient overlay — darker at bottom for button contrast */}
+      {/* Gradient overlay — deep ocean-blue tint matching Profile screen */}
       <LinearGradient
-        colors={['rgba(0,0,0,0.08)', 'rgba(0,0,0,0.18)', 'rgba(0,0,0,0.72)']}
-        locations={[0, 0.45, 1]}
+        colors={[colors.background.primary + 'BF', colors.background.secondary + 'CC', colors.background.primary + 'BF']}
         style={StyleSheet.absoluteFillObject}
       />
 
