@@ -409,11 +409,9 @@ export default function DailyFlowSetup() {
   return (
     <View style={styles.container}>
       {/* Water background comes from the root layout — always pre-rendered, zero flicker */}
-      {/* Gaussian-style blur to soften image detail */}
-      <BlurView intensity={28} tint="dark" style={StyleSheet.absoluteFillObject} />
-      {/* Dark lens gradient overlay */}
+      {/* Gradient overlay — matches Home screen brightness */}
       <LinearGradient
-        colors={['rgba(0,0,0,0.40)', 'rgba(0,0,0,0.58)', 'rgba(0,0,0,0.82)']}
+        colors={['rgba(0,0,0,0.08)', 'rgba(0,0,0,0.18)', 'rgba(0,0,0,0.72)']}
         style={StyleSheet.absoluteFillObject}
       />
 

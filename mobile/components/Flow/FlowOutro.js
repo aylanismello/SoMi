@@ -3,7 +3,6 @@ import { useNavigation } from '@react-navigation/native'
 import { router } from 'expo-router'
 import { StyleSheet, Text, View, TouchableOpacity, Modal, TextInput, Keyboard, KeyboardAvoidingView, Platform, TouchableWithoutFeedback, ScrollView, ActivityIndicator } from 'react-native'
 import { LinearGradient } from 'expo-linear-gradient'
-import { BlurView } from 'expo-blur'
 import * as Haptics from 'expo-haptics'
 import Svg, { Path } from 'react-native-svg'
 import PolyvagalStatePicker from './PolyvagalStatePicker'
@@ -145,11 +144,9 @@ export default function SoMiCheckIn() {
   return (
     <View style={styles.container}>
       {/* Water background comes from the root layout — always pre-rendered, zero flicker */}
-      {/* Gaussian-style blur to soften image detail */}
-      <BlurView intensity={28} tint="dark" style={StyleSheet.absoluteFillObject} />
-      {/* Dark lens gradient overlay */}
+      {/* Gradient overlay — matches Home screen brightness */}
       <LinearGradient
-        colors={['rgba(0,0,0,0.40)', 'rgba(0,0,0,0.58)', 'rgba(0,0,0,0.82)']}
+        colors={['rgba(0,0,0,0.08)', 'rgba(0,0,0,0.18)', 'rgba(0,0,0,0.72)']}
         style={StyleSheet.absoluteFillObject}
       />
 
