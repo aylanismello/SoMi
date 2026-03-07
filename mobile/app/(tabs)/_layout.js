@@ -16,7 +16,7 @@ export default function TabsLayout() {
   }, [isAuthenticated, isLoading])
 
   return (
-    <NativeTabs>
+    <NativeTabs key={userId}>
       <NativeTabs.Trigger name="Home">
         <Icon sf="house.fill" />
       </NativeTabs.Trigger>
