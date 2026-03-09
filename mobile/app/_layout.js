@@ -9,6 +9,10 @@ import { useFlowMusicStore } from '../stores/flowMusicStore'
 import { View, Image, StyleSheet } from 'react-native'
 import { soundManager } from '../utils/SoundManager'
 import { prefetchVideoBlocks, WATER_BG_URI } from '../constants/media'
+import { initSentry, SentryErrorBoundary } from '../services/sentry'
+
+// Initialize Sentry as early as possible
+initSentry()
 
 const FLUIDS_URL = 'https://qujifwhwntqxziymqdwu.supabase.co/storage/v1/object/public/test/somi%20og%20music/fluids%20v2.mp3'
 const TOGETHER_URL = 'https://qujifwhwntqxziymqdwu.supabase.co/storage/v1/object/public/test/somi%20music/Nine%20Inch%20Nails%20-%20Together.mp3'
@@ -23,7 +27,7 @@ const queryClient = new QueryClient({
   },
 })
 
-export default function RootLayout() {
+function _RootLayout() {
   const initialize = useAuthStore((state) => state.initialize)
   const fluidsPlayer = useAudioPlayer(FLUIDS_URL)
   const togetherPlayer = useAudioPlayer(TOGETHER_URL)
@@ -77,6 +81,9 @@ export default function RootLayout() {
     </QueryClientProvider>
   )
 }
+
+// Wrap with Sentry error boundary to catch unhandled JS errors
+export default SentryErrorBoundary(_RootLayout)
 
 const styles = StyleSheet.create({
   root: { flex: 1 },

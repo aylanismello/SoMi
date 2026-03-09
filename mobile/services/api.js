@@ -2,6 +2,7 @@
 // All backend communication goes through this service
 import Constants from 'expo-constants'
 import { supabase } from '../supabase'
+import { captureError, addBreadcrumb } from './sentry'
 
 // Determine API URL based on environment:
 // 1. If running from EAS update (preview/production channel) → use Vercel
@@ -42,6 +43,8 @@ async function apiRequest(endpoint, options = {}) {
   }
 
   try {
+    addBreadcrumb(`API ${options.method || 'GET'} ${endpoint}`, 'api')
+
     // Add timeout to prevent hanging requests
     const controller = new AbortController()
     const timeoutId = setTimeout(() => controller.abort(), 15000) // 15 second timeout
@@ -56,11 +59,18 @@ async function apiRequest(endpoint, options = {}) {
     const data = await response.json()
 
     if (!response.ok) {
-      throw new Error(data.error || 'API request failed')
+      const apiError = new Error(data.error || 'API request failed')
+      captureError(apiError, { endpoint, status: response.status, responseData: data })
+      throw apiError
     }
 
     return data
   } catch (error) {
+    if (error.name === 'AbortError') {
+      captureError(new Error(`API timeout: ${endpoint}`), { endpoint, timeout: 15000 })
+    } else if (!error._sentryReported) {
+      captureError(error, { endpoint })
+    }
     console.error(`API Error (${endpoint}):`, error)
     throw error
   }

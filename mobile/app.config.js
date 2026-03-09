@@ -49,6 +49,13 @@ module.exports = {
         },
       ],
       'expo-router',
+      [
+        '@sentry/react-native/expo',
+        {
+          organization: process.env.SENTRY_ORG || 'azorean',
+          project: process.env.SENTRY_PROJECT || 'somi-mobile',
+        },
+      ],
     ],
     extra: {
       eas: {

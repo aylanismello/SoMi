@@ -3,6 +3,7 @@ import { supabase } from '../supabase'
 import * as AppleAuthentication from 'expo-apple-authentication'
 import * as Crypto from 'expo-crypto'
 import { GoogleSignin } from '@react-native-google-signin/google-signin'
+import { setSentryUser, clearSentryUser } from '../services/sentry'
 
 export const useAuthStore = create((set, get) => ({
   // State
@@ -22,6 +23,12 @@ export const useAuthStore = create((set, get) => ({
           isAuthenticated: !!session?.user,
           isLoading: false,
         })
+        // Track user in Sentry for error attribution
+        if (session?.user) {
+          setSentryUser(session.user.id, session.user.email)
+        } else {
+          clearSentryUser()
+        }
       }
     )
 
