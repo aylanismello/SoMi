@@ -342,7 +342,18 @@ export default function DailyFlowSetup() {
 
   const handleEditRoutine = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
-    setShowPlanSheet(true)
+    const segments = fullSegmentsRef.current || []
+    if (segments.length === 0) {
+      setShowPlanSheet(true)
+      return
+    }
+    navigation.navigate('EditFlow', {
+      segments,
+      onSave: (updatedSegments) => {
+        fullSegmentsRef.current = updatedSegments
+        showUpdatedToast()
+      },
+    })
   }
 
   const handleStartFlow = async () => {
