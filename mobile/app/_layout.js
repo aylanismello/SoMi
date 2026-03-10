@@ -1,14 +1,17 @@
 import { Stack } from 'expo-router'
 import { StatusBar } from 'expo-status-bar'
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { useAudioPlayer, setAudioModeAsync } from 'expo-audio'
 import React from 'react'
+import * as SplashScreen from 'expo-splash-screen'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { useAuthStore } from '../stores/authStore'
 import { useFlowMusicStore } from '../stores/flowMusicStore'
 import { View, Image, StyleSheet } from 'react-native'
 import { soundManager } from '../utils/SoundManager'
 import { prefetchVideoBlocks, WATER_BG_URI } from '../constants/media'
+
+SplashScreen.preventAutoHideAsync()
 
 const FLUIDS_URL = 'https://qujifwhwntqxziymqdwu.supabase.co/storage/v1/object/public/test/somi%20og%20music/fluids%20v2.mp3'
 const TOGETHER_URL = 'https://qujifwhwntqxziymqdwu.supabase.co/storage/v1/object/public/test/somi%20music/Nine%20Inch%20Nails%20-%20Together.mp3'
@@ -25,14 +28,22 @@ const queryClient = new QueryClient({
 
 export default function RootLayout() {
   const initialize = useAuthStore((state) => state.initialize)
+  const [appReady, setAppReady] = useState(false)
   const fluidsPlayer = useAudioPlayer(FLUIDS_URL)
   const togetherPlayer = useAudioPlayer(TOGETHER_URL)
   const { setTrackPlayers } = useFlowMusicStore()
 
   useEffect(() => {
     const subscription = initialize()
+    setAppReady(true)
     return () => subscription?.unsubscribe()
   }, [])
+
+  useEffect(() => {
+    if (appReady) {
+      SplashScreen.hideAsync()
+    }
+  }, [appReady])
 
   useEffect(() => {
     if (fluidsPlayer && togetherPlayer) {
