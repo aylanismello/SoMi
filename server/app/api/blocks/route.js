@@ -10,10 +10,21 @@ export async function GET(request) {
     const canonicalNames = searchParams.get('canonical_names')
 
     if (!canonicalNames) {
-      return NextResponse.json(
-        { error: 'canonical_names parameter is required' },
-        { status: 400 }
-      )
+      // Return all blocks when no filter provided
+      const { data, error: dbError } = await supabase
+        .from('somi_blocks')
+        .select('*')
+        .order('name')
+
+      if (dbError) {
+        console.error('Error fetching all blocks:', dbError)
+        return NextResponse.json(
+          { error: 'Failed to fetch blocks' },
+          { status: 500 }
+        )
+      }
+
+      return NextResponse.json({ blocks: data })
     }
 
     const namesArray = canonicalNames.split(',')

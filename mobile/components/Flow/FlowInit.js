@@ -10,6 +10,7 @@ import { colors } from '../../constants/theme'
 import { useSettingsStore } from '../../stores/settingsStore'
 import { useRoutineStore } from '../../stores/routineStore'
 import { chainService } from '../../services/chainService'
+import { useEditFlowStore } from '../../stores/editFlowStore'
 import PolyvagalStatePicker from './PolyvagalStatePicker'
 import CustomizationModal from '../CustomizationModal'
 import MusicPickerModal from '../MusicPickerModal'
@@ -333,6 +334,19 @@ export default function DailyFlowSetup() {
     }
   }, [doGeneratePreview]))
 
+  // Sync edited segments back from EditFlowScreen when this screen regains focus
+  useFocusEffect(useCallback(() => {
+    if (!hasInitializedRef.current) return
+    const storeSegs = useEditFlowStore.getState().segments
+    if (storeSegs.length > 0) {
+      fullSegmentsRef.current = storeSegs
+      const totalSecs = storeSegs
+        .filter((s) => s.type === 'somi_block')
+        .reduce((acc, s) => acc + (s.duration_seconds ?? 0), 0)
+      if (totalSecs > 0) setActualDuration(totalSecs)
+    }
+  }, []))
+
   // ── Event handlers ──────────────────────────────────────────────────────────
   const handleClose = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium)
@@ -342,18 +356,8 @@ export default function DailyFlowSetup() {
 
   const handleEditRoutine = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
-    const segments = fullSegmentsRef.current || []
-    if (segments.length === 0) {
-      setShowPlanSheet(true)
-      return
-    }
-    navigation.navigate('EditFlow', {
-      segments,
-      onSave: (updatedSegments) => {
-        fullSegmentsRef.current = updatedSegments
-        showUpdatedToast()
-      },
-    })
+    useEditFlowStore.getState().setSegments(fullSegmentsRef.current || [])
+    router.push('/EditFlow')
   }
 
   const handleStartFlow = async () => {

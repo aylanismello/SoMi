@@ -121,6 +121,10 @@ export const api = {
   },
 
   // Blocks
+  getAllBlocks: async () => {
+    return apiRequest('/blocks')
+  },
+
   getBlocks: async (canonicalNames) => {
     const namesParam = Array.isArray(canonicalNames)
       ? canonicalNames.join(',')

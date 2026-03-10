@@ -1,1 +1,1 @@
-export { default } from '../components/Flow/EditFlow'
+export { default } from '../components/Flow/EditFlowScreen'
