@@ -14,6 +14,8 @@ export async function GET(request) {
       const { data, error: dbError } = await supabase
         .from('somi_blocks')
         .select('*')
+        .eq('block_type', 'vagal_toning')
+        .eq('active', true)
         .order('name')
 
       if (dbError) {
