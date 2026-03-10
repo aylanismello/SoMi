@@ -137,29 +137,27 @@ export const chainService = {
       const chainId = chain.id
       console.log(`✅ Created chain ${chainId} with duration_seconds=${totalPlaySeconds}s`)
 
-      // Upload all embodiment checks
-      for (const check of checks) {
-        await api.saveEmbodimentCheck(
+      // Upload all embodiment checks in parallel
+      await Promise.all(checks.map(check =>
+        api.saveEmbodimentCheck(
           chainId,
           check.energyLevel,
           check.safetyLevel,
           check.journalEntry,
           check.tags || null
-        )
-        console.log(`  ✅ Uploaded check`)
-      }
+        ).then(() => console.log(`  ✅ Uploaded check`))
+      ))
 
-      // Upload all completed blocks
-      for (const block of blocks) {
-        await api.saveChainEntry(
+      // Upload all completed blocks in parallel
+      await Promise.all(blocks.map(block =>
+        api.saveChainEntry(
           chainId,
           block.somiBlockId,
           block.secondsElapsed,
           block.orderIndex,
           block.section || null
-        )
-        console.log(`  ✅ Uploaded block ${block.somiBlockId}`)
-      }
+        ).then(() => console.log(`  ✅ Uploaded block ${block.somiBlockId}`))
+      ))
 
       // Clear session data
       await this.clearSessionData()

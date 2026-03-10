@@ -44,6 +44,22 @@ function playerFor(state, trackId) {
   return null
 }
 
+// Animate volume on a player, cleaning up previous listeners first
+function fadeVolume(volumeAnim, player, toValue, duration, onFinished) {
+  volumeAnim.removeAllListeners()
+  Animated.timing(volumeAnim, {
+    toValue,
+    duration,
+    easing: Easing.inOut(Easing.ease),
+    useNativeDriver: false,
+  }).start(({ finished }) => {
+    if (finished && onFinished) onFinished()
+  })
+  volumeAnim.addListener(({ value }) => {
+    player.volume = value
+  })
+}
+
 export const useFlowMusicStore = create((set, get) => ({
   // Players (set once at boot from _layout.js)
   fluidsPlayer: null,
@@ -88,18 +104,7 @@ export const useFlowMusicStore = create((set, get) => ({
       activePlayer.play()
 
       volumeAnim.setValue(0)
-      volumeAnim.removeAllListeners()
-
-      Animated.timing(volumeAnim, {
-        toValue: 1,
-        duration: FADE_IN_MS,
-        easing: Easing.inOut(Easing.ease),
-        useNativeDriver: false,
-      }).start()
-
-      volumeAnim.addListener(({ value }) => {
-        activePlayer.volume = value
-      })
+      fadeVolume(volumeAnim, activePlayer, 1, FADE_IN_MS)
     } catch (e) {
       console.error('❌ Error starting flow music:', e)
       set({ isPlaying: false, flowStartedAt: null })
@@ -123,20 +128,9 @@ export const useFlowMusicStore = create((set, get) => ({
 
     // Fade out current track
     if (currentPlayer && currentVolumeAnim) {
-      currentVolumeAnim.removeAllListeners()
-      Animated.timing(currentVolumeAnim, {
-        toValue: 0,
-        duration: FADE_CROSS_MS,
-        easing: Easing.inOut(Easing.ease),
-        useNativeDriver: false,
-      }).start(({ finished }) => {
-        if (finished) {
-          currentPlayer.pause()
-          currentVolumeAnim.setValue(0)
-        }
-      })
-      currentVolumeAnim.addListener(({ value }) => {
-        currentPlayer.volume = value
+      fadeVolume(currentVolumeAnim, currentPlayer, 0, FADE_CROSS_MS, () => {
+        currentPlayer.pause()
+        currentVolumeAnim.setValue(0)
       })
     }
 
@@ -154,18 +148,7 @@ export const useFlowMusicStore = create((set, get) => ({
         newPlayer.play()
 
         newVolumeAnim.setValue(0)
-        newVolumeAnim.removeAllListeners()
-
-        Animated.timing(newVolumeAnim, {
-          toValue: 1,
-          duration: FADE_CROSS_MS,
-          easing: Easing.inOut(Easing.ease),
-          useNativeDriver: false,
-        }).start()
-
-        newVolumeAnim.addListener(({ value }) => {
-          newPlayer.volume = value
-        })
+        fadeVolume(newVolumeAnim, newPlayer, 1, FADE_CROSS_MS)
       } catch (e) {
         console.error('❌ Error switching track:', e)
       }
@@ -184,21 +167,10 @@ export const useFlowMusicStore = create((set, get) => ({
     if (!activePlayer) return
 
     if (activeVolumeAnim) {
-      activeVolumeAnim.removeAllListeners()
-      Animated.timing(activeVolumeAnim, {
-        toValue: 0,
-        duration: 2000,
-        easing: Easing.inOut(Easing.ease),
-        useNativeDriver: false,
-      }).start(({ finished }) => {
-        if (finished) {
-          activePlayer.pause()
-          activeVolumeAnim.setValue(0)
-          activeVolumeAnim.removeAllListeners()
-        }
-      })
-      activeVolumeAnim.addListener(({ value }) => {
-        activePlayer.volume = value
+      fadeVolume(activeVolumeAnim, activePlayer, 0, 2000, () => {
+        activePlayer.pause()
+        activeVolumeAnim.setValue(0)
+        activeVolumeAnim.removeAllListeners()
       })
     } else {
       activePlayer.pause()
