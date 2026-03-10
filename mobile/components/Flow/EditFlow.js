@@ -6,7 +6,6 @@ import {
   UIManager,
 } from 'react-native'
 import { LinearGradient } from 'expo-linear-gradient'
-import { BlurView } from 'expo-blur'
 import { Ionicons } from '@expo/vector-icons'
 import * as Haptics from 'expo-haptics'
 import { colors } from '../../constants/theme'
@@ -45,8 +44,26 @@ const STATE_LABELS = {
   steady: 'Steady',
 }
 
+// Assign sections based on queue position (matches server/lib/polyvagal.js logic)
+function assignSections(blocks) {
+  const n = blocks.length
+  return blocks.map((block, i) => {
+    let section = 'main'
+    if (n === 1) {
+      section = 'main'
+    } else if (n === 2) {
+      section = i === 0 ? 'warm_up' : 'main'
+    } else {
+      if (i === 0) section = 'warm_up'
+      else if (i === n - 1) section = 'integration'
+      else section = 'main'
+    }
+    return { ...block, section }
+  })
+}
+
 // ─── Block Card ──────────────────────────────────────────────────────────────
-function BlockCard({ block, index, isSelected, onSwap, fadeAnim }) {
+function BlockCard({ block, index, total, isSelected, onSwap, onRemove, onMoveUp, onMoveDown, fadeAnim }) {
   return (
     <Animated.View
       style={[
@@ -70,6 +87,33 @@ function BlockCard({ block, index, isSelected, onSwap, fadeAnim }) {
 
       <BlockDeltaViz energyDelta={block.energy_delta} safetyDelta={block.safety_delta} />
 
+      {/* Reorder arrows */}
+      <View style={styles.reorderCol}>
+        <TouchableOpacity
+          onPress={() => {
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
+            onMoveUp(index)
+          }}
+          style={[styles.reorderBtn, index === 0 && styles.reorderBtnDisabled]}
+          activeOpacity={0.7}
+          disabled={index === 0}
+        >
+          <Ionicons name="chevron-up" size={14} color={index === 0 ? 'rgba(255,255,255,0.15)' : 'rgba(255,255,255,0.5)'} />
+        </TouchableOpacity>
+        <TouchableOpacity
+          onPress={() => {
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
+            onMoveDown(index)
+          }}
+          style={[styles.reorderBtn, index === total - 1 && styles.reorderBtnDisabled]}
+          activeOpacity={0.7}
+          disabled={index === total - 1}
+        >
+          <Ionicons name="chevron-down" size={14} color={index === total - 1 ? 'rgba(255,255,255,0.15)' : 'rgba(255,255,255,0.5)'} />
+        </TouchableOpacity>
+      </View>
+
+      {/* Swap button */}
       <TouchableOpacity
         onPress={() => {
           Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
@@ -79,6 +123,18 @@ function BlockCard({ block, index, isSelected, onSwap, fadeAnim }) {
         activeOpacity={0.7}
       >
         <Text style={styles.swapBtnText}>⇄</Text>
+      </TouchableOpacity>
+
+      {/* Remove button */}
+      <TouchableOpacity
+        onPress={() => {
+          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium)
+          onRemove(index)
+        }}
+        style={styles.removeBtn}
+        activeOpacity={0.7}
+      >
+        <Ionicons name="close" size={14} color="rgba(255,120,120,0.8)" />
       </TouchableOpacity>
     </Animated.View>
   )
@@ -146,11 +202,12 @@ export default function EditFlow() {
     onSave,
   } = route.params || {}
 
-  // Extract somi_blocks from the full segments, tagging segment index
+  // Extract somi_blocks from the full segments
   const [queue, setQueue] = useState(() =>
-    initialSegments
-      .map((seg, i) => ({ ...seg, _segmentIndex: i }))
-      .filter(seg => seg.type === 'somi_block')
+    assignSections(
+      initialSegments
+        .filter(seg => seg.type === 'somi_block')
+    )
   )
 
   // Detect body scans
@@ -226,30 +283,59 @@ export default function EditFlow() {
 
   const handleSave = useCallback(() => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium)
-    // Rebuild full segments array with updated blocks
-    const updatedSegments = [...initialSegments]
+
+    // Rebuild full segments array from the customized queue
+    const segments = []
+
+    // Body scan start
+    if (hasBsStart) {
+      segments.push({
+        type: 'body_scan',
+        section: 'warm_up',
+        duration_seconds: 60,
+      })
+    }
+
+    // For each block in queue, prepend a micro_integration then the somi_block
     queue.forEach((block) => {
-      if (block._segmentIndex != null) {
-        updatedSegments[block._segmentIndex] = {
-          ...updatedSegments[block._segmentIndex],
-          somi_block_id: block.somi_block_id ?? block.id,
-          name: block.name,
-          canonical_name: block.canonical_name,
-          url: block.url ?? block.media_url,
-          description: block.description,
-          energy_delta: block.energy_delta,
-          safety_delta: block.safety_delta,
-        }
-      }
+      segments.push({
+        type: 'micro_integration',
+        section: block.section,
+        duration_seconds: 20,
+      })
+      segments.push({
+        type: 'somi_block',
+        section: block.section,
+        duration_seconds: block.duration_seconds || 60,
+        somi_block_id: block.somi_block_id ?? block.id,
+        id: block.somi_block_id ?? block.id,
+        name: block.name,
+        canonical_name: block.canonical_name,
+        url: block.url ?? block.media_url,
+        media_url: block.media_url ?? block.url,
+        description: block.description,
+        energy_delta: block.energy_delta,
+        safety_delta: block.safety_delta,
+      })
     })
+
+    // Body scan end
+    if (hasBsEnd) {
+      segments.push({
+        type: 'body_scan',
+        section: 'integration',
+        duration_seconds: 60,
+      })
+    }
+
     if (route.params?.onSave) {
-      route.params.onSave(updatedSegments)
+      route.params.onSave(segments)
     }
     Animated.parallel([
       Animated.timing(translateX, { toValue: SCREEN_WIDTH, duration: 250, useNativeDriver: true }),
       Animated.timing(screenOpacity, { toValue: 0, duration: 200, useNativeDriver: true }),
     ]).start(() => navigation.goBack())
-  }, [queue, initialSegments, navigation, translateX, screenOpacity, route.params])
+  }, [queue, hasBsStart, hasBsEnd, navigation, translateX, screenOpacity, route.params])
 
   const handleSwapPress = useCallback((index) => {
     setSwapIndex(index)
@@ -263,17 +349,71 @@ export default function EditFlow() {
     newQueue[swapIndex] = {
       ...newQueue[swapIndex],
       somi_block_id: libraryBlock.id,
+      id: libraryBlock.id,
       name: libraryBlock.name,
       canonical_name: libraryBlock.canonical_name,
       url: libraryBlock.media_url,
+      media_url: libraryBlock.media_url,
       description: libraryBlock.description,
       energy_delta: libraryBlock.energy_delta,
       safety_delta: libraryBlock.safety_delta,
     }
-    setQueue(newQueue)
+    setQueue(assignSections(newQueue))
     setShowLibrary(false)
     setSwapIndex(null)
   }, [queue, swapIndex])
+
+  const handleAddBlock = useCallback((libraryBlock) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium)
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut)
+    const newBlock = {
+      type: 'somi_block',
+      somi_block_id: libraryBlock.id,
+      id: libraryBlock.id,
+      name: libraryBlock.name,
+      canonical_name: libraryBlock.canonical_name,
+      url: libraryBlock.media_url,
+      media_url: libraryBlock.media_url,
+      description: libraryBlock.description,
+      energy_delta: libraryBlock.energy_delta,
+      safety_delta: libraryBlock.safety_delta,
+      duration_seconds: 60,
+    }
+    setQueue(prev => assignSections([...prev, newBlock]))
+    setShowLibrary(false)
+  }, [])
+
+  const handleRemoveBlock = useCallback((index) => {
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut)
+    setQueue(prev => {
+      const newQueue = prev.filter((_, i) => i !== index)
+      return assignSections(newQueue)
+    })
+  }, [])
+
+  const handleMoveUp = useCallback((index) => {
+    if (index === 0) return
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut)
+    setQueue(prev => {
+      const newQueue = [...prev]
+      const temp = newQueue[index - 1]
+      newQueue[index - 1] = newQueue[index]
+      newQueue[index] = temp
+      return assignSections(newQueue)
+    })
+  }, [])
+
+  const handleMoveDown = useCallback((index) => {
+    setQueue(prev => {
+      if (index >= prev.length - 1) return prev
+      LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut)
+      const newQueue = [...prev]
+      const temp = newQueue[index + 1]
+      newQueue[index + 1] = newQueue[index]
+      newQueue[index] = temp
+      return assignSections(newQueue)
+    })
+  }, [])
 
   const handleCloseLibrary = useCallback(() => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
@@ -333,7 +473,7 @@ export default function EditFlow() {
           {blockCount} exercise{blockCount !== 1 ? 's' : ''}
         </Text>
         <Text style={styles.subtitleDot}> · </Text>
-        <Text style={styles.subtitleHint}>Swap blocks or browse the library</Text>
+        <Text style={styles.subtitleHint}>Add, remove, reorder, or swap blocks</Text>
       </View>
 
       {/* Block list */}
@@ -342,6 +482,14 @@ export default function EditFlow() {
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
+        {blockCount === 0 && (
+          <View style={styles.emptyState}>
+            <Ionicons name="add-circle-outline" size={40} color="rgba(255,255,255,0.2)" />
+            <Text style={styles.emptyStateText}>No blocks in your flow</Text>
+            <Text style={styles.emptyStateHint}>Tap "Add Block" below to get started</Text>
+          </View>
+        )}
+
         {groupedBlocks.map((group, gi) => (
           <View key={group.section}>
             <Text style={styles.sectionHeader}>
@@ -355,14 +503,34 @@ export default function EditFlow() {
                 key={`${block.canonical_name ?? block.name}-${index}`}
                 block={block}
                 index={index}
+                total={blockCount}
                 isSelected={swapIndex === index}
                 onSwap={handleSwapPress}
+                onRemove={handleRemoveBlock}
+                onMoveUp={handleMoveUp}
+                onMoveDown={handleMoveDown}
               />
             ))}
 
             {gi === groupedBlocks.length - 1 && hasBsEnd && <BodyScanRow />}
           </View>
         ))}
+
+        {/* Add block button */}
+        <TouchableOpacity
+          style={styles.addBlockBtn}
+          onPress={() => {
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
+            setSwapIndex(null)
+            setShowLibrary(true)
+          }}
+          activeOpacity={0.8}
+        >
+          <View style={styles.addBlockIcon}>
+            <Ionicons name="add" size={20} color={colors.accent.primary} />
+          </View>
+          <Text style={styles.addBlockBtnText}>Add Block</Text>
+        </TouchableOpacity>
 
         {/* Browse library button */}
         <TouchableOpacity
@@ -410,7 +578,7 @@ export default function EditFlow() {
             <Text style={styles.librarySubtitle}>
               {swapIndex != null
                 ? `Replacing: ${queue[swapIndex]?.name}`
-                : `${libraryBlocks.length} exercises available`
+                : `${libraryBlocks.length} exercises · tap + to add`
               }
             </Text>
           </View>
@@ -447,12 +615,17 @@ export default function EditFlow() {
                         if (swapIndex != null) {
                           handleLibrarySelect(b)
                         } else {
-                          // Browse mode — swap not active, just close
-                          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning)
+                          handleAddBlock(b)
                         }
                       }}
-                      onDeselect={() => {
+                      onDeselect={(b) => {
+                        // Remove from queue when tapping a block already in queue
                         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
+                        LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut)
+                        setQueue(prev => {
+                          const newQueue = prev.filter(q => q.canonical_name !== b.canonical_name)
+                          return assignSections(newQueue)
+                        })
                       }}
                     />
                   ))}
@@ -533,6 +706,23 @@ const styles = StyleSheet.create({
     paddingBottom: 120,
   },
 
+  // ── Empty state ─────────────────────────────────────────────────────────────
+  emptyState: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 48,
+    gap: 8,
+  },
+  emptyStateText: {
+    color: 'rgba(255,255,255,0.4)',
+    fontSize: 16, fontWeight: '600',
+    marginTop: 8,
+  },
+  emptyStateHint: {
+    color: 'rgba(255,255,255,0.25)',
+    fontSize: 13, fontWeight: '400',
+  },
+
   // ── Section header ─────────────────────────────────────────────────────────
   sectionHeader: {
     color: 'rgba(255,255,255,0.4)',
@@ -544,8 +734,8 @@ const styles = StyleSheet.create({
   // ── Block card ─────────────────────────────────────────────────────────────
   blockCard: {
     flexDirection: 'row', alignItems: 'center',
-    paddingVertical: 14, paddingHorizontal: 14,
-    borderRadius: 16, marginBottom: 8, gap: 12,
+    paddingVertical: 12, paddingHorizontal: 12,
+    borderRadius: 16, marginBottom: 8, gap: 10,
     backgroundColor: 'rgba(255,255,255,0.04)',
     borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)',
   },
@@ -554,34 +744,58 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(0,217,163,0.25)',
   },
   blockNumber: {
-    width: 32, height: 32, borderRadius: 16,
+    width: 28, height: 28, borderRadius: 14,
     backgroundColor: 'rgba(255,255,255,0.1)',
     alignItems: 'center', justifyContent: 'center',
   },
   blockNumberSelected: { backgroundColor: colors.accent.primary },
   blockNumberText: {
     color: 'rgba(255,255,255,0.65)',
-    fontSize: 14, fontWeight: '600',
+    fontSize: 13, fontWeight: '600',
   },
   blockNumberTextSelected: { color: '#000' },
   blockInfo: { flex: 1, gap: 2 },
   blockName: {
     color: '#fff',
-    fontSize: 15, fontWeight: '600',
+    fontSize: 14, fontWeight: '600',
   },
   blockDesc: {
     color: 'rgba(255,255,255,0.35)',
-    fontSize: 12, fontWeight: '400',
+    fontSize: 11, fontWeight: '400',
   },
+
+  // ── Reorder arrows ──────────────────────────────────────────────────────────
+  reorderCol: {
+    gap: 2,
+  },
+  reorderBtn: {
+    width: 24, height: 18,
+    borderRadius: 6,
+    backgroundColor: 'rgba(255,255,255,0.06)',
+    alignItems: 'center', justifyContent: 'center',
+  },
+  reorderBtnDisabled: {
+    opacity: 0.4,
+  },
+
+  // ── Swap button ─────────────────────────────────────────────────────────────
   swapBtn: {
-    width: 32, height: 32, borderRadius: 16,
+    width: 28, height: 28, borderRadius: 14,
     backgroundColor: 'rgba(255,255,255,0.08)',
     borderWidth: 1, borderColor: 'rgba(255,255,255,0.12)',
     alignItems: 'center', justifyContent: 'center',
   },
   swapBtnText: {
     color: 'rgba(255,255,255,0.6)',
-    fontSize: 16, fontWeight: '500',
+    fontSize: 14, fontWeight: '500',
+  },
+
+  // ── Remove button ──────────────────────────────────────────────────────────
+  removeBtn: {
+    width: 24, height: 24, borderRadius: 12,
+    backgroundColor: 'rgba(255,100,100,0.1)',
+    borderWidth: 1, borderColor: 'rgba(255,100,100,0.2)',
+    alignItems: 'center', justifyContent: 'center',
   },
 
   // ── Body scan ──────────────────────────────────────────────────────────────
@@ -595,11 +809,31 @@ const styles = StyleSheet.create({
   bodyScanName: { color: 'rgba(255,255,255,0.5)', fontSize: 15, fontWeight: '500', fontStyle: 'italic' },
   bodyScanSub: { color: 'rgba(255,255,255,0.28)', fontSize: 12, fontWeight: '400' },
 
+  // ── Add block button ───────────────────────────────────────────────────────
+  addBlockBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 12,
+    paddingVertical: 14, paddingHorizontal: 16,
+    marginTop: 16,
+    borderRadius: 16,
+    backgroundColor: 'rgba(0,217,163,0.06)',
+    borderWidth: 1, borderColor: 'rgba(0,217,163,0.2)',
+  },
+  addBlockIcon: {
+    width: 32, height: 32, borderRadius: 16,
+    backgroundColor: 'rgba(0,217,163,0.12)',
+    alignItems: 'center', justifyContent: 'center',
+  },
+  addBlockBtnText: {
+    flex: 1,
+    color: colors.accent.primary,
+    fontSize: 15, fontWeight: '600',
+  },
+
   // ── Browse library button ──────────────────────────────────────────────────
   browseBtn: {
     flexDirection: 'row', alignItems: 'center', gap: 12,
     paddingVertical: 16, paddingHorizontal: 16,
-    marginTop: 16,
+    marginTop: 8,
     borderRadius: 16,
     backgroundColor: 'rgba(255,255,255,0.04)',
     borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)',
