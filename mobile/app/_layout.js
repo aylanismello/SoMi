@@ -64,7 +64,7 @@ export default function RootLayout() {
         <Stack.Screen name="(tabs)" />
         {/* Flow journey — tab bar hidden automatically */}
         <Stack.Screen name="FlowInit" options={{ gestureEnabled: false }} />
-        <Stack.Screen name="EditFlow" />
+        <Stack.Screen name="EditFlow" options={{ gestureEnabled: true, animation: 'slide_from_right' }} />
         <Stack.Screen name="FlowOutro" options={{ gestureEnabled: false }} />
         <Stack.Screen name="RoutineQueuePreview" />
         <Stack.Screen name="SoMiRoutine" options={{ presentation: 'fullScreenModal', gestureEnabled: false }} />

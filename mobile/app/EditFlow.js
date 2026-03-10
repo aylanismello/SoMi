@@ -1,8 +1,7 @@
-import { useState, useCallback } from 'react'
-import { StyleSheet, View, Text, TouchableOpacity, ScrollView, Switch } from 'react-native'
+import { useState, useCallback, useRef, useEffect } from 'react'
+import { StyleSheet, View, Text, TouchableOpacity, ScrollView, Switch, Animated } from 'react-native'
 import { router, useLocalSearchParams } from 'expo-router'
 import { LinearGradient } from 'expo-linear-gradient'
-import { BlurView } from 'expo-blur'
 import { Ionicons } from '@expo/vector-icons'
 import * as Haptics from 'expo-haptics'
 import { colors } from '../constants/theme'
@@ -20,14 +19,105 @@ function getSectionLabel(name) {
   return SECTION_LABELS[name] || name.toUpperCase()
 }
 
-// ─── Body scan row ────────────────────────────────────────────────────────────
-function BodyScanRow({ enabled, showToggle, onToggle }) {
+// ─── Animated Block Row ──────────────────────────────────────────────────────
+function AnimatedBlockRow({ block, globalIndex, onSwap, entranceDelay }) {
+  const fadeAnim = useRef(new Animated.Value(0)).current
+  const slideAnim = useRef(new Animated.Value(20)).current
+  const swapAnim = useRef(new Animated.Value(1)).current
+  const prevNameRef = useRef(block.name)
+
+  // Entrance animation
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      Animated.parallel([
+        Animated.timing(fadeAnim, {
+          toValue: 1, duration: 350, useNativeDriver: true,
+        }),
+        Animated.spring(slideAnim, {
+          toValue: 0, tension: 80, friction: 12, useNativeDriver: true,
+        }),
+      ]).start()
+    }, entranceDelay)
+    return () => clearTimeout(timer)
+  }, [])
+
+  // Swap animation — pulse when block name changes
+  useEffect(() => {
+    if (prevNameRef.current !== block.name) {
+      prevNameRef.current = block.name
+      swapAnim.setValue(0.4)
+      Animated.spring(swapAnim, {
+        toValue: 1, tension: 100, friction: 8, useNativeDriver: true,
+      }).start()
+    }
+  }, [block.name])
+
   return (
-    <View style={[styles.planItem, styles.bodyScanItem]}>
-      <View style={[styles.planItemNumber, styles.bodyScanNumber]}>
-        <Text style={styles.bodyScanNumberText}>~</Text>
+    <Animated.View
+      style={[
+        styles.blockCard,
+        {
+          opacity: Animated.multiply(fadeAnim, swapAnim),
+          transform: [
+            { translateY: slideAnim },
+            { scale: swapAnim.interpolate({
+              inputRange: [0.4, 1],
+              outputRange: [0.95, 1],
+            })},
+          ],
+        },
+      ]}
+    >
+      <View style={styles.blockNumberWrap}>
+        <Text style={styles.blockNumberText}>{globalIndex + 1}</Text>
       </View>
-      <Text style={[styles.planItemName, !enabled && styles.planItemNameDimmed]}>
+
+      <View style={styles.blockContent}>
+        <Text style={styles.blockName} numberOfLines={1}>{block.name}</Text>
+        {block.description ? (
+          <Text style={styles.blockDesc} numberOfLines={1}>{block.description}</Text>
+        ) : null}
+      </View>
+
+      <BlockDeltaViz energyDelta={block.energy_delta} safetyDelta={block.safety_delta} size={32} />
+
+      <TouchableOpacity
+        onPress={() => onSwap(globalIndex)}
+        style={styles.swapBtn}
+        activeOpacity={0.7}
+      >
+        <Ionicons name="swap-horizontal" size={16} color="rgba(255,255,255,0.6)" />
+      </TouchableOpacity>
+    </Animated.View>
+  )
+}
+
+// ─── Body scan row ───────────────────────────────────────────────────────────
+function BodyScanRow({ enabled, showToggle, onToggle, entranceDelay }) {
+  const fadeAnim = useRef(new Animated.Value(0)).current
+  const slideAnim = useRef(new Animated.Value(20)).current
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      Animated.parallel([
+        Animated.timing(fadeAnim, { toValue: 1, duration: 350, useNativeDriver: true }),
+        Animated.spring(slideAnim, { toValue: 0, tension: 80, friction: 12, useNativeDriver: true }),
+      ]).start()
+    }, entranceDelay)
+    return () => clearTimeout(timer)
+  }, [])
+
+  return (
+    <Animated.View
+      style={[
+        styles.bodyScanCard,
+        { opacity: fadeAnim, transform: [{ translateY: slideAnim }] },
+      ]}
+    >
+      <View style={styles.bodyScanIcon}>
+        <Ionicons name="body-outline" size={14} color="rgba(255,255,255,0.4)" />
+      </View>
+      <Text style={[styles.bodyScanName, !enabled && styles.bodyScanNameDimmed]}>
         Body Scan
       </Text>
       {showToggle ? (
@@ -37,17 +127,38 @@ function BodyScanRow({ enabled, showToggle, onToggle }) {
             Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
             onToggle?.()
           }}
-          trackColor={{ false: 'rgba(255,255,255,0.15)', true: '#4ECDC4' }}
+          trackColor={{ false: 'rgba(255,255,255,0.15)', true: colors.accent.primary }}
           thumbColor="#ffffff"
           style={{ transform: [{ scaleX: 0.8 }, { scaleY: 0.8 }] }}
         />
       ) : (
         <Ionicons name="lock-closed" size={13} color="rgba(255,255,255,0.35)" />
       )}
-    </View>
+    </Animated.View>
   )
 }
 
+// ─── Section Header ──────────────────────────────────────────────────────────
+function SectionHeader({ label, entranceDelay }) {
+  const fadeAnim = useRef(new Animated.Value(0)).current
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      Animated.timing(fadeAnim, { toValue: 1, duration: 300, useNativeDriver: true }).start()
+    }, entranceDelay)
+    return () => clearTimeout(timer)
+  }, [])
+
+  return (
+    <Animated.View style={[styles.sectionHeaderRow, { opacity: fadeAnim }]}>
+      <View style={styles.sectionHeaderLine} />
+      <Text style={styles.sectionHeaderText}>{label}</Text>
+      <View style={styles.sectionHeaderLine} />
+    </Animated.View>
+  )
+}
+
+// ─── Main Component ──────────────────────────────────────────────────────────
 export default function EditFlow() {
   const params = useLocalSearchParams()
   const {
@@ -76,6 +187,17 @@ export default function EditFlow() {
   const [showPicker, setShowPicker] = useState(false)
   const [swapIndex, setSwapIndex] = useState(null)
 
+  // Header entrance animation
+  const headerFade = useRef(new Animated.Value(0)).current
+  const headerSlide = useRef(new Animated.Value(-20)).current
+
+  useEffect(() => {
+    Animated.parallel([
+      Animated.timing(headerFade, { toValue: 1, duration: 400, useNativeDriver: true }),
+      Animated.spring(headerSlide, { toValue: 0, tension: 80, friction: 12, useNativeDriver: true }),
+    ]).start()
+  }, [])
+
   const blockCount = queue.length
   const displayMin = actualDuration
     ? Math.ceil(actualDuration / 60)
@@ -101,6 +223,7 @@ export default function EditFlow() {
 
   const handleBlockSelected = useCallback((blockData) => {
     if (swapIndex == null) return
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success)
     swapBlock(swapIndex, blockData)
     setShowPicker(false)
     setSwapIndex(null)
@@ -114,39 +237,17 @@ export default function EditFlow() {
     setBodyScanEndEnabled(v => !v)
   }, [])
 
-  // ── Block renderer ─────────────────────────────────────────────────────────
-  const renderBlock = (block, globalIndex) => (
-    <View
-      key={`${block.canonical_name ?? block.name}-${globalIndex}`}
-      style={styles.planItem}
-    >
-      <View style={styles.planItemNumber}>
-        <Text style={styles.planItemNumberText}>{globalIndex + 1}</Text>
-      </View>
-
-      <Text style={styles.planItemName} numberOfLines={1}>
-        {block.name}
-      </Text>
-
-      <BlockDeltaViz energyDelta={block.energy_delta} safetyDelta={block.safety_delta} />
-
-      <TouchableOpacity
-        onPress={() => handleSwapBlock(globalIndex)}
-        style={styles.swapBtn}
-        activeOpacity={0.7}
-      >
-        <Text style={styles.swapBtnText}>⇄</Text>
-      </TouchableOpacity>
-    </View>
-  )
-
-  // ── Block list ─────────────────────────────────────────────────────────────
+  // ── Block list with staggered animations ─────────────────────────────────
   const renderBlockList = () => {
     if (!queue || queue.length === 0) return null
     const hasSections = !!queue[0]?.section
 
     const showBsStart = showBodyScanToggles || hasBsStart
     const showBsEnd   = showBodyScanToggles || hasBsEnd
+
+    // Track cumulative delay for staggered entrance
+    let delayCounter = 0
+    const STAGGER_MS = 60
 
     if (hasSections) {
       const groups = []
@@ -157,26 +258,42 @@ export default function EditFlow() {
         groups[groups.length - 1].items.push({ block, globalIndex: i })
       })
 
-      return groups.map((group, gi) => (
-        <View key={group.name}>
-          <Text style={styles.sectionHeader}>{getSectionLabel(group.name)}</Text>
-          {gi === 0 && showBsStart && (
-            <BodyScanRow
-              enabled={bodyScanStartEnabled}
-              showToggle={showBodyScanToggles}
-              onToggle={handleToggleBsStart}
-            />
-          )}
-          {group.items.map(({ block, globalIndex }) => renderBlock(block, globalIndex))}
-          {gi === groups.length - 1 && showBsEnd && (
-            <BodyScanRow
-              enabled={bodyScanEndEnabled}
-              showToggle={showBodyScanToggles}
-              onToggle={handleToggleBsEnd}
-            />
-          )}
-        </View>
-      ))
+      return groups.map((group, gi) => {
+        const sectionDelay = delayCounter++ * STAGGER_MS
+        return (
+          <View key={group.name}>
+            <SectionHeader label={getSectionLabel(group.name)} entranceDelay={sectionDelay} />
+
+            {gi === 0 && showBsStart && (
+              <BodyScanRow
+                enabled={bodyScanStartEnabled}
+                showToggle={showBodyScanToggles}
+                onToggle={handleToggleBsStart}
+                entranceDelay={delayCounter++ * STAGGER_MS}
+              />
+            )}
+
+            {group.items.map(({ block, globalIndex }) => (
+              <AnimatedBlockRow
+                key={`${block.canonical_name ?? block.name}-${globalIndex}`}
+                block={block}
+                globalIndex={globalIndex}
+                onSwap={handleSwapBlock}
+                entranceDelay={delayCounter++ * STAGGER_MS}
+              />
+            ))}
+
+            {gi === groups.length - 1 && showBsEnd && (
+              <BodyScanRow
+                enabled={bodyScanEndEnabled}
+                showToggle={showBodyScanToggles}
+                onToggle={handleToggleBsEnd}
+                entranceDelay={delayCounter++ * STAGGER_MS}
+              />
+            )}
+          </View>
+        )
+      })
     }
 
     return (
@@ -186,14 +303,24 @@ export default function EditFlow() {
             enabled={bodyScanStartEnabled}
             showToggle={showBodyScanToggles}
             onToggle={handleToggleBsStart}
+            entranceDelay={delayCounter++ * STAGGER_MS}
           />
         )}
-        {queue.map((block, index) => renderBlock(block, index))}
+        {queue.map((block, index) => (
+          <AnimatedBlockRow
+            key={`${block.canonical_name ?? block.name}-${index}`}
+            block={block}
+            globalIndex={index}
+            onSwap={handleSwapBlock}
+            entranceDelay={delayCounter++ * STAGGER_MS}
+          />
+        ))}
         {showBsEnd && (
           <BodyScanRow
             enabled={bodyScanEndEnabled}
             showToggle={showBodyScanToggles}
             onToggle={handleToggleBsEnd}
+            entranceDelay={delayCounter++ * STAGGER_MS}
           />
         )}
       </>
@@ -208,53 +335,48 @@ export default function EditFlow() {
       />
 
       {/* Header */}
-      <View style={styles.header}>
+      <Animated.View style={[styles.header, { opacity: headerFade, transform: [{ translateY: headerSlide }] }]}>
         <TouchableOpacity onPress={handleBack} style={styles.backBtn} activeOpacity={0.7}>
           <Ionicons name="chevron-back" size={22} color="#fff" />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Edit Flow</Text>
+        <View style={styles.headerCenter}>
+          <Text style={styles.headerTitle}>Edit Flow</Text>
+          <Text style={styles.headerSubtitle}>
+            {blockCount} exercise{blockCount !== 1 ? 's' : ''} · {displayMin} min
+          </Text>
+        </View>
         <View style={{ width: 44 }} />
-      </View>
+      </Animated.View>
 
-      {/* Content */}
-      <View style={styles.content}>
-        <Text style={styles.subtitle}>
-          {blockCount} exercise{blockCount !== 1 ? 's' : ''} · {displayMin} min
-        </Text>
+      {/* AI badge */}
+      {useAi && (
+        <View style={styles.aiBadge}>
+          <Ionicons name="sparkles" size={13} color={colors.accent.primary} />
+          <Text style={styles.aiBadgeText}>AI-curated</Text>
+        </View>
+      )}
 
-        {/* Why button */}
-        {reasoning && (
-          <View style={styles.whyButton}>
-            <Text style={styles.whyButtonIcon}>✦</Text>
-            <Text style={styles.whyButtonText}>why did SoMi make this?</Text>
-            <Ionicons name="chevron-forward" size={14} color="rgba(255,255,255,0.3)" />
-          </View>
-        )}
+      {/* Why button */}
+      {reasoning ? (
+        <TouchableOpacity style={styles.whyButton} activeOpacity={0.7}>
+          <Text style={styles.whyButtonIcon}>✦</Text>
+          <Text style={styles.whyButtonText}>Why did SoMi make this?</Text>
+          <Ionicons name="chevron-forward" size={14} color="rgba(255,255,255,0.3)" />
+        </TouchableOpacity>
+      ) : null}
 
-        {/* AI toggle */}
-        {useAi && (
-          <View style={[styles.aiRow, styles.aiRowActive]}>
-            <View style={styles.aiLeft}>
-              <Ionicons name="sparkles" size={16} color="#fff" />
-              <View>
-                <Text style={[styles.aiLabel, styles.aiLabelActive]}>AI-assisted</Text>
-                <Text style={styles.aiSub}>SoMi curated your flow</Text>
-              </View>
-            </View>
-          </View>
-        )}
+      {/* Block list */}
+      <ScrollView
+        style={styles.blockScroll}
+        contentContainerStyle={styles.blockScrollContent}
+        showsVerticalScrollIndicator={false}
+      >
+        {renderBlockList()}
+      </ScrollView>
 
-        {/* Block list */}
-        <ScrollView
-          style={styles.blockScroll}
-          contentContainerStyle={styles.blockScrollContent}
-          showsVerticalScrollIndicator={false}
-        >
-          {renderBlockList()}
-        </ScrollView>
-
-        {/* Done button */}
-        <TouchableOpacity onPress={handleBack} style={styles.doneButton} activeOpacity={0.7}>
+      {/* Done button */}
+      <View style={styles.bottomBar}>
+        <TouchableOpacity onPress={handleBack} style={styles.doneButton} activeOpacity={0.85}>
           <Text style={styles.doneButtonText}>Done</Text>
         </TouchableOpacity>
       </View>
@@ -288,30 +410,46 @@ const styles = StyleSheet.create({
     borderRadius: 22,
     borderWidth: 1, borderColor: 'rgba(255,255,255,0.15)',
   },
+  headerCenter: { alignItems: 'center' },
   headerTitle: {
     color: '#fff',
     fontSize: 18, fontWeight: '700',
     letterSpacing: 0.3,
   },
-
-  // ── Content ────────────────────────────────────────────────────────────────
-  content: {
-    flex: 1,
-    paddingHorizontal: 20,
-    paddingTop: 8,
+  headerSubtitle: {
+    color: 'rgba(255,255,255,0.4)',
+    fontSize: 12, fontWeight: '500',
+    marginTop: 2,
   },
-  subtitle: {
-    color: 'rgba(255,255,255,0.45)',
-    fontSize: 13, fontWeight: '500',
-    marginBottom: 16,
+
+  // ── AI badge ───────────────────────────────────────────────────────────────
+  aiBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'center',
+    gap: 6,
+    paddingVertical: 6,
+    paddingHorizontal: 14,
+    borderRadius: 20,
+    backgroundColor: 'rgba(0,217,163,0.08)',
+    borderWidth: 1, borderColor: 'rgba(0,217,163,0.2)',
+    marginTop: 8,
+    marginBottom: 4,
+  },
+  aiBadgeText: {
+    color: colors.accent.primary,
+    fontSize: 12, fontWeight: '600',
+    letterSpacing: 0.3,
   },
 
   // ── Why button ─────────────────────────────────────────────────────────────
   whyButton: {
     flexDirection: 'row', alignItems: 'center', gap: 10,
-    paddingVertical: 14, paddingHorizontal: 16,
-    marginBottom: 12,
-    borderRadius: 16,
+    paddingVertical: 12, paddingHorizontal: 16,
+    marginHorizontal: 20,
+    marginTop: 8,
+    marginBottom: 4,
+    borderRadius: 14,
     backgroundColor: 'rgba(255,255,255,0.04)',
     borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)',
   },
@@ -322,91 +460,92 @@ const styles = StyleSheet.create({
     fontSize: 13, fontWeight: '500', letterSpacing: 0.1,
   },
 
-  // ── AI row ─────────────────────────────────────────────────────────────────
-  aiRow: {
+  // ── Section header ─────────────────────────────────────────────────────────
+  sectionHeaderRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingVertical: 11,
-    paddingHorizontal: 14,
-    borderRadius: 14,
-    backgroundColor: 'rgba(255,255,255,0.06)',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.09)',
-    marginBottom: 12,
+    marginTop: 20,
+    marginBottom: 10,
+    gap: 12,
   },
-  aiRowActive: {
-    backgroundColor: 'rgba(0,217,163,0.07)',
-    borderColor: 'rgba(0,217,163,0.2)',
+  sectionHeaderLine: {
+    flex: 1, height: 1,
+    backgroundColor: 'rgba(255,255,255,0.08)',
   },
-  aiLeft: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  aiLabel: {
-    color: 'rgba(255,255,255,0.45)',
-    fontSize: 14, fontWeight: '600',
-  },
-  aiLabelActive: { color: '#fff' },
-  aiSub: {
-    color: 'rgba(255,255,255,0.28)',
-    fontSize: 11, fontWeight: '400', marginTop: 1,
-  },
-
-  // ── Section header ─────────────────────────────────────────────────────────
-  sectionHeader: {
-    color: 'rgba(255,255,255,0.45)',
+  sectionHeaderText: {
+    color: 'rgba(255,255,255,0.4)',
     fontSize: 11, fontWeight: '700', letterSpacing: 1.2,
-    marginTop: 16, marginBottom: 4,
-    paddingHorizontal: 12,
   },
 
   // ── Block scroll ───────────────────────────────────────────────────────────
   blockScroll: { flex: 1 },
-  blockScrollContent: { paddingBottom: 20 },
+  blockScrollContent: { paddingHorizontal: 20, paddingTop: 8, paddingBottom: 24 },
 
-  // ── Block row ──────────────────────────────────────────────────────────────
-  planItem: {
+  // ── Block card ─────────────────────────────────────────────────────────────
+  blockCard: {
     flexDirection: 'row', alignItems: 'center',
-    paddingVertical: 12, paddingHorizontal: 12,
-    borderRadius: 12, marginBottom: 4, gap: 12,
+    paddingVertical: 14, paddingHorizontal: 14,
+    borderRadius: 16, marginBottom: 8, gap: 12,
+    backgroundColor: 'rgba(255,255,255,0.04)',
+    borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)',
   },
-  planItemNumber: {
-    width: 28, height: 28, borderRadius: 14,
-    backgroundColor: 'rgba(255,255,255,0.1)',
+  blockNumberWrap: {
+    width: 30, height: 30, borderRadius: 15,
+    backgroundColor: 'rgba(255,255,255,0.08)',
     alignItems: 'center', justifyContent: 'center',
   },
-  planItemNumberText: {
-    color: 'rgba(255,255,255,0.65)',
-    fontSize: 13, fontWeight: '600',
+  blockNumberText: {
+    color: 'rgba(255,255,255,0.55)',
+    fontSize: 13, fontWeight: '700',
   },
-  planItemName: {
-    flex: 1, color: '#fff',
-    fontSize: 15, fontWeight: '500',
+  blockContent: { flex: 1, gap: 2 },
+  blockName: {
+    color: '#fff',
+    fontSize: 15, fontWeight: '600',
   },
-  planItemNameDimmed: { color: 'rgba(255,255,255,0.35)' },
+  blockDesc: {
+    color: 'rgba(255,255,255,0.35)',
+    fontSize: 12, fontWeight: '400',
+  },
 
   // ── Swap button ────────────────────────────────────────────────────────────
   swapBtn: {
-    width: 28, height: 28, borderRadius: 14,
-    backgroundColor: 'rgba(255,255,255,0.08)',
+    width: 32, height: 32, borderRadius: 16,
+    backgroundColor: 'rgba(255,255,255,0.06)',
     borderWidth: 1, borderColor: 'rgba(255,255,255,0.12)',
     alignItems: 'center', justifyContent: 'center',
   },
-  swapBtnText: { color: 'rgba(255,255,255,0.6)', fontSize: 14, fontWeight: '500' },
 
-  // ── Body scan row ──────────────────────────────────────────────────────────
-  bodyScanItem: { opacity: 0.85 },
-  bodyScanNumber: { backgroundColor: 'rgba(255,255,255,0.07)' },
-  bodyScanNumberText: {
-    color: 'rgba(255,255,255,0.4)',
-    fontSize: 13, fontWeight: '600',
+  // ── Body scan card ─────────────────────────────────────────────────────────
+  bodyScanCard: {
+    flexDirection: 'row', alignItems: 'center',
+    paddingVertical: 12, paddingHorizontal: 14,
+    borderRadius: 16, marginBottom: 8, gap: 12,
+    backgroundColor: 'rgba(255,255,255,0.02)',
+    borderWidth: 1, borderColor: 'rgba(255,255,255,0.06)',
   },
+  bodyScanIcon: {
+    width: 30, height: 30, borderRadius: 15,
+    backgroundColor: 'rgba(255,255,255,0.05)',
+    alignItems: 'center', justifyContent: 'center',
+  },
+  bodyScanName: {
+    flex: 1, color: 'rgba(255,255,255,0.6)',
+    fontSize: 15, fontWeight: '500',
+  },
+  bodyScanNameDimmed: { color: 'rgba(255,255,255,0.3)' },
 
-  // ── Done button ────────────────────────────────────────────────────────────
+  // ── Bottom bar ─────────────────────────────────────────────────────────────
+  bottomBar: {
+    paddingHorizontal: 20,
+    paddingTop: 12,
+    paddingBottom: 40,
+  },
   doneButton: {
     paddingVertical: 16,
-    marginBottom: 36,
-    backgroundColor: 'rgba(255,255,255,0.08)',
+    backgroundColor: 'rgba(255,255,255,0.1)',
     borderRadius: 20,
-    borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)',
+    borderWidth: 1, borderColor: 'rgba(255,255,255,0.12)',
     alignItems: 'center',
   },
   doneButtonText: { color: '#fff', fontSize: 16, fontWeight: '600' },
