@@ -191,13 +191,13 @@ export default function DailyFlowSetup() {
   const [showPlanSheet, setShowPlanSheet]           = useState(false)
   const [showPolyvagalInfo, setShowPolyvagalInfo]   = useState(false)
 
-  const [useAi, setUseAi]               = useState(false)
+  const [useAi, setUseAi]               = useState(true)
   const [actualDuration, setActualDuration] = useState(null)
   const fullSegmentsRef = useRef(null)
 
   const energyRef  = useRef(50)
   const safetyRef  = useRef(50)
-  const useAiRef            = useRef(false)
+  const useAiRef            = useRef(true)
   const hasInitializedRef      = useRef(false)
   const isReadyForInputRef     = useRef(false)
 
@@ -324,8 +324,8 @@ export default function DailyFlowSetup() {
       setSafetyLevel(50)
       energyRef.current = 50
       safetyRef.current = 50
-      setUseAi(false)
-      useAiRef.current = false
+      setUseAi(true)
+      useAiRef.current = true
       setReasoning(null)
       setBodyScanStart(true)
       setBodyScanEnd(true)
@@ -576,7 +576,6 @@ export default function DailyFlowSetup() {
         onToggleBodyScanStart={handleToggleBodyScanStart}
         onToggleBodyScanEnd={handleToggleBodyScanEnd}
         useAi={useAi}
-        onToggleAi={handleToggleAi}
       />
 
       {/* Polyvagal State Info Modal */}

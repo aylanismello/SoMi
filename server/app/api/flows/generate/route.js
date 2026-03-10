@@ -14,7 +14,7 @@ export async function POST(request) {
       duration_minutes,
       body_scan_start = false,
       body_scan_end = false,
-      use_ai = false,
+      use_ai = true,
     } = body
 
     // Validate required fields
@@ -84,6 +84,16 @@ export async function POST(request) {
             const block = blockMap[item.canonical_name]
             if (!block) continue
             aiBlocks.push({ ...block, section: sectionName })
+          }
+        }
+
+        // Enforce hard block_count limit — AI may return more or fewer blocks
+        if (aiBlocks.length > block_count) {
+          aiBlocks.length = block_count
+        } else if (aiBlocks.length < block_count && aiBlocks.length > 0) {
+          // Pad by repeating existing blocks to fill the count
+          while (aiBlocks.length < block_count) {
+            aiBlocks.push({ ...aiBlocks[aiBlocks.length - 1] })
           }
         }
 

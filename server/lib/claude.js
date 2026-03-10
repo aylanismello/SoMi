@@ -105,10 +105,20 @@ export async function generateAIRoutine({ polyvagalState, intensity, durationMin
   // Use client-computed count if provided (accounts for body scan time); fallback to 1 block/min
   const blockCount = explicitBlockCount ?? Math.round(durationMinutes)
 
-  // Always 1 warm-up + 1 integration; main gets the rest.
-  // For short sessions (blockCount ≤ 2) guarantee at least 1 main block.
-  const mainBlocks = Math.max(1, blockCount - 2)
-  const effectiveBlockCount = mainBlocks + 2  // 1 warm-up + mainBlocks + 1 integration
+  // Match the algorithmic path's section rules:
+  //   1 block  → main only
+  //   2 blocks → warm_up + main
+  //   3+ blocks → warm_up + N main + integration
+  // This prevents inflating block count for short durations (e.g. 2 min = 1 block).
+  let warmUpCount, mainBlocks, integrationCount
+  if (blockCount <= 1) {
+    warmUpCount = 0; mainBlocks = 1; integrationCount = 0
+  } else if (blockCount === 2) {
+    warmUpCount = 1; mainBlocks = 1; integrationCount = 0
+  } else {
+    warmUpCount = 1; mainBlocks = blockCount - 2; integrationCount = 1
+  }
+  const effectiveBlockCount = warmUpCount + mainBlocks + integrationCount
 
   const timeOfDayStr = localHour != null
     ? (() => {
@@ -119,16 +129,27 @@ export async function generateAIRoutine({ polyvagalState, intensity, durationMin
       })()
     : null
 
+  // Build the structure requirements dynamically based on block count
+  const structureLines = []
+  if (warmUpCount > 0) structureLines.push(`- warm-up: EXACTLY ${warmUpCount} block`)
+  structureLines.push(`- main: EXACTLY ${mainBlocks} block${mainBlocks !== 1 ? 's' : ''}`)
+  if (integrationCount > 0) structureLines.push(`- integration: EXACTLY ${integrationCount} block`)
+
+  // Tell Claude which sections to include in output
+  const sectionsToInclude = []
+  if (warmUpCount > 0) sectionsToInclude.push('warm-up')
+  sectionsToInclude.push('main')
+  if (integrationCount > 0) sectionsToInclude.push('integration')
+
   const userPrompt = `Design a ${durationMinutes}-minute somatic routine for someone who feels: ${polyvagalState} at intensity ${intensity}/100.${timeOfDayStr ? ` It is currently ${timeOfDayStr} for this person.` : ''}
 
 Available blocks (use only these canonical names — repetition is allowed):
 ${availableBlocks.join(', ')}
 
 EXACT STRUCTURE REQUIRED — no exceptions:
-- warm-up: EXACTLY 1 block
-- main: EXACTLY ${mainBlocks} block${mainBlocks !== 1 ? 's' : ''}
-- integration: EXACTLY 1 block
+${structureLines.join('\n')}
 Total: EXACTLY ${effectiveBlockCount} blocks. Repeat blocks if needed to reach the exact counts.
+Only include these sections in your response: ${sectionsToInclude.join(', ')}.${warmUpCount === 0 ? ' Do NOT include a warm-up section.' : ''}${integrationCount === 0 ? ' Do NOT include an integration section.' : ''}
 Apply polyvagal principles for the ${polyvagalState} state at intensity ${intensity}.`
 
   console.log('[claude] system prompt:\n', SYSTEM_PROMPT)

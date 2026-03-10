@@ -1,5 +1,14 @@
 # Changelog
 
+## 2026-03-10 — AI-first flow generation with algorithmic constraints
+
+- AI path is now the default for all flow generation (server defaults `use_ai=true`)
+- Hid the AI toggle from the FlowPlanSheet UI; all flows go through Claude by default
+- Fixed block count inflation bug: short durations (1-2 blocks) no longer forced into 3-phase structure
+  - 1 block → main only; 2 blocks → warm-up + main; 3+ → warm-up + main + integration
+- Added server-side guard to enforce hard `block_count` limit on AI output (truncate/pad)
+- Algorithmic fallback preserved if AI fails
+
 ## 2026-02-27 — Segments as source of truth (Flow Engine v1 cont.)
 
 The `segments` array from the server now drives the player end-to-end. Key changes:
