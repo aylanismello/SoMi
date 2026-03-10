@@ -1,5 +1,6 @@
 import { useState, useCallback, useRef, useEffect } from 'react'
 import { StyleSheet, View, Text, Image, TouchableOpacity, Animated } from 'react-native'
+import AsyncStorage from '@react-native-async-storage/async-storage'
 import { api } from '../services/api'
 import { LinearGradient } from 'expo-linear-gradient'
 import { BlurView } from 'expo-blur'
@@ -74,6 +75,7 @@ export default function HomeScreen() {
   const [showSettingsModal, setShowSettingsModal] = useState(false)
   const [showMusicModal, setShowMusicModal] = useState(false)
   const [groundingQuote, setGroundingQuote] = useState(null)
+  const [quoteLoading, setQuoteLoading] = useState(true)
   const user = useAuthStore((state) => state.user)
   const { data: streakData, refetch: refetchStreaks } = useStreaks()
 
@@ -93,9 +95,25 @@ export default function HomeScreen() {
   }, [])
 
   useEffect(() => {
-    api.getRandomGroundingQuote()
-      .then(({ quote }) => { if (quote) setGroundingQuote(quote) })
-      .catch(() => {})
+    // Load cached quote first so we never flash the filler text
+    AsyncStorage.getItem('lastGroundingQuote')
+      .then((cached) => {
+        if (cached) {
+          try { setGroundingQuote(JSON.parse(cached)) } catch {}
+        }
+      })
+      .finally(() => {
+        // Then fetch a fresh quote from the API
+        api.getRandomGroundingQuote()
+          .then(({ quote }) => {
+            if (quote) {
+              setGroundingQuote(quote)
+              AsyncStorage.setItem('lastGroundingQuote', JSON.stringify(quote)).catch(() => {})
+            }
+          })
+          .catch(() => {})
+          .finally(() => setQuoteLoading(false))
+      })
   }, [])
 
   const getFirstName = () => {
@@ -171,11 +189,11 @@ export default function HomeScreen() {
             <Text style={styles.quoteText}>"{groundingQuote.quote}"</Text>
             <Text style={styles.quoteAuthor}>— {groundingQuote.author}</Text>
           </>
-        ) : (
+        ) : !quoteLoading ? (
           <Text style={styles.greetingText}>
             Hi {firstName},{'\n'}it's time to flow{'\n'}{timeOfDay}.
           </Text>
-        )}
+        ) : null}
       </View>
 
       {/* Action row — Flow button + flanking side buttons */}
