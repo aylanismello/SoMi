@@ -13,9 +13,9 @@ import { chainService } from '../../services/chainService'
 import PolyvagalStatePicker from './PolyvagalStatePicker'
 import CustomizationModal from '../CustomizationModal'
 import MusicPickerModal from '../MusicPickerModal'
-import FlowPlanSheet from './FlowPlanSheet'
 import { api } from '../../services/api'
 import { deriveState, getPolyvagalExplanation } from '../../constants/polyvagalStates'
+import { useFlowEditStore } from '../../stores/flowEditStore'
 
 const _H_PAD = 20
 const MIN_DURATION = 2
@@ -187,7 +187,6 @@ export default function DailyFlowSetup() {
   const [showDurationPicker, setShowDurationPicker] = useState(false)
   const [showCustomization, setShowCustomization]   = useState(false)
   const [showMusicPicker, setShowMusicPicker]       = useState(false)
-  const [showPlanSheet, setShowPlanSheet]           = useState(false)
   const [showPolyvagalInfo, setShowPolyvagalInfo]   = useState(false)
 
   const [useAi, setUseAi]               = useState(false)
@@ -265,9 +264,9 @@ export default function DailyFlowSetup() {
           // Swipe up → dismiss
           dismiss()
         } else if (Math.abs(gs.dy) < 5 && Math.abs(gs.dx) < 5) {
-          // Tap → open plan sheet
+          // Tap → navigate to edit flow
           clearTimeout(toastDismissTimerRef.current)
-          setShowPlanSheet(true)
+          handleEditRoutine()
         } else {
           Animated.spring(toastAnim, { toValue: 0, useNativeDriver: true, tension: 200, friction: 15 }).start()
           toastDismissTimerRef.current = setTimeout(hideToast, 2200)
@@ -330,6 +329,12 @@ export default function DailyFlowSetup() {
       setBodyScanEnd(true)
 
       doGeneratePreview(10, 50, 50, true)
+    } else {
+      // Returning from EditFlow — sync any edits back from the shared store
+      const editedSegments = useFlowEditStore.getState().segments
+      if (editedSegments && editedSegments.length > 0) {
+        fullSegmentsRef.current = editedSegments
+      }
     }
   }, [doGeneratePreview]))
 
@@ -340,10 +345,26 @@ export default function DailyFlowSetup() {
     router.dismissAll()
   }
 
-  const handleEditRoutine = () => {
+  const handleEditRoutineRef = useRef(null)
+  handleEditRoutineRef.current = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
-    setShowPlanSheet(true)
+    if (!fullSegmentsRef.current || fullSegmentsRef.current.length === 0) return
+    // Write current segments to shared store before navigating
+    useFlowEditStore.getState().setSegments(fullSegmentsRef.current)
+    router.push({
+      pathname: '/EditFlow',
+      params: {
+        actualDuration: actualDuration ?? '',
+        selectedMinutes: String(selectedMinutes),
+        showBodyScanToggles: String(showBodyScanToggles),
+        bodyScanStartEnabled: String(bodyScanStart),
+        bodyScanEndEnabled: String(bodyScanEnd),
+        useAi: String(useAi),
+        reasoning: reasoning ?? '',
+      },
+    })
   }
+  const handleEditRoutine = () => handleEditRoutineRef.current?.()
 
   const handleStartFlow = async () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy)
@@ -544,25 +565,6 @@ export default function DailyFlowSetup() {
       <CustomizationModal visible={showCustomization} onClose={() => setShowCustomization(false)} />
       <MusicPickerModal visible={showMusicPicker} onClose={() => setShowMusicPicker(false)} />
 
-      {/* Unified "Your Flow" plan sheet */}
-      <FlowPlanSheet
-        visible={showPlanSheet}
-        onClose={() => setShowPlanSheet(false)}
-        closeLabel="Update"
-        onWhyPress={() => { setShowPlanSheet(false); setShowReasoningSheet(true) }}
-        queue={fullSegmentsRef.current?.filter(s => s.type === 'somi_block') || []}
-        fullSegments={fullSegmentsRef.current || []}
-        reasoning={reasoning}
-        actualDuration={actualDuration}
-        selectedMinutes={selectedMinutes}
-        showBodyScanToggles={showBodyScanToggles}
-        bodyScanStartEnabled={bodyScanStart}
-        bodyScanEndEnabled={bodyScanEnd}
-        onToggleBodyScanStart={handleToggleBodyScanStart}
-        onToggleBodyScanEnd={handleToggleBodyScanEnd}
-        useAi={useAi}
-        onToggleAi={handleToggleAi}
-      />
 
       {/* Polyvagal State Info Modal */}
       <Modal
