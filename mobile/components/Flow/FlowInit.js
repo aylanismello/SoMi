@@ -13,7 +13,7 @@ import { chainService } from '../../services/chainService'
 import PolyvagalStatePicker from './PolyvagalStatePicker'
 import CustomizationModal from '../CustomizationModal'
 import MusicPickerModal from '../MusicPickerModal'
-import FlowPlanSheet from './FlowPlanSheet'
+import { useFlowEditStore } from '../../stores/flowEditStore'
 import { api } from '../../services/api'
 import { deriveState, getPolyvagalExplanation } from '../../constants/polyvagalStates'
 
@@ -187,7 +187,6 @@ export default function DailyFlowSetup() {
   const [showDurationPicker, setShowDurationPicker] = useState(false)
   const [showCustomization, setShowCustomization]   = useState(false)
   const [showMusicPicker, setShowMusicPicker]       = useState(false)
-  const [showPlanSheet, setShowPlanSheet]           = useState(false)
   const [showPolyvagalInfo, setShowPolyvagalInfo]   = useState(false)
 
   const [useAi, setUseAi]               = useState(false)
@@ -265,9 +264,9 @@ export default function DailyFlowSetup() {
           // Swipe up → dismiss
           dismiss()
         } else if (Math.abs(gs.dy) < 5 && Math.abs(gs.dx) < 5) {
-          // Tap → open plan sheet
+          // Tap → open edit plan screen
           clearTimeout(toastDismissTimerRef.current)
-          setShowPlanSheet(true)
+          handleEditRoutine()
         } else {
           Animated.spring(toastAnim, { toValue: 0, useNativeDriver: true, tension: 200, friction: 15 }).start()
           toastDismissTimerRef.current = setTimeout(hideToast, 2200)
@@ -313,6 +312,15 @@ export default function DailyFlowSetup() {
     }
   }, [showUpdatedToast])
 
+  // Pick up any block swaps made on the FlowEditPlan screen
+  useFocusEffect(useCallback(() => {
+    const edited = useFlowEditStore.getState().segments
+    if (edited.length > 0 && hasInitializedRef.current) {
+      fullSegmentsRef.current = edited
+      useFlowEditStore.getState().clear()
+    }
+  }, []))
+
   useFocusEffect(useCallback(() => {
     if (!hasInitializedRef.current) {
       hasInitializedRef.current = true
@@ -340,10 +348,22 @@ export default function DailyFlowSetup() {
     router.dismissAll()
   }
 
-  const handleEditRoutine = () => {
+  const handleEditRoutineRef = useRef(null)
+  handleEditRoutineRef.current = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
-    setShowPlanSheet(true)
+    const segs = fullSegmentsRef.current || []
+    useFlowEditStore.getState().setSegments(segs)
+    navigation.navigate('FlowEditPlan', {
+      actualDuration,
+      selectedMinutes,
+      showBodyScanToggles,
+      bodyScanStartEnabled: bodyScanStart,
+      bodyScanEndEnabled: bodyScanEnd,
+      reasoning,
+      useAi,
+    })
   }
+  const handleEditRoutine = () => handleEditRoutineRef.current?.()
 
   const handleStartFlow = async () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy)
@@ -543,26 +563,6 @@ export default function DailyFlowSetup() {
       {/* Customization modal */}
       <CustomizationModal visible={showCustomization} onClose={() => setShowCustomization(false)} />
       <MusicPickerModal visible={showMusicPicker} onClose={() => setShowMusicPicker(false)} />
-
-      {/* Unified "Your Flow" plan sheet */}
-      <FlowPlanSheet
-        visible={showPlanSheet}
-        onClose={() => setShowPlanSheet(false)}
-        closeLabel="Update"
-        onWhyPress={() => { setShowPlanSheet(false); setShowReasoningSheet(true) }}
-        queue={fullSegmentsRef.current?.filter(s => s.type === 'somi_block') || []}
-        fullSegments={fullSegmentsRef.current || []}
-        reasoning={reasoning}
-        actualDuration={actualDuration}
-        selectedMinutes={selectedMinutes}
-        showBodyScanToggles={showBodyScanToggles}
-        bodyScanStartEnabled={bodyScanStart}
-        bodyScanEndEnabled={bodyScanEnd}
-        onToggleBodyScanStart={handleToggleBodyScanStart}
-        onToggleBodyScanEnd={handleToggleBodyScanEnd}
-        useAi={useAi}
-        onToggleAi={handleToggleAi}
-      />
 
       {/* Polyvagal State Info Modal */}
       <Modal

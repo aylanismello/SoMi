@@ -69,6 +69,7 @@ function _RootLayout() {
         {/* Flow journey — tab bar hidden automatically */}
         <Stack.Screen name="FlowInit" options={{ gestureEnabled: false }} />
         <Stack.Screen name="FlowOutro" options={{ gestureEnabled: false }} />
+        <Stack.Screen name="FlowEditPlan" options={{ gestureEnabled: true }} />
         <Stack.Screen name="RoutineQueuePreview" />
         <Stack.Screen name="SoMiRoutine" options={{ presentation: 'fullScreenModal', gestureEnabled: false }} />
         <Stack.Screen name="FlowBodyScan" options={{ gestureEnabled: false }} />
