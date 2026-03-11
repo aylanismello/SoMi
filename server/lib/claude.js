@@ -1,44 +1,19 @@
 import Anthropic from '@anthropic-ai/sdk'
+import { formatContextForPrompt } from './sessionContext.js'
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 
-
-// ─── WEATHER (future enhancement) ────────────────────────────────────────────
-// Weather context would make routines significantly more grounded in the user's
-// actual environment — rain/grey skies typically lower arousal (more dorsal
-// pull), bright sunny days lift it.  A light storm can mirror sympathetic
-// activation and warrant extra settling work.
-//
-// Implementation sketch:
-//   1. Client sends { latitude, longitude } (or city) alongside the request.
-//      Requires asking location permission (expo-location).
-//   2. Server calls a free weather API (e.g. Open-Meteo — no key required):
-//      `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}
-//        &current=weathercode,temperature_2m,cloudcover`
-//   3. Map WMO weather codes to descriptors:
-//      0 → "clear sky", 1–3 → "partly cloudy", 45–48 → "fog",
-//      51–67 → "rain/drizzle", 71–77 → "snow", 80–82 → "showers",
-//      95–99 → "thunderstorm"
-//   4. Inject into the user prompt:
-//      `The current weather is: ${weatherDesc}, ${tempCelsius}°C.
-//       Let this subtly inform the energetic quality of the routine.`
-//   5. Add a "### Weather" section to SYSTEM_PROMPT with guidance:
-//      - Clear/sunny: can lean toward more expansive, activating blocks
-//      - Overcast/grey: extra vagal toning and warmth in warm-up
-//      - Rain/storm: strong integration emphasis, very grounding close
-// ─────────────────────────────────────────────────────────────────────────────
-
-const SYSTEM_PROMPT = `You are a polyvagal-informed, trauma-informed,  somatic routine designer. Your role is to select and sequence somatic exercises 
-into a three-phase routine (warm-up → main → cool-down) tailored to the user's nervous system state.
+const SYSTEM_PROMPT = `You are a polyvagal-informed, trauma-informed, somatic routine designer. Your role is to select and sequence somatic exercises
+into a three-phase routine (warm-up → main → integration) tailored to the user's nervous system state and broader context.
 
 ## Polyvagal Principles
 
-## Lineage & Style (Grounding the “why”)
+## Lineage & Style (Grounding the "why")
 Your routines should be inspired by:
-- **Polyvagal Theory** (Stephen Porges; clinical translation via Deb Dana): “meet the state, build safety, widen the window,” prioritize cues of safety and titration.
+- **Polyvagal Theory** (Stephen Porges; clinical translation via Deb Dana): "meet the state, build safety, widen the window," prioritize cues of safety and titration.
 - **Stanley Rosenberg** (vagus nerve exercises): favor gentle cranial/ocular/neck-oriented vagal supports early (e.g., eye work, humming, soft self-touch) especially in withdrawn/foggy/wired.
 - **Somatic Experiencing** (Peter Levine): use **pendulation** (touch into sensation → back to resource), **titration** (small doses), and **completion** (gentle discharge only when resourced).
-- **Sensorimotor / body-based psychotherapy principles**: start with orientation and containment; avoid “forcing release.”
+- **Sensorimotor / body-based psychotherapy principles**: start with orientation and containment; avoid "forcing release."
 - **Trauma-informed care**: never imply guaranteed outcomes; offer options that are non-demanding and consent-based.
 
 ### Phase Guidelines
@@ -55,24 +30,31 @@ States are derived from a 2D energy × safety space:
 - **glowing** (high energy + safe — warm, expansive, connected): Can lean into joyful movement and heart-openers. Keep warm-up brief. Celebrate the state with expansive main blocks.
 - **wired** (high energy + low safety — fight/flight, tense, over-activated): Start with calming, parasympathetic-activating blocks (vagus_reset, eye_covering, brain_hold) in warm-up. Only introduce discharge movements (shaking, freeze_roll) after the system has partially settled. End with strong integration phase.
 
-### Intensity Scaling
-Intensity affects which blocks you choose within each fixed phase, not the phase sizes (those are always exactly 1 warm-up + N main + 1 integration):
-- **Low intensity (0-33)**: Prefer gentler blocks across all phases.
-- **Medium intensity (34-66)**: Balanced block selection.
-- **High intensity (67-100)**: Lean toward more activating blocks in main.
+### Regulation Need
+The session context includes an inferred regulation need. Use this as a guiding orientation:
+- **activation**: the system needs gentle upward energy — favour energising blocks in main.
+- **stabilization**: the system is balanced or needs steadying — mix freely.
+- **down_regulation**: the system needs settling — lean toward calming, grounding blocks throughout.
 
-### Time of Day
-Use time of day as a soft background signal — the nervous system state and intensity always take precedence.
+### Support Mode
+- **guided**: structured, clear sequencing with intentional transitions.
+- **companion**: warm, less directive — honour the person's autonomy.
+- **fast_intervention**: brief, efficient — prioritise the most impactful blocks for quick relief.
 
-- **Morning (5–11)**: Lean toward gentle arousal and orientation. Build gradually.
-- **Afternoon (12–16)**: Balanced. Use whatever serves the state.
-- **Evening (17–22)**: Lean toward settling. Avoid highly activating main blocks; close with grounding.
-- **Late night (23–4)**: Keep everything gentle and integrative. Prioritise self_hug, brain_hold, eye_covering.
+### Contextual Signals
+Use contextual signals as soft background influences. The nervous system state always takes precedence.
+
+- **Time of day**: Morning → gentle arousal; Afternoon → balanced; Evening → settling; Late night → very gentle.
+- **Season**: Winter/autumn → extra warmth and containment; Spring/summer → can lean more expansive.
+- **Weather**: Rain/overcast → extra grounding; Clear/sunny → can be more activating.
+- **Chronotype**: Early bird doing an evening session → lean toward settling; Night owl doing a morning session → extra gentle warm-up.
+- **Recent usage**: If someone practiced recently, vary the blocks to maintain novelty. If returning after a gap, keep it familiar and gentle.
 
 ## Output Format
 Respond ONLY with valid JSON matching this exact schema. No extra text, no markdown fences:
 {
-  "reasoning": "4–5 concise sentences written directly to the user — begin naturally from 'We put this together for you because…' or similar. Describe the exercises in plain language (e.g. 'gentle humming to wake up your vagus nerve') — never use internal code names. Reference their state as the main driver; mention time of day or season only briefly if relevant. Warm and human, but short.",
+  "reasoning": "3–5 concise sentences written directly to the user — begin naturally from 'We put this together for you because…' or similar. Describe the exercises in plain language (e.g. 'gentle humming to wake up your vagus nerve') — never use internal code names. Reference their state as the main driver; mention contextual factors (time of day, season, weather, regulation need) briefly where relevant. Warm and human, but short.",
+  "rationale": "2–3 sentences for system interpretability. Summarise the key decision factors: state, inferred need, and any contextual signals that influenced selection. Use factual, concise language. Example: 'State: shutdown → activation need. Evening session nudged toward stabilization. Selected gentle vagal blocks for warm-up, progressive activation in main.'",
   "sections": [
     {
       "name": "warm-up",
@@ -92,46 +74,39 @@ Respond ONLY with valid JSON matching this exact schema. No extra text, no markd
 Only use canonical_name values from the provided available blocks list. Never invent names.`
 
 /**
- * Generate an AI-powered somatic routine using Claude Haiku.
+ * Generate a context-aware somatic routine using Claude.
  *
  * @param {object} params
- * @param {string} params.polyvagalState - One of: withdrawn, foggy, steady, glowing, wired
- * @param {number} params.intensity - 0–100 intensity value
- * @param {number} params.durationMinutes - Target duration in minutes (5, 10, or 15)
- * @param {string[]} params.availableBlocks - Array of canonical_name strings available in DB
- * @returns {Promise<{sections: Array<{name: string, blocks: Array<{canonical_name: string}>}>}>}
+ * @param {object} params.sessionContext - output of buildSessionContext()
+ * @param {number} params.blockCount - total block count (computed server-side)
+ * @param {string[]} params.availableBlocks - canonical_name strings available in DB
+ * @returns {Promise<{sections: Array, reasoning: string, rationale: string}>}
  */
-export async function generateAIRoutine({ polyvagalState, intensity, durationMinutes, availableBlocks, blockCount: explicitBlockCount, localHour }) {
-  // Use client-computed count if provided (accounts for body scan time); fallback to 1 block/min
-  const blockCount = explicitBlockCount ?? Math.round(durationMinutes)
+export async function generateAIRoutine({ sessionContext, availableBlocks, blockCount: explicitBlockCount }) {
+  const blockCount = explicitBlockCount ?? Math.round(sessionContext.duration_minutes)
 
   // Always 1 warm-up + 1 integration; main gets the rest.
-  // For short sessions (blockCount ≤ 2) guarantee at least 1 main block.
   const mainBlocks = Math.max(1, blockCount - 2)
-  const effectiveBlockCount = mainBlocks + 2  // 1 warm-up + mainBlocks + 1 integration
+  const effectiveBlockCount = mainBlocks + 2
 
-  const timeOfDayStr = localHour != null
-    ? (() => {
-        if (localHour >= 5 && localHour < 12) return `morning (${localHour}:00)`
-        if (localHour >= 12 && localHour < 17) return `afternoon (${localHour}:00)`
-        if (localHour >= 17 && localHour < 23) return `evening (${localHour}:00)`
-        return `late night (${localHour}:00)`
-      })()
-    : null
+  const contextBlock = formatContextForPrompt(sessionContext)
 
-  const userPrompt = `Design a ${durationMinutes}-minute somatic routine for someone who feels: ${polyvagalState} at intensity ${intensity}/100.${timeOfDayStr ? ` It is currently ${timeOfDayStr} for this person.` : ''}
+  const userPrompt = `Design a ${sessionContext.duration_minutes}-minute somatic routine.
 
-Available blocks (use only these canonical names — repetition is allowed):
+## Session Context
+${contextBlock}
+
+## Available Blocks (use only these canonical names — repetition is allowed)
 ${availableBlocks.join(', ')}
 
-EXACT STRUCTURE REQUIRED — no exceptions:
+## Structure Requirements — no exceptions
 - warm-up: EXACTLY 1 block
 - main: EXACTLY ${mainBlocks} block${mainBlocks !== 1 ? 's' : ''}
 - integration: EXACTLY 1 block
 Total: EXACTLY ${effectiveBlockCount} blocks. Repeat blocks if needed to reach the exact counts.
-Apply polyvagal principles for the ${polyvagalState} state at intensity ${intensity}.`
 
-  console.log('[claude] system prompt:\n', SYSTEM_PROMPT)
+Apply polyvagal principles for the ${sessionContext.polyvagal_state} state. Use the contextual signals to refine your choices.`
+
   console.log('[claude] user prompt:\n', userPrompt)
 
   const response = await client.messages.create({
@@ -148,6 +123,7 @@ Apply polyvagal principles for the ${polyvagalState} state at intensity ${intens
   const parsed = JSON.parse(cleaned)
 
   console.log('[claude] reasoning:', parsed.reasoning ?? '(none)')
+  console.log('[claude] rationale:', parsed.rationale ?? '(none)')
 
   // Validate and strip unknown canonical names
   const availableSet = new Set(availableBlocks)

@@ -16,6 +16,7 @@ graph TD
         ROUTES[API Routes /api/*]
         AUTH_LIB[lib/auth.js]
         POLYVAGAL_LIB[lib/polyvagal.js]
+        CONTEXT_LIB[lib/sessionContext.js]
         CLAUDE_LIB[lib/claude.js]
     end
 
@@ -34,6 +35,8 @@ graph TD
     AUTH_LIB -->|JWT verification| SUPABASE
     ROUTES -->|RLS-scoped queries| SUPABASE
     ROUTES --> POLYVAGAL_LIB
+    ROUTES --> CONTEXT_LIB
+    CONTEXT_LIB --> CLAUDE_LIB
     ROUTES --> CLAUDE_LIB
     CLAUDE_LIB -->|API call| ANTHROPIC
 ```
@@ -60,7 +63,7 @@ graph TD
 
 | Method | Path | Purpose |
 |--------|------|---------|
-| POST | `/api/flows/generate` | Generate flow (algorithmic default, AI opt-in) |
+| POST | `/api/flows/generate` | Generate flow (context-aware default, algorithmic fallback) |
 | GET | `/api/blocks?canonical_names=` | Fetch blocks by canonical name |
 | GET | `/api/chains?limit=` | List user's chains |
 | GET | `/api/chains/latest?flow_type=` | Latest chain (optionally filtered) |
@@ -77,7 +80,7 @@ graph TD
 
 ### Anthropic Claude
 - **Model**: `claude-haiku-4-5-20251001` [VERIFIED — `server/lib/claude.js`]
-- **Purpose**: AI routine generation [VERIFIED]
+- **Purpose**: Context-aware flow generation (default path) [VERIFIED]
 - **Credentials**: `ANTHROPIC_API_KEY` env var [VERIFIED]
 
 ## Monorepo Structure
@@ -95,7 +98,7 @@ SoMi/
 │   └── utils/       # SoundManager
 ├── server/          # Next.js API backend
 │   ├── app/api/     # API route handlers
-│   └── lib/         # Auth, Supabase client, Claude AI, polyvagal block filtering
+│   └── lib/         # Auth, Supabase client, Claude AI, session context, polyvagal block filtering
 ├── docs/            # This documentation
 └── backlog/         # Backlog.md task management
 ```

@@ -89,8 +89,6 @@ export default function FlowPlanSheet({
   subtitle,
   closeLabel = 'Close',
   completedIndex = -1,
-  useAi = false,
-  onToggleAi,
 }) {
   const blockCount = queue.length
   const displayMin = actualDuration
@@ -258,26 +256,6 @@ export default function FlowPlanSheet({
           </TouchableOpacity>
         )}
 
-        {/* AI-assisted toggle */}
-        {onToggleAi !== undefined && (
-          <View style={[styles.aiRow, useAi && styles.aiRowActive]}>
-            <View style={styles.aiLeft}>
-              <Ionicons name="sparkles" size={16} color={useAi ? '#fff' : 'rgba(255,255,255,0.38)'} />
-              <View>
-                <Text style={[styles.aiLabel, useAi && styles.aiLabelActive]}>AI-assisted</Text>
-                <Text style={styles.aiSub}>SoMi curates your flow</Text>
-              </View>
-            </View>
-            <Switch
-              value={useAi}
-              onValueChange={onToggleAi}
-              trackColor={{ false: 'rgba(255,255,255,0.15)', true: colors.accent.primary }}
-              thumbColor="#fff"
-              ios_backgroundColor="rgba(255,255,255,0.15)"
-            />
-          </View>
-        )}
-
         <ScrollView
           style={styles.sheetScroll}
           showsVerticalScrollIndicator={false}
@@ -434,34 +412,6 @@ const styles = StyleSheet.create({
   bodyScanNumberText: {
     color: 'rgba(255,255,255,0.4)',
     fontSize: 13, fontWeight: '600',
-  },
-
-  // ── AI toggle ──────────────────────────────────────────────────────────────
-  aiRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingVertical: 11,
-    paddingHorizontal: 14,
-    borderRadius: 14,
-    backgroundColor: 'rgba(255,255,255,0.06)',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.09)',
-    marginBottom: 12,
-  },
-  aiRowActive: {
-    backgroundColor: 'rgba(0,217,163,0.07)',
-    borderColor: 'rgba(0,217,163,0.2)',
-  },
-  aiLeft: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  aiLabel: {
-    color: 'rgba(255,255,255,0.45)',
-    fontSize: 14, fontWeight: '600',
-  },
-  aiLabelActive: { color: '#fff' },
-  aiSub: {
-    color: 'rgba(255,255,255,0.28)',
-    fontSize: 11, fontWeight: '400', marginTop: 1,
   },
 
   // ── Update button ──────────────────────────────────────────────────────────

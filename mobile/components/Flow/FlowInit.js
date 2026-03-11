@@ -191,13 +191,11 @@ export default function DailyFlowSetup() {
   const [showPlanSheet, setShowPlanSheet]           = useState(false)
   const [showPolyvagalInfo, setShowPolyvagalInfo]   = useState(false)
 
-  const [useAi, setUseAi]               = useState(false)
   const [actualDuration, setActualDuration] = useState(null)
   const fullSegmentsRef = useRef(null)
 
   const energyRef  = useRef(50)
   const safetyRef  = useRef(50)
-  const useAiRef            = useRef(false)
   const hasInitializedRef      = useRef(false)
   const isReadyForInputRef     = useRef(false)
 
@@ -293,12 +291,14 @@ export default function DailyFlowSetup() {
       const effectiveScanStart = scanStartOverride !== undefined ? scanStartOverride : scanStart
       const effectiveScanEnd   = scanEndOverride   !== undefined ? scanEndOverride   : scanEnd
 
+      const now = new Date()
       const result = await api.generateFlow({
         polyvagal_state:  stateTarget,
         duration_minutes: durationMinutes,
         body_scan_start:  effectiveScanStart,
         body_scan_end:    effectiveScanEnd,
-        use_ai: useAiRef.current,
+        local_hour: now.getHours(),
+        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
       })
       if (result.segments && result.segments.length > 0) {
         setActualDuration(result.actual_duration_seconds)
@@ -324,8 +324,6 @@ export default function DailyFlowSetup() {
       setSafetyLevel(50)
       energyRef.current = 50
       safetyRef.current = 50
-      setUseAi(false)
-      useAiRef.current = false
       setReasoning(null)
       setBodyScanStart(true)
       setBodyScanEnd(true)
@@ -412,14 +410,6 @@ export default function DailyFlowSetup() {
     if (!isReadyForInputRef.current || isGenerating) return
     doGeneratePreview(selectedMinutes, energyLevel, safetyLevel, false, bodyScanStart, newVal)
   }, [bodyScanStart, bodyScanEnd, selectedMinutes, energyLevel, safetyLevel, isGenerating, doGeneratePreview])
-
-  const handleToggleAi = useCallback((newVal) => {
-    useAiRef.current = newVal
-    setUseAi(newVal)
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium)
-    if (!isReadyForInputRef.current || isGenerating) return
-    doGeneratePreview(selectedMinutes, energyLevel, safetyLevel, false)
-  }, [doGeneratePreview, selectedMinutes, energyLevel, safetyLevel, isGenerating])
 
   return (
     <View style={styles.container}>
@@ -575,8 +565,6 @@ export default function DailyFlowSetup() {
         bodyScanEndEnabled={bodyScanEnd}
         onToggleBodyScanStart={handleToggleBodyScanStart}
         onToggleBodyScanEnd={handleToggleBodyScanEnd}
-        useAi={useAi}
-        onToggleAi={handleToggleAi}
       />
 
       {/* Polyvagal State Info Modal */}

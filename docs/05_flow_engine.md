@@ -1,8 +1,8 @@
-# Flow Engine (v1)
+# Flow Engine (v2 — context-aware)
 
 This document describes the flow generation logic exactly as implemented. It does not prescribe how it should work.
 
-There are two generation paths: **algorithmic** (default) and **AI-powered** (opt-in via `use_ai: true`). The server endpoint `POST /api/flows/generate` (`server/app/api/flows/generate/route.js`) handles both.
+The engine uses a **context-aware generation path** by default. It calls Claude with a structured session context derived from the user's nervous system state plus optional contextual signals. An **algorithmic fallback** path is preserved in code and activates automatically if the context-aware path fails.
 
 ---
 
@@ -18,17 +18,27 @@ There are two generation paths: **algorithmic** (default) and **AI-powered** (op
   "duration_minutes": 10,
   "body_scan_start": false,
   "body_scan_end": false,
-  "use_ai": false
+  "local_hour": 14,
+  "timezone": "America/New_York"
 }
 ```
 
-| Field | Type | Description |
-|-------|------|-------------|
-| `polyvagal_state` | string | One of: `shutdown`, `restful`, `steady`, `glowing`, `wired`. Derived client-side via `deriveState(energy, safety)` |
-| `duration_minutes` | number | 1-60, user-selected |
-| `body_scan_start` | boolean | Whether to include opening body scan |
-| `body_scan_end` | boolean | Whether to include closing body scan |
-| `use_ai` | boolean | `false` = algorithmic (default), `true` = Claude AI |
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `polyvagal_state` | string | yes | One of: `shutdown`, `restful`, `steady`, `glowing`, `wired`. Derived client-side via `deriveState(energy, safety)` |
+| `duration_minutes` | number | yes | 1-60, user-selected |
+| `body_scan_start` | boolean | no | Whether to include opening body scan (default false) |
+| `body_scan_end` | boolean | no | Whether to include closing body scan (default false) |
+| `local_hour` | number | no | 0–23, client's local hour |
+| `timezone` | string | no | IANA timezone string |
+| `chronotype` | string | no | `early_bird`, `night_owl`, or `flexible` |
+| `sleep_wake_notes` | string | no | Freeform notes about sleep/wake pattern |
+| `weather` | string | no | Freeform weather descriptor (e.g. "rainy, 12°C") |
+| `season_override` | string | no | `spring`, `summer`, `autumn`, or `winter` |
+| `inferred_need` | string | no | `activation`, `stabilization`, or `down_regulation` |
+| `support_mode` | string | no | `guided`, `companion`, or `fast_intervention` |
+| `recent_usage_summary` | string | no | Freeform recent usage context |
+| `use_ai` | boolean | no | Accepted for backward compat but ignored (context-aware is always on) |
 
 ### Response
 
@@ -36,13 +46,18 @@ There are two generation paths: **algorithmic** (default) and **AI-powered** (op
 {
   "segments": [
     { "type": "micro_integration", "section": "warm_up", "duration_seconds": 20 },
-    { "type": "somi_block", "section": "warm_up", "duration_seconds": 60, "somi_block_id": 1, "canonical_name": "vagus_reset", "name": "Vagus Reset" },
-    ...
+    { "type": "somi_block", "section": "warm_up", "duration_seconds": 60, "somi_block_id": 1, "canonical_name": "vagus_reset", "name": "Vagus Reset" }
   ],
   "actual_duration_seconds": 480,
-  "reasoning": "Your nervous system is..."
+  "reasoning": "We put this together for you because...",
+  "rationale": "State: shutdown → activation need. Evening session nudged toward stabilization."
 }
 ```
+
+| Field | Description |
+|-------|-------------|
+| `reasoning` | User-facing explanation of why this flow was assembled |
+| `rationale` | System-facing decision summary for debugging/interpretability |
 
 ### Segment Types
 
@@ -67,9 +82,55 @@ Each block occupies 80s: 60s video + 20s micro-integration. [VERIFIED]
 
 ---
 
-## Algorithmic Path (default)
+## Session Context Model
+
+**Code location**: `server/lib/sessionContext.js`
+
+The server builds a structured session context from the request body using `buildSessionContext()`. This context separates:
+
+- **Hard context** (always present): `polyvagal_state`, `duration_minutes`
+- **Time context**: time of day (classified as morning/afternoon/evening/late_night), timezone, season
+- **Body/rhythm context**: chronotype, sleep/wake notes
+- **Environment**: weather
+- **Regulation context**: inferred need (activation/stabilization/down_regulation), support mode
+- **Usage history**: recent usage summary
+
+The inferred regulation need is derived from the polyvagal state and time of day, unless explicitly overridden by the client. Evening/late-night sessions nudge the need toward settling.
+
+The context is formatted into a human-readable block by `formatContextForPrompt()` and injected into the Claude user prompt.
+
+---
+
+## Context-Aware Path (default)
+
+**Code location**: `server/lib/claude.js` → `generateAIRoutine()`, `server/lib/sessionContext.js`
+
+The server calls Claude Haiku with a polyvagal-informed system prompt that includes guidance for:
+- State-specific block selection
+- Regulation need orientation (activation / stabilization / down-regulation)
+- Support mode (guided / companion / fast-intervention)
+- Contextual signals (time of day, season, weather, chronotype, recent usage)
+
+Claude returns `{ sections, reasoning, rationale }`. The server then:
+1. Normalises section names (`warm-up` → `warm_up`)
+2. Assembles segments using the same logic as the algorithmic path (micro_integration interleaving, body scan bookends)
+3. Returns `{ segments, actual_duration_seconds, reasoning, rationale }`
+
+On failure, falls back to the algorithmic path.
+
+### Claude Configuration
+
+- Model: `claude-haiku-4-5-20251001`
+- Temperature: 0.7
+- Max tokens: 1024
+
+---
+
+## Algorithmic Path (fallback)
 
 **Code location**: `server/lib/polyvagal.js` + `server/app/api/flows/generate/route.js`
+
+The algorithmic path is preserved in code as a fallback. Its active wiring in the route handler is commented out. It activates automatically if the context-aware path throws an error.
 
 ### Steps
 
@@ -96,31 +157,9 @@ Falls back to full pool if no blocks match. [VERIFIED]
 
 ---
 
-## AI Path (opt-in)
-
-**Code location**: `server/lib/claude.js` -> `generateAIRoutine()`
-
-When `use_ai: true`, the server calls Claude Haiku with the polyvagal-informed system prompt. Claude returns `sections` with block selections. The server then:
-
-1. Normalises section names (`warm-up` -> `warm_up`)
-2. Assembles segments using the same logic as the algorithmic path (micro_integration interleaving, body scan bookends)
-3. Returns the same `{ segments, actual_duration_seconds, reasoning }` shape
-
-On AI failure, falls back to the algorithmic path.
-
-### Claude Configuration
-
-- Model: `claude-haiku-4-5-20251001`
-- Temperature: 0.7
-- Max tokens: 1024
-- Intensity: fixed at 50 (intensity removed from v1 request)
-- Season: removed (was NH-only, now excluded)
-
----
-
 ## Section Labels
 
-All section labels use underscores: `warm_up`, `main`, `integration`. A DB migration normalised existing `warm-up` entries. [VERIFIED]
+All section labels use underscores: `warm_up`, `main`, `integration`. [VERIFIED]
 
 ---
 
@@ -128,10 +167,12 @@ All section labels use underscores: `warm_up`, `main`, `integration`. A DB migra
 
 ### DailyFlowSetup.js
 
-- Calls `api.generateFlow({ polyvagal_state, duration_minutes, body_scan_start, body_scan_end, use_ai })`
+- Calls `api.generateFlow({ polyvagal_state, duration_minutes, body_scan_start, body_scan_end, local_hour, timezone })`
+- Sends `local_hour` and `timezone` from the device for time-of-day context
 - Extracts `somi_block` segments as the preview queue for the plan view
 - Passes the queue to `routineStore.initializeRoutine()` for the player
 - Shows `actual_duration_seconds` after generation
+- No mode switch — context-aware generation is the only path
 
 ### SoMiRoutineScreen.js (player)
 

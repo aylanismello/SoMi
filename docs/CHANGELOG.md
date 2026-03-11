@@ -1,5 +1,23 @@
 # Changelog
 
+## 2026-03-11 — Context-aware flow generation (Flow Engine v2)
+
+Refactored the flow generation system to support richer session context modeling. Context-aware generation is now the default path; the old algorithmic path is preserved as a fallback.
+
+**Server:**
+- New `server/lib/sessionContext.js` — structured session context model that processes optional signals (time of day, chronotype, sleep/wake, weather, season, inferred need, support mode, recent usage)
+- `server/lib/claude.js` — rewrote prompts to accept full session context; added `rationale` field for system interpretability; removed intensity parameter; added contextual signal guidance sections
+- `server/app/api/flows/generate/route.js` — accepts optional context fields (`local_hour`, `timezone`, `chronotype`, `weather`, etc.); always uses context-aware path; algorithmic path wiring commented out but preserved; `use_ai` accepted for backward compat but ignored
+
+**Mobile:**
+- `mobile/services/api.js` — sends `local_hour` and `timezone` instead of `use_ai`
+- `mobile/components/Flow/FlowInit.js` — removed `useAi` state, `useAiRef`, and `handleToggleAi`; sends local time context on every generation
+- `mobile/components/Flow/FlowPlanSheet.js` — removed AI toggle switch UI and related styles
+
+**Docs:**
+- `docs/05_flow_engine.md` — rewritten for v2 (session context model, context-aware path, updated endpoint spec)
+- `docs/03_architecture.md` — updated system map, route table, and component descriptions
+
 ## 2026-02-27 — Segments as source of truth (Flow Engine v1 cont.)
 
 The `segments` array from the server now drives the player end-to-end. Key changes:
