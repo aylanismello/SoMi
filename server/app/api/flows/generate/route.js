@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { getAuthenticatedUser, unauthorizedResponse } from '../../../../lib/auth'
 import { filterBlocksByState, selectBlocks, assignSections, generateExplanation } from '../../../../lib/polyvagal'
 import { generateAIRoutine } from '../../../../lib/claude'
+import { buildSessionContext } from '../../../../lib/sessionContext'
 
 export async function POST(request) {
   const { supabase, user, error } = await getAuthenticatedUser(request)
@@ -14,7 +15,20 @@ export async function POST(request) {
       duration_minutes,
       body_scan_start = false,
       body_scan_end = false,
-      use_ai = false,
+      // use_ai is accepted for backward compatibility but ignored —
+      // context-aware generation is now the default path.
+      // eslint-disable-next-line no-unused-vars
+      use_ai,
+      // ── Optional context signals ───────────────────────────────────────
+      local_hour = null,
+      timezone = null,
+      chronotype = null,
+      sleep_wake_notes = null,
+      weather = null,
+      season_override = null,
+      inferred_need = null,
+      support_mode = null,
+      recent_usage_summary = null,
     } = body
 
     // Validate required fields
@@ -52,57 +66,74 @@ export async function POST(request) {
       return NextResponse.json({ error: 'Failed to fetch blocks' }, { status: 500 })
     }
 
+    // ── Build session context ────────────────────────────────────────────────
+    const sessionContext = buildSessionContext({
+      polyvagal_state,
+      duration_minutes,
+      local_hour,
+      timezone,
+      chronotype,
+      sleep_wake_notes,
+      weather,
+      season_override,
+      inferred_need,
+      support_mode,
+      recent_usage_summary,
+    })
+
     let segments
     let reasoning
+    let rationale
 
-    if (use_ai) {
-      // ── AI path ──────────────────────────────────────────────────────────
-      try {
-        const availableBlockNames = allBlocks.map(b => b.canonical_name)
-        const aiResult = await generateAIRoutine({
-          polyvagalState: polyvagal_state,
-          intensity: 50, // fixed — intensity is gone in v1
-          durationMinutes: duration_minutes,
-          blockCount: block_count,
-          availableBlocks: availableBlockNames,
-          localHour: null,
-          timezone: null,
-        })
+    // ── Context-aware path (default) ─────────────────────────────────────────
+    try {
+      const availableBlockNames = allBlocks.map(b => b.canonical_name)
+      const aiResult = await generateAIRoutine({
+        sessionContext,
+        blockCount: block_count,
+        availableBlocks: availableBlockNames,
+      })
 
-        // Build lookup map
-        const blockMap = {}
-        for (const block of allBlocks) {
-          blockMap[block.canonical_name] = block
-        }
-
-        // Flatten AI sections into block list with section labels
-        const aiBlocks = []
-        for (const section of aiResult.sections) {
-          // Normalise "warm-up" → "warm_up"
-          const sectionName = section.name === 'warm-up' ? 'warm_up' : section.name
-          for (const item of section.blocks) {
-            const block = blockMap[item.canonical_name]
-            if (!block) continue
-            aiBlocks.push({ ...block, section: sectionName })
-          }
-        }
-
-        // Assemble segments using the same logic as algorithmic path
-        segments = assembleSegments(aiBlocks, body_scan_enabled && body_scan_start, body_scan_enabled && body_scan_end)
-        reasoning = aiResult.reasoning ?? null
-      } catch (aiError) {
-        console.error('AI routine generation failed, falling back to algorithmic:', aiError)
-        // Fall through to algorithmic path
-        const result = algorithmicPath(allBlocks, polyvagal_state, block_count, body_scan_enabled && body_scan_start, body_scan_enabled && body_scan_end)
-        segments = result.segments
-        reasoning = result.reasoning
+      // Build lookup map
+      const blockMap = {}
+      for (const block of allBlocks) {
+        blockMap[block.canonical_name] = block
       }
-    } else {
-      // ── Algorithmic path (default) ───────────────────────────────────────
+
+      // Flatten AI sections into block list with section labels
+      const aiBlocks = []
+      for (const section of aiResult.sections) {
+        // Normalise "warm-up" → "warm_up"
+        const sectionName = section.name === 'warm-up' ? 'warm_up' : section.name
+        for (const item of section.blocks) {
+          const block = blockMap[item.canonical_name]
+          if (!block) continue
+          aiBlocks.push({ ...block, section: sectionName })
+        }
+      }
+
+      // Assemble segments using the same logic as before
+      segments = assembleSegments(aiBlocks, body_scan_enabled && body_scan_start, body_scan_enabled && body_scan_end)
+      reasoning = aiResult.reasoning ?? null
+      rationale = aiResult.rationale ?? null
+    } catch (aiError) {
+      console.error('Context-aware generation failed, falling back to algorithmic:', aiError)
+      // Fall back to algorithmic path
       const result = algorithmicPath(allBlocks, polyvagal_state, block_count, body_scan_enabled && body_scan_start, body_scan_enabled && body_scan_end)
       segments = result.segments
       reasoning = result.reasoning
+      rationale = null
     }
+
+    // ── Algorithmic path (commented out — preserved for reference/rollback) ──
+    // To re-enable, uncomment this block and add a conditional on `use_ai`:
+    //
+    // if (!use_ai) {
+    //   const result = algorithmicPath(allBlocks, polyvagal_state, block_count,
+    //     body_scan_enabled && body_scan_start, body_scan_enabled && body_scan_end)
+    //   segments = result.segments
+    //   reasoning = result.reasoning
+    // }
 
     const actual_duration_seconds = body_scan_seconds + (block_count * 80)
 
@@ -110,6 +141,7 @@ export async function POST(request) {
       segments,
       actual_duration_seconds,
       ...(reasoning ? { reasoning } : {}),
+      ...(rationale ? { rationale } : {}),
     })
   } catch (error) {
     console.error('Error generating flow:', error)
@@ -117,6 +149,7 @@ export async function POST(request) {
   }
 }
 
+// ── Algorithmic path (preserved for fallback and reference) ──────────────────
 function algorithmicPath(allBlocks, polyvagal_state, block_count, scanStart, scanEnd) {
   // Filter by polyvagal state
   const filtered = filterBlocksByState(allBlocks, polyvagal_state)

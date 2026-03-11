@@ -67,11 +67,18 @@ async function apiRequest(endpoint, options = {}) {
 }
 
 export const api = {
-  // Flow generation (v1)
-  generateFlow: async ({ polyvagal_state, duration_minutes, body_scan_start = false, body_scan_end = false, use_ai = false }) => {
+  // Flow generation — context-aware by default
+  generateFlow: async ({ polyvagal_state, duration_minutes, body_scan_start = false, body_scan_end = false, local_hour = null, timezone = null }) => {
     return apiRequest('/flows/generate', {
       method: 'POST',
-      body: JSON.stringify({ polyvagal_state, duration_minutes, body_scan_start, body_scan_end, use_ai }),
+      body: JSON.stringify({
+        polyvagal_state,
+        duration_minutes,
+        body_scan_start,
+        body_scan_end,
+        local_hour,
+        timezone,
+      }),
     })
   },
 
