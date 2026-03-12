@@ -9,7 +9,7 @@ import { useAuthStore } from '../stores/authStore'
 import { useFlowMusicStore } from '../stores/flowMusicStore'
 import { View, Image, StyleSheet } from 'react-native'
 import { soundManager } from '../utils/SoundManager'
-import { prefetchVideoBlocks, WATER_BG_URI } from '../constants/media'
+import { prefetchVideoBlocks, WATER_BG_SOURCE } from '../constants/media'
 
 SplashScreen.preventAutoHideAsync()
 
@@ -68,7 +68,7 @@ export default function RootLayout() {
       <StatusBar style="light" />
       <View style={styles.root}>
         {/* Water background — rendered once here, never unmounted, always in GPU memory */}
-        <Image source={{ uri: WATER_BG_URI }} style={StyleSheet.absoluteFillObject} resizeMode="cover" />
+        <Image source={WATER_BG_SOURCE} style={StyleSheet.absoluteFillObject} resizeMode="cover" />
         <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: 'transparent' } }}>
         <Stack.Screen name="index" />
         <Stack.Screen name="(auth)" />
