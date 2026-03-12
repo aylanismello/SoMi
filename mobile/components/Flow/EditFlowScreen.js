@@ -1,5 +1,5 @@
-import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
-import { StyleSheet, View, Text, TouchableOpacity, ScrollView, Modal, TextInput, Animated, PanResponder, Dimensions } from 'react-native'
+import { useState, useEffect, useRef, useCallback } from 'react'
+import { StyleSheet, View, Text, TouchableOpacity, ScrollView, Modal, TextInput } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { BlurView } from 'expo-blur'
 import { Ionicons } from '@expo/vector-icons'
@@ -9,8 +9,6 @@ import { colors } from '../../constants/theme'
 import { useEditFlowStore } from '../../stores/editFlowStore'
 import { api } from '../../services/api'
 import BlockDeltaViz from './BlockDeltaViz'
-
-const SCREEN_WIDTH = Dimensions.get('window').width
 
 const SECTION_LABELS = {
   warm_up: 'WARM UP',
@@ -25,19 +23,7 @@ function getSectionLabel(name) {
 export default function EditFlowScreen() {
   const { top: topInset } = useSafeAreaInsets()
 
-  // transparentModal doesn't support native swipe-back — need manual responder
-  const panResponder = useMemo(() => PanResponder.create({
-    onMoveShouldSetPanResponder: (_, gs) =>
-      gs.dx > 8 && Math.abs(gs.dx) > Math.abs(gs.dy) * 2,
-    onPanResponderRelease: (_, gs) => {
-      if (gs.dx > SCREEN_WIDTH * 0.25 || gs.vx > 0.4) {
-        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
-        router.back()
-      }
-    },
-  }), [])
-
-  const segments = useEditFlowStore((s) => s.segments)
+const segments = useEditFlowStore((s) => s.segments)
   const swapBlock = useEditFlowStore((s) => s.swapBlock)
   const reasoning = useEditFlowStore((s) => s.reasoning)
 

@@ -15,7 +15,7 @@ import { useAuthStore } from '../stores/authStore'
 import { useStreaks } from '../hooks/useSupabaseQueries'
 import { Ionicons } from '@expo/vector-icons'
 import SoMiHeader from './SoMiHeader'
-import { WATER_BG_SOURCE } from '../constants/media'
+import { WATER_BG_URI } from '../constants/media'
 
 const DAY_LABELS = ['M', 'T', 'W', 'T', 'F', 'S', 'S']
 
@@ -186,7 +186,7 @@ export default function HomeScreen() {
 
   return (
     <View style={styles.container}>
-      <Image source={WATER_BG_SOURCE} style={StyleSheet.absoluteFillObject} resizeMode="cover" />
+      <Image source={{ uri: WATER_BG_URI }} style={StyleSheet.absoluteFillObject} resizeMode="cover" />
 
       {/* Gradient overlay — deep ocean-blue tint matching Profile screen */}
       <LinearGradient

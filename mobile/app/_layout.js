@@ -9,7 +9,7 @@ import { useAuthStore } from '../stores/authStore'
 import { useFlowMusicStore } from '../stores/flowMusicStore'
 import { View, Image, StyleSheet } from 'react-native'
 import { soundManager } from '../utils/SoundManager'
-import { prefetchVideoBlocks, WATER_BG_SOURCE } from '../constants/media'
+import { prefetchVideoBlocks, WATER_BG_URI } from '../constants/media'
 
 SplashScreen.preventAutoHideAsync()
 
@@ -61,6 +61,7 @@ export default function RootLayout() {
     })
     prefetchVideoBlocks()
     soundManager.preloadSounds()
+    Image.prefetch(WATER_BG_URI)
   }, [])
 
   return (
@@ -68,7 +69,7 @@ export default function RootLayout() {
       <StatusBar style="light" />
       <View style={styles.root}>
         {/* Water background — rendered once here, never unmounted, always in GPU memory */}
-        <Image source={WATER_BG_SOURCE} style={StyleSheet.absoluteFillObject} resizeMode="cover" />
+        <Image source={{ uri: WATER_BG_URI }} style={StyleSheet.absoluteFillObject} resizeMode="cover" />
         <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: 'transparent' } }}>
         <Stack.Screen name="index" />
         <Stack.Screen name="(auth)" />
@@ -85,11 +86,7 @@ export default function RootLayout() {
         <Stack.Screen name="AccountSettings" />
         <Stack.Screen
           name="EditFlow"
-          options={{
-            gestureEnabled: true,
-            presentation: 'transparentModal',
-            animation: 'slide_from_right',
-          }}
+          options={{ gestureEnabled: true }}
         />
       </Stack>
       </View>
