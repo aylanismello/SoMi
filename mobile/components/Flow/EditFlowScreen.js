@@ -169,6 +169,14 @@ export default function EditFlowScreen() {
 
   return (
     <View style={styles.container}>
+      {/* Dark backdrop over previous screen */}
+      <View style={styles.backdrop} />
+
+      {/* Sheet card */}
+      <View style={styles.sheet}>
+      {/* Drag handle */}
+      <View style={styles.dragHandle} />
+
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backBtn} activeOpacity={0.7}>
@@ -211,6 +219,8 @@ export default function EditFlowScreen() {
           <Text style={styles.doneBtnText}>Done</Text>
         </TouchableOpacity>
       </View>
+
+      </View>{/* end sheet */}
 
       {/* Why this flow? Modal */}
       <Modal
@@ -317,13 +327,27 @@ export default function EditFlowScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.background.primary },
+  container: { flex: 1 },
+  backdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.55)' },
+  sheet: {
+    flex: 1,
+    backgroundColor: '#08080f',
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    overflow: 'hidden',
+  },
+  dragHandle: {
+    width: 36, height: 4, borderRadius: 2,
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    alignSelf: 'center',
+    marginTop: 12, marginBottom: 0,
+  },
 
   // ── Header ──────────────────────────────────────────────────────────────────
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingTop: 64,
+    paddingTop: 16,
     paddingBottom: 16,
     paddingHorizontal: 20,
   },
@@ -400,7 +424,7 @@ const styles = StyleSheet.create({
   footer: {
     position: 'absolute', bottom: 0, left: 0, right: 0,
     paddingHorizontal: 20, paddingTop: 16, paddingBottom: 42,
-    backgroundColor: colors.background.primary + 'F0',
+    backgroundColor: '#08080fF0',
   },
   doneBtn: {
     height: 56, borderRadius: 28,

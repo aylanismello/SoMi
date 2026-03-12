@@ -87,7 +87,8 @@ export default function RootLayout() {
           name="EditFlow"
           options={{
             gestureEnabled: true,
-            animation: 'slide_from_right',
+            presentation: 'transparentModal',
+            animation: 'slide_from_bottom',
           }}
         />
       </Stack>

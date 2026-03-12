@@ -14,7 +14,6 @@ import { useEditFlowStore } from '../../stores/editFlowStore'
 import PolyvagalStatePicker from './PolyvagalStatePicker'
 import CustomizationModal from '../CustomizationModal'
 import MusicPickerModal from '../MusicPickerModal'
-import FlowPlanSheet from './FlowPlanSheet'
 import { api } from '../../services/api'
 import { deriveState, getPolyvagalExplanation } from '../../constants/polyvagalStates'
 
@@ -184,11 +183,9 @@ export default function DailyFlowSetup() {
   const [safetyLevel, setSafetyLevel]         = useState(50)
   const [isGenerating, setIsGenerating]       = useState(false)
   const [reasoning, setReasoning]             = useState(null)
-  const [showReasoningSheet, setShowReasoningSheet] = useState(false)
   const [showDurationPicker, setShowDurationPicker] = useState(false)
   const [showCustomization, setShowCustomization]   = useState(false)
   const [showMusicPicker, setShowMusicPicker]       = useState(false)
-  const [showPlanSheet, setShowPlanSheet]           = useState(false)
   const [showPolyvagalInfo, setShowPolyvagalInfo]   = useState(false)
 
   const [actualDuration, setActualDuration] = useState(null)
@@ -264,9 +261,10 @@ export default function DailyFlowSetup() {
           // Swipe up → dismiss
           dismiss()
         } else if (Math.abs(gs.dy) < 5 && Math.abs(gs.dx) < 5) {
-          // Tap → open plan sheet
+          // Tap → open Edit Flow
           clearTimeout(toastDismissTimerRef.current)
-          setShowPlanSheet(true)
+          hideToast()
+          handleEditRoutine()
         } else {
           Animated.spring(toastAnim, { toValue: 0, useNativeDriver: true, tension: 200, friction: 15 }).start()
           toastDismissTimerRef.current = setTimeout(hideToast, 2200)
@@ -550,24 +548,6 @@ export default function DailyFlowSetup() {
       <CustomizationModal visible={showCustomization} onClose={() => setShowCustomization(false)} />
       <MusicPickerModal visible={showMusicPicker} onClose={() => setShowMusicPicker(false)} />
 
-      {/* Unified "Your Flow" plan sheet */}
-      <FlowPlanSheet
-        visible={showPlanSheet}
-        onClose={() => setShowPlanSheet(false)}
-        closeLabel="Update"
-        onWhyPress={() => { setShowPlanSheet(false); setShowReasoningSheet(true) }}
-        queue={fullSegmentsRef.current?.filter(s => s.type === 'somi_block') || []}
-        fullSegments={fullSegmentsRef.current || []}
-        reasoning={reasoning}
-        actualDuration={actualDuration}
-        selectedMinutes={selectedMinutes}
-        showBodyScanToggles={showBodyScanToggles}
-        bodyScanStartEnabled={bodyScanStart}
-        bodyScanEndEnabled={bodyScanEnd}
-        onToggleBodyScanStart={handleToggleBodyScanStart}
-        onToggleBodyScanEnd={handleToggleBodyScanEnd}
-      />
-
       {/* Polyvagal State Info Modal */}
       <Modal
         visible={showPolyvagalInfo}
@@ -595,32 +575,6 @@ export default function DailyFlowSetup() {
         </TouchableOpacity>
       </Modal>
 
-      {/* Reasoning Sheet Modal */}
-      <Modal
-        visible={showReasoningSheet}
-        transparent={true}
-        animationType="slide"
-        onRequestClose={() => setShowReasoningSheet(false)}
-      >
-        <TouchableOpacity
-          style={styles.reasoningOverlay}
-          activeOpacity={1}
-          onPress={() => setShowReasoningSheet(false)}
-        >
-          <TouchableOpacity activeOpacity={1} style={styles.reasoningSheet} onPress={() => {}}>
-            <View style={styles.reasoningHandle} />
-            <Text style={styles.reasoningTitle}>Why this flow?</Text>
-            <Text style={styles.reasoningBody}>{reasoning}</Text>
-            <TouchableOpacity
-              onPress={() => setShowReasoningSheet(false)}
-              style={styles.reasoningDismiss}
-              activeOpacity={0.7}
-            >
-              <Text style={styles.reasoningDismissText}>Got it</Text>
-            </TouchableOpacity>
-          </TouchableOpacity>
-        </TouchableOpacity>
-      </Modal>
     </View>
   )
 }
