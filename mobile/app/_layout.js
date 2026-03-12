@@ -1,7 +1,7 @@
 import { Stack } from 'expo-router'
 import { StatusBar } from 'expo-status-bar'
 import { useEffect, useState } from 'react'
-import { useAudioPlayer, setAudioModeAsync } from 'expo-audio'
+import { useAudioPlayer, useAudioPlayerStatus, setAudioModeAsync } from 'expo-audio'
 import React from 'react'
 import * as SplashScreen from 'expo-splash-screen'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
@@ -31,7 +31,11 @@ export default function RootLayout() {
   const [appReady, setAppReady] = useState(false)
   const fluidsPlayer = useAudioPlayer(FLUIDS_URL)
   const togetherPlayer = useAudioPlayer(TOGETHER_URL)
-  const { setTrackPlayers } = useFlowMusicStore()
+  const { setTrackPlayers, recoverPlayback, isPlaying, currentTrackId } = useFlowMusicStore()
+
+  // Monitor player status to recover from unexpected stops (AirPods disconnect, interruptions)
+  const fluidsStatus = useAudioPlayerStatus(fluidsPlayer)
+  const togetherStatus = useAudioPlayerStatus(togetherPlayer)
 
   useEffect(() => {
     const subscription = initialize()
@@ -52,8 +56,10 @@ export default function RootLayout() {
   }, [fluidsPlayer, togetherPlayer])
 
   useEffect(() => {
-    // Configure iOS audio session: play sounds even when silent switch is on,
-    // and mix with other audio (e.g. flow music + sound effects together)
+    // Configure iOS audio session:
+    // - playsInSilentMode: works with the silent switch flipped
+    // - shouldPlayInBackground: false (flow music is foreground-only)
+    // - interruptionMode: mixWithOthers so music + SFX can coexist
     setAudioModeAsync({
       playsInSilentMode: true,
       shouldPlayInBackground: false,
@@ -62,6 +68,19 @@ export default function RootLayout() {
     prefetchVideoBlocks()
     soundManager.preloadSounds()
   }, [])
+
+  // Auto-recover music after route changes (AirPods disconnect) or OS interruptions.
+  // When isPlaying is true but the active player stopped, call play() again.
+  useEffect(() => {
+    if (!isPlaying || currentTrackId === 'none') return
+
+    const activeStatus = currentTrackId === 'fluids' ? fluidsStatus : togetherStatus
+    const activePlayer = currentTrackId === 'fluids' ? fluidsPlayer : togetherPlayer
+
+    if (activeStatus && !activeStatus.playing && activePlayer) {
+      recoverPlayback()
+    }
+  }, [fluidsStatus?.playing, togetherStatus?.playing, isPlaying, currentTrackId])
 
   return (
     <QueryClientProvider client={queryClient}>

@@ -482,7 +482,9 @@ export default function MySomiScreen() {
     const diffHours = Math.floor(diffMs / 3600000)
     const diffDays = Math.floor(diffMs / 86400000)
 
-    if (diffMins < 60) {
+    if (diffMins < 1) {
+      return 'just now'
+    } else if (diffMins < 60) {
       return `${diffMins}m ago`
     } else if (diffHours < 24) {
       return `${diffHours}h ago`

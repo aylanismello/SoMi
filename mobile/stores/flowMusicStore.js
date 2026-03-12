@@ -31,6 +31,7 @@ const togetherVolumeAnim = new Animated.Value(0)
 
 const FADE_IN_MS = 2000
 const FADE_CROSS_MS = 800
+const FADE_OUT_MS = 2000
 
 function volumeAnimFor(trackId) {
   if (trackId === 'fluids') return fluidsVolumeAnim
@@ -44,18 +45,41 @@ function playerFor(state, trackId) {
   return null
 }
 
+// Attach volume listener BEFORE starting animation to avoid race condition
+function startFade(volumeAnim, player, toValue, duration, onComplete) {
+  volumeAnim.stopAnimation()
+  volumeAnim.removeAllListeners()
+
+  // Register listener first so no frame is missed
+  volumeAnim.addListener(({ value }) => {
+    try { player.volume = value } catch (_) {}
+  })
+
+  Animated.timing(volumeAnim, {
+    toValue,
+    duration,
+    easing: Easing.inOut(Easing.ease),
+    useNativeDriver: false,
+  }).start(({ finished }) => {
+    if (finished) {
+      volumeAnim.removeAllListeners()
+      onComplete?.()
+    }
+  })
+}
+
 export const useFlowMusicStore = create((set, get) => ({
   // Players (set once at boot from _layout.js)
   fluidsPlayer: null,
   togetherPlayer: null,
 
-  // audioPlayer kept for backward-compat (checked for readiness in FlowBodyScan / SoMiRoutineScreen)
+  // audioPlayer kept for backward-compat
   audioPlayer: null,
 
   // Live playback state
   isPlaying: false,
   currentTrackId: 'fluids',
-  flowStartedAt: null, // Date.now() when flow music session began (music clock origin)
+  flowStartedAt: null, // Date.now() when flow music session began
 
   setTrackPlayers: (fluidsPlayer, togetherPlayer) => {
     set({ fluidsPlayer, togetherPlayer, audioPlayer: fluidsPlayer })
@@ -63,9 +87,22 @@ export const useFlowMusicStore = create((set, get) => ({
 
   startFlowMusic: (isMusicEnabled = true, trackId = 'fluids') => {
     const state = get()
-    if (state.isPlaying) return
 
-    // Stop any lingering fade-out animations so they can't drive volume back to 0
+    // If already playing this exact track and player is actually running, skip
+    const existingPlayer = playerFor(state, trackId)
+    if (state.isPlaying && state.currentTrackId === trackId && existingPlayer?.playing) return
+
+    // Stop any active music cleanly before (re)starting
+    const prevPlayer = playerFor(state, state.currentTrackId)
+    const prevVolumeAnim = volumeAnimFor(state.currentTrackId)
+    if (prevPlayer && prevVolumeAnim) {
+      prevVolumeAnim.stopAnimation()
+      prevVolumeAnim.removeAllListeners()
+      try { prevPlayer.pause() } catch (_) {}
+      prevVolumeAnim.setValue(0)
+    }
+
+    // Stop all anims to be safe
     fluidsVolumeAnim.stopAnimation()
     fluidsVolumeAnim.removeAllListeners()
     togetherVolumeAnim.stopAnimation()
@@ -83,31 +120,19 @@ export const useFlowMusicStore = create((set, get) => ({
     try {
       activePlayer.seekTo(0)
       activePlayer.loop = true
-      activePlayer.volume = 0
       activePlayer.muted = false
+      activePlayer.volume = 0
       activePlayer.play()
 
       volumeAnim.setValue(0)
-      volumeAnim.removeAllListeners()
-
-      Animated.timing(volumeAnim, {
-        toValue: 1,
-        duration: FADE_IN_MS,
-        easing: Easing.inOut(Easing.ease),
-        useNativeDriver: false,
-      }).start()
-
-      volumeAnim.addListener(({ value }) => {
-        activePlayer.volume = value
-      })
+      startFade(volumeAnim, activePlayer, 1, FADE_IN_MS)
     } catch (e) {
       console.error('❌ Error starting flow music:', e)
       set({ isPlaying: false, flowStartedAt: null })
     }
   },
 
-  // Switch to a different track, seeking to the current flow-clock position.
-  // Safe to call even when not in a flow (just updates preference with no audio change).
+  // Switch to a different track at the current flow-clock position.
   switchTrack: (newTrackId) => {
     const state = get()
     if (newTrackId === state.currentTrackId) return
@@ -121,22 +146,11 @@ export const useFlowMusicStore = create((set, get) => ({
 
     if (!state.isPlaying) return
 
-    // Fade out current track
+    // Fade out current track, then pause it
     if (currentPlayer && currentVolumeAnim) {
-      currentVolumeAnim.removeAllListeners()
-      Animated.timing(currentVolumeAnim, {
-        toValue: 0,
-        duration: FADE_CROSS_MS,
-        easing: Easing.inOut(Easing.ease),
-        useNativeDriver: false,
-      }).start(({ finished }) => {
-        if (finished) {
-          currentPlayer.pause()
-          currentVolumeAnim.setValue(0)
-        }
-      })
-      currentVolumeAnim.addListener(({ value }) => {
-        currentPlayer.volume = value
+      startFade(currentVolumeAnim, currentPlayer, 0, FADE_CROSS_MS, () => {
+        try { currentPlayer.pause() } catch (_) {}
+        currentVolumeAnim.setValue(0)
       })
     }
 
@@ -149,23 +163,12 @@ export const useFlowMusicStore = create((set, get) => ({
 
         newPlayer.seekTo(seekPos)
         newPlayer.loop = true
-        newPlayer.volume = 0
         newPlayer.muted = false
+        newPlayer.volume = 0
         newPlayer.play()
 
         newVolumeAnim.setValue(0)
-        newVolumeAnim.removeAllListeners()
-
-        Animated.timing(newVolumeAnim, {
-          toValue: 1,
-          duration: FADE_CROSS_MS,
-          easing: Easing.inOut(Easing.ease),
-          useNativeDriver: false,
-        }).start()
-
-        newVolumeAnim.addListener(({ value }) => {
-          newPlayer.volume = value
-        })
+        startFade(newVolumeAnim, newPlayer, 1, FADE_CROSS_MS)
       } catch (e) {
         console.error('❌ Error switching track:', e)
       }
@@ -184,24 +187,12 @@ export const useFlowMusicStore = create((set, get) => ({
     if (!activePlayer) return
 
     if (activeVolumeAnim) {
-      activeVolumeAnim.removeAllListeners()
-      Animated.timing(activeVolumeAnim, {
-        toValue: 0,
-        duration: 2000,
-        easing: Easing.inOut(Easing.ease),
-        useNativeDriver: false,
-      }).start(({ finished }) => {
-        if (finished) {
-          activePlayer.pause()
-          activeVolumeAnim.setValue(0)
-          activeVolumeAnim.removeAllListeners()
-        }
-      })
-      activeVolumeAnim.addListener(({ value }) => {
-        activePlayer.volume = value
+      startFade(activeVolumeAnim, activePlayer, 0, FADE_OUT_MS, () => {
+        try { activePlayer.pause() } catch (_) {}
+        activeVolumeAnim.setValue(0)
       })
     } else {
-      activePlayer.pause()
+      try { activePlayer.pause() } catch (_) {}
     }
   },
 
@@ -209,7 +200,7 @@ export const useFlowMusicStore = create((set, get) => ({
     const state = get()
     if (!state.isPlaying) return
     const player = playerFor(state, state.currentTrackId)
-    if (player) player.pause()
+    try { if (player) player.pause() } catch (_) {}
     set({ isPlaying: false })
   },
 
@@ -217,14 +208,33 @@ export const useFlowMusicStore = create((set, get) => ({
     const state = get()
     if (state.isPlaying) return
     const player = playerFor(state, state.currentTrackId)
-    if (player && state.currentTrackId !== 'none') player.play()
+    if (player && state.currentTrackId !== 'none') {
+      try { player.play() } catch (_) {}
+    }
     set({ isPlaying: true })
+  },
+
+  // Called by the music monitor to recover from unexpected stops (e.g. AirPods disconnect)
+  recoverPlayback: () => {
+    const state = get()
+    if (!state.isPlaying || state.currentTrackId === 'none') return
+    const player = playerFor(state, state.currentTrackId)
+    if (player && !player.playing) {
+      try {
+        player.play()
+        console.log('🎵 Music recovered after unexpected stop')
+      } catch (e) {
+        console.error('❌ Failed to recover music playback:', e)
+      }
+    }
   },
 
   setVolume: (volume) => {
     const state = get()
     const player = playerFor(state, state.currentTrackId)
-    if (player) player.volume = volume
+    if (player) {
+      try { player.volume = volume } catch (_) {}
+    }
   },
 
   updateMusicSetting: (isMusicEnabled) => {
@@ -233,9 +243,11 @@ export const useFlowMusicStore = create((set, get) => ({
     const player = playerFor(state, state.currentTrackId)
     const volumeAnim = volumeAnimFor(state.currentTrackId)
     if (player) {
-      const v = isMusicEnabled ? 1 : 0
-      player.volume = v
-      if (volumeAnim) volumeAnim.setValue(v)
+      try {
+        const v = isMusicEnabled ? 1 : 0
+        player.volume = v
+        if (volumeAnim) volumeAnim.setValue(v)
+      } catch (_) {}
     }
   },
 }))
