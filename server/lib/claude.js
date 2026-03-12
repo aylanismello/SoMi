@@ -45,7 +45,7 @@ The session context includes an inferred regulation need. Use this as a guiding 
 Use contextual signals as soft background influences. The nervous system state always takes precedence.
 
 - **Time of day**: Morning → gentle arousal; Afternoon → balanced; Evening → settling; Late night → very gentle.
-- **Season**: Winter/autumn → extra warmth and containment; Spring/summer → can lean more expansive.
+- **Solar position**: Time relative to sunrise/sunset is a stronger cue than clock time alone. Pre-sunset / dusk → begin settling. Night / deep night → maximum gentleness and containment. Within 1h of sunrise / early light → gentle activation. Midday → balanced and flexible.
 - **Weather**: Rain/overcast → extra grounding; Clear/sunny → can be more activating.
 - **Chronotype**: Early bird doing an evening session → lean toward settling; Night owl doing a morning session → extra gentle warm-up.
 - **Recent usage**: If someone practiced recently, vary the blocks to maintain novelty. If returning after a gap, keep it familiar and gentle.

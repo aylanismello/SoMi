@@ -10,11 +10,12 @@
     "lint": "next lint"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.36.3",
+    "@supabase/supabase-js": "^2.47.10",
     "next": "15.5.11",
     "react": "19.1.0",
     "react-dom": "19.1.0",
-    "@anthropic-ai/sdk": "^0.36.3",
-    "@supabase/supabase-js": "^2.47.10"
+    "suncalc": "^1.9.0"
   },
   "devDependencies": {
     "eslint": "^9",
