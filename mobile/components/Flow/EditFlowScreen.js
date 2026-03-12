@@ -174,6 +174,9 @@ export default function EditFlowScreen() {
 
       {/* Sheet card */}
       <View style={styles.sheet}>
+      {/* Frosted glass background */}
+      <BlurView intensity={55} tint="dark" style={StyleSheet.absoluteFillObject} />
+
       {/* Drag handle */}
       <View style={styles.dragHandle} />
 
@@ -215,6 +218,7 @@ export default function EditFlowScreen() {
 
       {/* Footer */}
       <View style={styles.footer}>
+        <BlurView intensity={40} tint="dark" style={StyleSheet.absoluteFillObject} />
         <TouchableOpacity style={styles.doneBtn} onPress={() => router.back()} activeOpacity={0.88}>
           <Text style={styles.doneBtnText}>Done</Text>
         </TouchableOpacity>
@@ -328,19 +332,18 @@ export default function EditFlowScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  backdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.55)' },
+  backdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.6)' },
   sheet: {
     flex: 1,
-    backgroundColor: '#08080f',
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
     overflow: 'hidden',
   },
   dragHandle: {
-    width: 36, height: 4, borderRadius: 2,
-    backgroundColor: 'rgba(255,255,255,0.2)',
+    width: 40, height: 4, borderRadius: 2,
+    backgroundColor: 'rgba(255,255,255,0.25)',
     alignSelf: 'center',
-    marginTop: 12, marginBottom: 0,
+    marginTop: 14, marginBottom: 4,
   },
 
   // ── Header ──────────────────────────────────────────────────────────────────
@@ -377,17 +380,19 @@ const styles = StyleSheet.create({
 
   // ── Section header ──────────────────────────────────────────────────────────
   sectionHeader: {
-    color: 'rgba(255,255,255,0.45)',
-    fontSize: 11, fontWeight: '700', letterSpacing: 1.2,
-    marginTop: 16, marginBottom: 4,
-    paddingHorizontal: 12,
+    color: 'rgba(255,255,255,0.5)',
+    fontSize: 11, fontWeight: '700', letterSpacing: 1.4,
+    marginTop: 20, marginBottom: 8,
+    paddingHorizontal: 4,
   },
 
   // ── Block row ───────────────────────────────────────────────────────────────
   planItem: {
     flexDirection: 'row', alignItems: 'center',
-    paddingVertical: 12, paddingHorizontal: 12,
-    borderRadius: 12, marginBottom: 4, gap: 12,
+    paddingVertical: 14, paddingHorizontal: 14,
+    borderRadius: 14, marginBottom: 6, gap: 12,
+    backgroundColor: 'rgba(255,255,255,0.06)',
+    borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)',
   },
   planItemSwapped: {
     backgroundColor: 'rgba(0,217,163,0.1)',
@@ -413,7 +418,11 @@ const styles = StyleSheet.create({
   },
 
   // ── Body scan ───────────────────────────────────────────────────────────────
-  bodyScanItem: { opacity: 0.85 },
+  bodyScanItem: {
+    opacity: 0.7,
+    borderStyle: 'dashed',
+    backgroundColor: 'rgba(255,255,255,0.03)',
+  },
   bodyScanNumber: { backgroundColor: 'rgba(255,255,255,0.07)' },
   bodyScanNumberText: {
     color: 'rgba(255,255,255,0.4)',
@@ -423,13 +432,13 @@ const styles = StyleSheet.create({
   // ── Footer ──────────────────────────────────────────────────────────────────
   footer: {
     position: 'absolute', bottom: 0, left: 0, right: 0,
-    paddingHorizontal: 20, paddingTop: 16, paddingBottom: 42,
-    backgroundColor: '#08080fF0',
+    paddingHorizontal: 20, paddingTop: 16, paddingBottom: 44,
+    overflow: 'hidden',
   },
   doneBtn: {
     height: 56, borderRadius: 28,
-    backgroundColor: 'rgba(255,255,255,0.08)',
-    borderWidth: 1, borderColor: 'rgba(255,255,255,0.12)',
+    backgroundColor: 'rgba(255,255,255,0.15)',
+    borderWidth: 1, borderColor: 'rgba(255,255,255,0.2)',
     alignItems: 'center', justifyContent: 'center',
   },
   doneBtnText: { color: '#fff', fontSize: 17, fontWeight: '600', letterSpacing: 0.2 },
