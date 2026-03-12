@@ -227,8 +227,9 @@ export default function CompletionScreen() {
   const stats = getStats()
   const streak = streakData?.current_streak ?? 0
   const STREAK_THRESHOLD = 300
-  const totalPlaySeconds = latestChain?.duration_seconds
-    ?? (latestChain?.somi_chain_entries || []).reduce((sum, e) => sum + (e.seconds_elapsed || 0), 0)
+  const totalPlaySeconds = latestChain?.duration_seconds > 0
+    ? latestChain.duration_seconds
+    : (latestChain?.somi_chain_entries || []).reduce((sum, e) => sum + (e.seconds_elapsed || 0), 0)
   const isQuickSession = totalPlaySeconds < STREAK_THRESHOLD
 
   const handleContinue = () => {

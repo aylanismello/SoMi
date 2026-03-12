@@ -34,8 +34,14 @@ function CalendarStreakView({ chains, monthData = [] }) {
   const daysWithSessions = new Set()
   const sessionsByDay = {}
 
-  // MVP: Only count daily flows
-  const dailyFlowChains = chains.filter(chain => chain.flow_type === 'daily_flow')
+  // Only count daily flows with >= 5 min of play time
+  const dailyFlowChains = chains.filter(chain => {
+    if (chain.flow_type !== 'daily_flow') return false
+    const dur = chain.duration_seconds > 0
+      ? chain.duration_seconds
+      : (chain.somi_chain_entries || []).reduce((sum, e) => sum + (e.seconds_elapsed || 0), 0)
+    return dur >= 300
+  })
 
   dailyFlowChains.forEach(chain => {
     const date = new Date(chain.created_at)
@@ -306,9 +312,16 @@ export default function MySomiScreen() {
   const { data: streakData, refetch: refetchStreaks } = useStreaks()
   const deleteChainMutation = useDeleteChain()
 
-  // MVP: Filter to only show daily flows (memoized to prevent infinite loops)
+  // Filter to only show daily flows with >= 5 min of play time (memoized to prevent infinite loops)
   const somiChains = useMemo(() =>
-    allChains.filter(chain => chain.flow_type === 'daily_flow'),
+    allChains.filter(chain => {
+      if (chain.flow_type !== 'daily_flow') return false
+      // Use duration_seconds if available and positive; fall back to summing entries
+      const dur = chain.duration_seconds > 0
+        ? chain.duration_seconds
+        : (chain.somi_chain_entries || []).reduce((sum, e) => sum + (e.seconds_elapsed || 0), 0)
+      return dur >= 300
+    }),
     [allChains]
   )
 
