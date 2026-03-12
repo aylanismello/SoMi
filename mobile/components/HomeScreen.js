@@ -72,10 +72,12 @@ function WeekDay({ label, percentage, isToday, isFuture }) {
 
 export default function HomeScreen() {
   const glowAnim = useRef(new Animated.Value(0)).current
+  const quoteOpacity = useRef(new Animated.Value(0)).current
   const [showSettingsModal, setShowSettingsModal] = useState(false)
   const [showMusicModal, setShowMusicModal] = useState(false)
   const [groundingQuote, setGroundingQuote] = useState(null)
   const [quoteLoading, setQuoteLoading] = useState(true)
+  const quoteShowing = useRef(false)
   const [cachedWeekData, setCachedWeekData] = useState(null)
   const user = useAuthStore((state) => state.user)
   const { data: streakData, refetch: refetchStreaks } = useStreaks()
@@ -114,20 +116,35 @@ export default function HomeScreen() {
     ).start()
   }, [])
 
+  const fadeInQuote = useCallback((quote) => {
+    setGroundingQuote(quote)
+    Animated.timing(quoteOpacity, { toValue: 1, duration: 600, useNativeDriver: true }).start()
+    quoteShowing.current = true
+  }, [quoteOpacity])
+
+  const crossfadeToQuote = useCallback((quote) => {
+    if (!quoteShowing.current) {
+      fadeInQuote(quote)
+      return
+    }
+    Animated.timing(quoteOpacity, { toValue: 0, duration: 300, useNativeDriver: true }).start(() => {
+      setGroundingQuote(quote)
+      Animated.timing(quoteOpacity, { toValue: 1, duration: 500, useNativeDriver: true }).start()
+    })
+  }, [quoteOpacity, fadeInQuote])
+
   useEffect(() => {
-    // Load cached quote first so we never flash the filler text
     AsyncStorage.getItem('lastGroundingQuote')
       .then((cached) => {
         if (cached) {
-          try { setGroundingQuote(JSON.parse(cached)) } catch {}
+          try { fadeInQuote(JSON.parse(cached)) } catch {}
         }
       })
       .finally(() => {
-        // Then fetch a fresh quote from the API
         api.getRandomGroundingQuote()
           .then(({ quote }) => {
             if (quote) {
-              setGroundingQuote(quote)
+              crossfadeToQuote(quote)
               AsyncStorage.setItem('lastGroundingQuote', JSON.stringify(quote)).catch(() => {})
             }
           })
@@ -205,10 +222,10 @@ export default function HomeScreen() {
       {/* Quote or greeting — centered in remaining space */}
       <View style={styles.greetingContainer}>
         {groundingQuote ? (
-          <>
+          <Animated.View style={{ opacity: quoteOpacity, alignItems: 'center' }}>
             <Text style={styles.quoteText}>"{groundingQuote.quote}"</Text>
             <Text style={styles.quoteAuthor}>— {groundingQuote.author}</Text>
-          </>
+          </Animated.View>
         ) : !quoteLoading ? (
           <Text style={styles.greetingText}>
             Hi {firstName},{'\n'}it's time to flow{'\n'}{timeOfDay}.
