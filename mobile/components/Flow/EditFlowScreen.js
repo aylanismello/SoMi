@@ -176,8 +176,9 @@ export default function EditFlowScreen() {
 
       {/* Sheet card */}
       <View style={styles.sheet}>
-      {/* Frosted glass background */}
-      <BlurView intensity={30} tint="dark" style={StyleSheet.absoluteFillObject} />
+      {/* Frosted glass: blur for color bleed + dark scrim for contrast */}
+      <BlurView intensity={50} tint="dark" style={StyleSheet.absoluteFillObject} />
+      <View style={styles.sheetScrim} />
 
       {/* Drag handle — sits in the safe area so header clears the status bar */}
       <View style={[styles.dragHandle, { marginTop: topInset + 8 }]} />
@@ -340,6 +341,10 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: 28,
     borderTopRightRadius: 28,
     overflow: 'hidden',
+  },
+  sheetScrim: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(4,4,12,0.52)',
   },
   dragHandle: {
     width: 40, height: 4, borderRadius: 2,
