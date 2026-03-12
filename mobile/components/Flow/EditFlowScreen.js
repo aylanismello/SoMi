@@ -26,26 +26,15 @@ function getSectionLabel(name) {
 
 export default function EditFlowScreen() {
   const { top: topInset } = useSafeAreaInsets()
-  const translateX = useRef(new Animated.Value(0)).current
-
   const panResponder = useMemo(() => PanResponder.create({
-    // Only capture touches starting from the left edge
     onStartShouldSetPanResponder: (evt) => evt.nativeEvent.locationX < EDGE_HIT_WIDTH,
     onMoveShouldSetPanResponder: (evt, gs) =>
       evt.nativeEvent.locationX < EDGE_HIT_WIDTH && gs.dx > 5 && Math.abs(gs.dx) > Math.abs(gs.dy),
-    onPanResponderMove: (_, gs) => {
-      if (gs.dx > 0) translateX.setValue(gs.dx)
-    },
     onPanResponderRelease: (_, gs) => {
       if (gs.dx > SWIPE_THRESHOLD || gs.vx > 0.5) {
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
         router.back()
-      } else {
-        Animated.spring(translateX, { toValue: 0, useNativeDriver: true, tension: 200, friction: 20 }).start()
       }
-    },
-    onPanResponderTerminate: () => {
-      Animated.spring(translateX, { toValue: 0, useNativeDriver: true, tension: 200, friction: 20 }).start()
     },
   }), [])
 
@@ -197,10 +186,7 @@ export default function EditFlowScreen() {
   }
 
   return (
-    <Animated.View
-      style={[styles.container, { transform: [{ translateX }] }]}
-      {...panResponder.panHandlers}
-    >
+    <Animated.View style={styles.container} {...panResponder.panHandlers}>
       {/* Dark backdrop over previous screen */}
       <View style={styles.backdrop} />
 
