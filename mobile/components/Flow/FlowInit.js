@@ -185,6 +185,7 @@ export default function DailyFlowSetup() {
   const [isGenerating, setIsGenerating]       = useState(false)
   const [isPreloading, setIsPreloading]       = useState(false)
   const [hasUserInteracted, setHasUserInteracted] = useState(false)
+  const [hasSegments, setHasSegments]         = useState(false)
   const [reasoning, setReasoning]             = useState(null)
   const [showDurationPicker, setShowDurationPicker] = useState(false)
   const [showCustomization, setShowCustomization]   = useState(false)
@@ -309,6 +310,7 @@ export default function DailyFlowSetup() {
       if (result.segments && result.segments.length > 0) {
         if (result.reasoning) setReasoning(result.reasoning)
         fullSegmentsRef.current = result.segments
+        setHasSegments(true)
         if (!isInitial) showUpdatedToast()
       }
     } catch (err) {
@@ -343,6 +345,7 @@ export default function DailyFlowSetup() {
       setBodyScanStart(true)
       setBodyScanEnd(true)
       setHasUserInteracted(false)
+      setHasSegments(false)
 
       if (flowPreloadCache.segments) {
         // Cache hit — instant, no network call needed
@@ -350,6 +353,7 @@ export default function DailyFlowSetup() {
         if (flowPreloadCache.reasoning) setReasoning(flowPreloadCache.reasoning)
         flowPreloadCache.clear()
         isReadyForInputRef.current = true
+        setHasSegments(true)
       } else if (flowPreloadCache.isLoading) {
         // Preload is still in-flight — wait for it then consume
         setIsPreloading(true)
@@ -358,6 +362,7 @@ export default function DailyFlowSetup() {
             fullSegmentsRef.current = flowPreloadCache.segments
             if (flowPreloadCache.reasoning) setReasoning(flowPreloadCache.reasoning)
             flowPreloadCache.clear()
+            setHasSegments(true)
           }
           isReadyForInputRef.current = true
           setIsPreloading(false)
@@ -375,6 +380,7 @@ export default function DailyFlowSetup() {
     const storeSegs = useEditFlowStore.getState().segments
     if (storeSegs.length > 0) {
       fullSegmentsRef.current = storeSegs
+      setHasSegments(true)
     }
   }, []))
 
@@ -488,13 +494,13 @@ export default function DailyFlowSetup() {
       <View style={styles.header}>
         <TouchableOpacity
           onPress={handleEditRoutine}
-          style={[styles.iconButton, !hasUserInteracted && styles.iconButtonDimmed]}
+          style={[styles.iconButton, !hasSegments && styles.iconButtonDimmed]}
           activeOpacity={0.7}
-          disabled={!hasUserInteracted || isGenerating}
+          disabled={!hasSegments}
         >
-          {isGenerating && hasUserInteracted
+          {isGenerating
             ? <ActivityIndicator size="small" color={colors.accent.primary} />
-            : <Ionicons name="pencil-outline" size={20} color={hasUserInteracted ? colors.accent.primary : 'rgba(255,255,255,0.25)'} />
+            : <Ionicons name="pencil-outline" size={20} color={hasSegments ? colors.accent.primary : 'rgba(255,255,255,0.25)'} />
           }
         </TouchableOpacity>
         <TouchableOpacity onPress={handleClose} style={styles.iconButton} activeOpacity={0.7}>
