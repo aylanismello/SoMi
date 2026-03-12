@@ -1,5 +1,19 @@
 # Changelog
 
+## 2026-03-12 — Body Scan Toggles full integration
+
+**Mobile:**
+- `mobile/components/Flow/FlowInit.js` — Added body scan toggle UI (Opening/Closing Body Scan switches) visible when `duration_minutes >= 8`. Added `pendingRegenRef` to handle toggles during active generation; final block re-fires with latest store state.
+
+**Server:**
+- `server/lib/claude.js` — `generateAIRoutine()` now accepts `hasScanStart`/`hasScanEnd` and injects a `scanContext` line into the Claude prompt so the AI knows whether body scans handle boundary settling.
+- `server/app/api/flows/generate/route.js` — Passes `hasScanStart`/`hasScanEnd` to `generateAIRoutine`.
+
+**Docs:**
+- `docs/05_flow_engine.md` — Added "Body Scan Toggles" section documenting availability, time-budget math, UI behaviour, race condition handling, and AI behaviour.
+
+---
+
 ## 2026-03-11 — Fix short-session block over-allocation + duration display mismatch
 
 **Server:**

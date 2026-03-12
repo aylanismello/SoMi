@@ -187,6 +187,42 @@ Users can swap blocks from `RoutineQueuePreview` and during `SoMiRoutine` (via e
 
 ---
 
+## Body Scan Toggles
+
+### Availability
+
+Body scan toggles are shown in `FlowInit` only when `duration_minutes >= 8`. Below that threshold, the server sets `body_scan_enabled = false` and no scan segments are produced regardless of toggle state.
+
+### Time-budget math
+
+Each scan = 60s. Freed time from disabling a scan may or may not yield +1 block depending on the current floor-division remainder:
+
+| Duration | Both ON | Start OFF | End OFF | Both OFF |
+|----------|---------|-----------|---------|----------|
+| 8 min    | 4 blocks | 5 (+1) | 5 (+1) | 6 (+2) |
+| 9 min    | 5 blocks | 6 (+1) | 6 (+1) | 6 (+1 total) |
+| 10 min   | 6 blocks | 6 (same) | 6 (same) | 7 (+1 total) |
+| 15 min   | 9 blocks | 10 (+1) | 10 (+1) | 11 (+2) |
+
+The 10-min case yielding no change from a single toggle is mathematically correct, not a bug.
+
+### UI behaviour
+
+Both toggles appear as a "Body Scans" section inline in `FlowInit`'s `ScrollView` when `showBodyScanToggles` is `true`. Toggling either switch triggers `handleToggleBodyScanStart`/`handleToggleBodyScanEnd`, which update the `settingsStore` and call `doGeneratePreview` with the new values.
+
+If a toggle fires while the initial generation is in progress (`isReadyForInputRef.current = false`) or during a subsequent generation (`isGenerating = true`), the store is updated immediately and `pendingRegenRef.current = true`. The `doGeneratePreview` `finally` block checks this flag on completion and fires a follow-up generation with the latest store values.
+
+Rapid toggle flips collapse into a single re-generation using the final state.
+
+### AI behaviour
+
+`hasScanStart` and `hasScanEnd` booleans (derived as `body_scan_enabled && body_scan_start/end`) are passed to `generateAIRoutine()` in `server/lib/claude.js`. A `scanContext` string is injected into the Claude user prompt:
+
+- **Scans present**: AI is told that body scans handle somatic settling at boundaries; warm-up and integration blocks should not duplicate that role.
+- **No scans**: AI is told that warm-up and integration blocks carry the full grounding and settling responsibility. [VERIFIED]
+
+---
+
 ## Addendum — 2026-03-11: Short-session block count fix + duration display fix
 
 ### Bug 1: AI over-allocating blocks for short sessions

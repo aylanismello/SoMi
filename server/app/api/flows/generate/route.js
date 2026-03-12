@@ -92,6 +92,8 @@ export async function POST(request) {
         sessionContext,
         blockCount: block_count,
         availableBlocks: availableBlockNames,
+        hasScanStart: body_scan_enabled && body_scan_start,
+        hasScanEnd:   body_scan_enabled && body_scan_end,
       })
 
       // Build lookup map

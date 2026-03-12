@@ -76,7 +76,7 @@ Only use canonical_name values from the provided available blocks list. Never in
  * @param {string[]} params.availableBlocks - canonical_name strings available in DB
  * @returns {Promise<{sections: Array, reasoning: string, rationale: string}>}
  */
-export async function generateAIRoutine({ sessionContext, availableBlocks, blockCount: explicitBlockCount }) {
+export async function generateAIRoutine({ sessionContext, availableBlocks, blockCount: explicitBlockCount, hasScanStart = false, hasScanEnd = false }) {
   const blockCount = explicitBlockCount ?? Math.round(sessionContext.duration_minutes)
 
   // Build structure requirements conditional on block count, matching the section
@@ -93,6 +93,10 @@ export async function generateAIRoutine({ sessionContext, availableBlocks, block
 
   const contextBlock = formatContextForPrompt(sessionContext)
 
+  const scanContext = (hasScanStart || hasScanEnd)
+    ? `Body scan bookends: ${hasScanStart ? 'opening body scan (1 min, before warm-up)' : 'no opening scan'} · ${hasScanEnd ? 'closing body scan (1 min, after integration)' : 'no closing scan'}. Body scans handle the somatic settling at session boundaries — your warm-up and integration block choices do not need to duplicate that role.`
+    : `Body scan bookends: none. Your warm-up and integration blocks carry the full grounding and settling responsibility.`
+
   const userPrompt = `Design a ${sessionContext.duration_minutes}-minute somatic routine.
 
 ## Session Context
@@ -103,6 +107,8 @@ ${availableBlocks.join(', ')}
 
 ## Structure Requirements — no exceptions
 ${structureRequirements}
+
+${scanContext}
 
 Apply polyvagal principles for the ${sessionContext.polyvagal_state} state. Use the contextual signals to refine your choices.`
 
