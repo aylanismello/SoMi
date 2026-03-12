@@ -1,5 +1,5 @@
-import { useState, useEffect, useRef, useCallback } from 'react'
-import { StyleSheet, View, Text, TouchableOpacity, ScrollView, Modal, TextInput, Animated } from 'react-native'
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
+import { StyleSheet, View, Text, TouchableOpacity, ScrollView, Modal, TextInput, Animated, PanResponder, Dimensions } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { BlurView } from 'expo-blur'
 import { Ionicons } from '@expo/vector-icons'
@@ -9,6 +9,10 @@ import { colors } from '../../constants/theme'
 import { useEditFlowStore } from '../../stores/editFlowStore'
 import { api } from '../../services/api'
 import BlockDeltaViz from './BlockDeltaViz'
+
+const SCREEN_WIDTH = Dimensions.get('window').width
+const SWIPE_THRESHOLD = SCREEN_WIDTH * 0.3
+const EDGE_HIT_WIDTH = 40
 
 const SECTION_LABELS = {
   warm_up: 'WARM UP',
@@ -22,6 +26,29 @@ function getSectionLabel(name) {
 
 export default function EditFlowScreen() {
   const { top: topInset } = useSafeAreaInsets()
+  const translateX = useRef(new Animated.Value(0)).current
+
+  const panResponder = useMemo(() => PanResponder.create({
+    // Only capture touches starting from the left edge
+    onStartShouldSetPanResponder: (evt) => evt.nativeEvent.locationX < EDGE_HIT_WIDTH,
+    onMoveShouldSetPanResponder: (evt, gs) =>
+      evt.nativeEvent.locationX < EDGE_HIT_WIDTH && gs.dx > 5 && Math.abs(gs.dx) > Math.abs(gs.dy),
+    onPanResponderMove: (_, gs) => {
+      if (gs.dx > 0) translateX.setValue(gs.dx)
+    },
+    onPanResponderRelease: (_, gs) => {
+      if (gs.dx > SWIPE_THRESHOLD || gs.vx > 0.5) {
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
+        router.back()
+      } else {
+        Animated.spring(translateX, { toValue: 0, useNativeDriver: true, tension: 200, friction: 20 }).start()
+      }
+    },
+    onPanResponderTerminate: () => {
+      Animated.spring(translateX, { toValue: 0, useNativeDriver: true, tension: 200, friction: 20 }).start()
+    },
+  }), [])
+
   const segments = useEditFlowStore((s) => s.segments)
   const swapBlock = useEditFlowStore((s) => s.swapBlock)
   const reasoning = useEditFlowStore((s) => s.reasoning)
@@ -170,7 +197,10 @@ export default function EditFlowScreen() {
   }
 
   return (
-    <View style={styles.container}>
+    <Animated.View
+      style={[styles.container, { transform: [{ translateX }] }]}
+      {...panResponder.panHandlers}
+    >
       {/* Dark backdrop over previous screen */}
       <View style={styles.backdrop} />
 
@@ -329,7 +359,7 @@ export default function EditFlowScreen() {
           </View>
         </View>
       </Modal>
-    </View>
+    </Animated.View>
   )
 }
 
