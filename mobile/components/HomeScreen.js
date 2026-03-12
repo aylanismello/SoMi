@@ -76,8 +76,28 @@ export default function HomeScreen() {
   const [showMusicModal, setShowMusicModal] = useState(false)
   const [groundingQuote, setGroundingQuote] = useState(null)
   const [quoteLoading, setQuoteLoading] = useState(true)
+  const [cachedWeekData, setCachedWeekData] = useState(null)
   const user = useAuthStore((state) => state.user)
   const { data: streakData, refetch: refetchStreaks } = useStreaks()
+
+  // Load cached streak data immediately so circles never flash empty
+  useEffect(() => {
+    AsyncStorage.getItem('lastStreakWeek')
+      .then((cached) => {
+        if (cached) {
+          try { setCachedWeekData(JSON.parse(cached)) } catch {}
+        }
+      })
+      .catch(() => {})
+  }, [])
+
+  // When fresh data arrives, update state and persist to cache
+  useEffect(() => {
+    if (streakData?.week?.length) {
+      setCachedWeekData(streakData.week)
+      AsyncStorage.setItem('lastStreakWeek', JSON.stringify(streakData.week)).catch(() => {})
+    }
+  }, [streakData])
 
   useFocusEffect(
     useCallback(() => {
@@ -134,7 +154,7 @@ export default function HomeScreen() {
     return 'tonight'
   }
 
-  const weekData = streakData?.week ?? []
+  const weekData = streakData?.week ?? cachedWeekData ?? []
   const firstName = getFirstName()
   const timeOfDay = getTimeOfDay()
 
