@@ -351,8 +351,9 @@ export default function DailyFlowSetup() {
   }
 
   const handleEditRoutine = () => {
+    if (isGenerating || !fullSegmentsRef.current?.length) return
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
-    useEditFlowStore.getState().setSegments(fullSegmentsRef.current || [])
+    useEditFlowStore.getState().setSegments(fullSegmentsRef.current)
     useEditFlowStore.getState().setReasoning(reasoning || null)
     router.push('/EditFlow')
   }
@@ -434,8 +435,11 @@ export default function DailyFlowSetup() {
 
       {/* Header: edit | X */}
       <View style={styles.header}>
-        <TouchableOpacity onPress={handleEditRoutine} style={styles.iconButton} activeOpacity={0.7}>
-          <Ionicons name="pencil-outline" size={20} color={colors.accent.primary} />
+        <TouchableOpacity onPress={handleEditRoutine} style={styles.iconButton} activeOpacity={0.7} disabled={isGenerating}>
+          {isGenerating
+            ? <ActivityIndicator size="small" color={colors.accent.primary} />
+            : <Ionicons name="pencil-outline" size={20} color={colors.accent.primary} />
+          }
         </TouchableOpacity>
         <TouchableOpacity onPress={handleClose} style={styles.iconButton} activeOpacity={0.7}>
           <Text style={styles.closeText}>✕</Text>
