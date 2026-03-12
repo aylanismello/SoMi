@@ -225,8 +225,8 @@ export default function SoMiRoutineScreen() {
     if (!player) return
     if (phase === 'video' && currentVideo) {
       shouldVideoPlayRef.current = true
-      setTimeout(() => { player.play() }, 100)
-      soundManager.playBlockStart().catch(err => console.error('Failed to play start sound:', err))
+      setTimeout(() => { try { player.play() } catch (e) { /* player released */ } }, 100)
+      soundManager.playBlockStart()
     } else if (phase === 'interstitial') {
       shouldVideoPlayRef.current = false
       player.pause()
@@ -534,7 +534,7 @@ export default function SoMiRoutineScreen() {
   const handleVideoComplete = async () => {
     shouldVideoPlayRef.current = false
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success)
-    soundManager.playBlockEnd().catch(err => console.error('Failed to play end sound:', err))
+    soundManager.playBlockEnd()
 
     // Save the completed block using actual player position (not wall clock)
     if (currentVideo && !hasSavedCurrentBlockRef.current) {
@@ -558,7 +558,7 @@ export default function SoMiRoutineScreen() {
 
   const handleCloseVideo = async () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium)
-    soundManager.playBlockEnd().catch(err => console.error('Failed to play end sound:', err))
+    soundManager.playBlockEnd()
 
     // Save current video progress using actual player position (not wall clock)
     if (currentVideo && !hasSavedCurrentBlockRef.current) {
