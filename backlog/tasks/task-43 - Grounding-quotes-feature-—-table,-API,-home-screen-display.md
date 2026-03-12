@@ -1,9 +1,10 @@
 ---
 id: task-43
 title: 'Grounding quotes feature — table, API, home screen display'
-status: In Progress
+status: Done
 assignee: []
 created_date: '2026-03-02 19:37'
+updated_date: '2026-03-12 06:57'
 labels: []
 dependencies: []
 priority: high
