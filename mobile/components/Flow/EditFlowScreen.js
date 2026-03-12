@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { StyleSheet, View, Text, TouchableOpacity, ScrollView, Modal, TextInput, Animated } from 'react-native'
+import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { BlurView } from 'expo-blur'
 import { Ionicons } from '@expo/vector-icons'
 import { router } from 'expo-router'
@@ -20,6 +21,7 @@ function getSectionLabel(name) {
 }
 
 export default function EditFlowScreen() {
+  const { top: topInset } = useSafeAreaInsets()
   const segments = useEditFlowStore((s) => s.segments)
   const swapBlock = useEditFlowStore((s) => s.swapBlock)
   const reasoning = useEditFlowStore((s) => s.reasoning)
@@ -175,10 +177,10 @@ export default function EditFlowScreen() {
       {/* Sheet card */}
       <View style={styles.sheet}>
       {/* Frosted glass background */}
-      <BlurView intensity={55} tint="dark" style={StyleSheet.absoluteFillObject} />
+      <BlurView intensity={30} tint="dark" style={StyleSheet.absoluteFillObject} />
 
-      {/* Drag handle */}
-      <View style={styles.dragHandle} />
+      {/* Drag handle — sits in the safe area so header clears the status bar */}
+      <View style={[styles.dragHandle, { marginTop: topInset + 8 }]} />
 
       {/* Header */}
       <View style={styles.header}>
@@ -332,7 +334,7 @@ export default function EditFlowScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  backdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.6)' },
+  backdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.4)' },
   sheet: {
     flex: 1,
     borderTopLeftRadius: 28,
@@ -343,7 +345,7 @@ const styles = StyleSheet.create({
     width: 40, height: 4, borderRadius: 2,
     backgroundColor: 'rgba(255,255,255,0.25)',
     alignSelf: 'center',
-    marginTop: 14, marginBottom: 4,
+    marginBottom: 4,
   },
 
   // ── Header ──────────────────────────────────────────────────────────────────
