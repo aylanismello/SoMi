@@ -125,6 +125,14 @@ export const api = {
     })
   },
 
+  // Batch-save multiple chain entries in a single request
+  saveChainEntries: async (chainId, entries) => {
+    return apiRequest('/chain-entries/batch', {
+      method: 'POST',
+      body: JSON.stringify({ chainId, entries }),
+    })
+  },
+
   // Blocks
   getAllBlocks: async () => {
     return apiRequest('/blocks')

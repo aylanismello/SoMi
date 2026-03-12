@@ -88,27 +88,31 @@ export default function SoMiCheckIn() {
     setIsSubmitting(true)
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium)
 
+    // Save the closing check to session (AsyncStorage — instant, no network)
     await saveEmbodimentCheck(energyLevel, safetyLevel, journalEntry || null, selectedTags.size > 0 ? [...selectedTags] : null)
 
     const isDaily = !routineStore.isQuickRoutine
 
     if (isDaily) {
-      const chainId = await chainService.createChainFromSession('daily_flow')
-      if (chainId) {
-        await queryClient.invalidateQueries({ queryKey: QUERY_KEYS.chains })
-        await queryClient.invalidateQueries({ queryKey: QUERY_KEYS.latestChain })
-        await queryClient.invalidateQueries({ queryKey: QUERY_KEYS.latestDailyFlow })
-        await queryClient.invalidateQueries({ queryKey: QUERY_KEYS.streaks })
-      }
+      // Navigate immediately — user sees the congrats screen right away.
+      // Chain upload runs in the background; query invalidation triggers a
+      // refetch on FlowCompletion once the data is actually saved.
+      routineStore.resetRoutine()
+      navigation.navigate('FlowCompletion')
+
+      chainService.createChainFromSession('daily_flow').then(chainId => {
+        if (chainId) {
+          queryClient.invalidateQueries({ queryKey: QUERY_KEYS.chains })
+          queryClient.invalidateQueries({ queryKey: QUERY_KEYS.latestChain })
+          queryClient.invalidateQueries({ queryKey: QUERY_KEYS.latestDailyFlow })
+          queryClient.invalidateQueries({ queryKey: QUERY_KEYS.streaks })
+        }
+      }).catch(err => {
+        console.error('Background chain save failed:', err)
+      })
     } else {
       await chainService.endActiveChain()
-    }
-
-    routineStore.resetRoutine()
-
-    if (isDaily) {
-      navigation.navigate('FlowCompletion')
-    } else {
+      routineStore.resetRoutine()
       router.dismissAll()
     }
   }

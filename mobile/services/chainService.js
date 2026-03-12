@@ -137,34 +137,36 @@ export const chainService = {
       const chainId = chain.id
       console.log(`✅ Created chain ${chainId} with duration_seconds=${totalPlaySeconds}s`)
 
-      // Upload all embodiment checks
-      for (const check of checks) {
-        await api.saveEmbodimentCheck(
-          chainId,
-          check.energyLevel,
-          check.safetyLevel,
-          check.journalEntry,
-          check.tags || null
-        )
-        console.log(`  ✅ Uploaded check`)
-      }
+      // Upload checks and blocks concurrently:
+      // - checks via individual calls (typically only 2, can't batch differently)
+      // - blocks via a single batch request instead of N sequential calls
+      await Promise.all([
+        // Parallelize all embodiment checks
+        ...checks.map(check =>
+          api.saveEmbodimentCheck(
+            chainId,
+            check.energyLevel,
+            check.safetyLevel,
+            check.journalEntry,
+            check.tags || null
+          )
+        ),
+        // All blocks in one batch call
+        blocks.length > 0
+          ? api.saveChainEntries(chainId, blocks.map(b => ({
+              blockId: b.somiBlockId,
+              secondsElapsed: b.secondsElapsed,
+              sessionOrder: b.orderIndex,
+              section: b.section || null,
+            })))
+          : Promise.resolve(),
+      ])
 
-      // Upload all completed blocks
-      for (const block of blocks) {
-        await api.saveChainEntry(
-          chainId,
-          block.somiBlockId,
-          block.secondsElapsed,
-          block.orderIndex,
-          block.section || null
-        )
-        console.log(`  ✅ Uploaded block ${block.somiBlockId}`)
-      }
+      console.log(`🎊 Chain ${chainId} saved: ${checks.length} checks + ${blocks.length} blocks`)
 
       // Clear session data
       await this.clearSessionData()
 
-      console.log(`🎊 Chain ${chainId} created successfully with ${checks.length} checks and ${blocks.length} blocks`)
       return chainId
 
     } catch (error) {

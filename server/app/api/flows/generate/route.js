@@ -4,6 +4,12 @@ import { filterBlocksByState, selectBlocks, assignSections, generateExplanation 
 import { generateAIRoutine } from '../../../../lib/claude'
 import { buildSessionContext } from '../../../../lib/sessionContext'
 
+// In-memory block cache — blocks change rarely; this avoids a DB round-trip
+// on every generation call. Cache busts every 30 minutes automatically.
+let _blocksCache = null
+let _blocksCacheAt = 0
+const BLOCKS_CACHE_TTL_MS = 30 * 60 * 1000
+
 export async function POST(request) {
   const { supabase, user, error } = await getAuthenticatedUser(request)
   if (error) return unauthorizedResponse(error)
@@ -55,16 +61,24 @@ export async function POST(request) {
     const remaining = (duration_minutes * 60) - body_scan_seconds
     const block_count = Math.max(1, Math.floor(remaining / 80))
 
-    // ── Fetch all active vagal_toning blocks ─────────────────────────────────
-    const { data: allBlocks, error: dbError } = await supabase
-      .from('somi_blocks')
-      .select('id, canonical_name, name, description, energy_delta, safety_delta, media_url, duration_seconds')
-      .eq('active', true)
-      .eq('block_type', 'vagal_toning')
+    // ── Fetch all active vagal_toning blocks (cached) ────────────────────────
+    let allBlocks = _blocksCache
+    const now = Date.now()
+    if (!allBlocks || now - _blocksCacheAt > BLOCKS_CACHE_TTL_MS) {
+      const { data, error: dbError } = await supabase
+        .from('somi_blocks')
+        .select('id, canonical_name, name, description, energy_delta, safety_delta, media_url, duration_seconds')
+        .eq('active', true)
+        .eq('block_type', 'vagal_toning')
 
-    if (dbError) {
-      console.error('Error fetching blocks:', dbError)
-      return NextResponse.json({ error: 'Failed to fetch blocks' }, { status: 500 })
+      if (dbError) {
+        console.error('Error fetching blocks:', dbError)
+        return NextResponse.json({ error: 'Failed to fetch blocks' }, { status: 500 })
+      }
+
+      _blocksCache = data
+      _blocksCacheAt = now
+      allBlocks = data
     }
 
     // ── Build session context ────────────────────────────────────────────────
