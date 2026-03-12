@@ -12,6 +12,7 @@ import { soundManager } from '../utils/SoundManager'
 import { prefetchVideoBlocks, WATER_BG_SOURCE } from '../constants/media'
 
 SplashScreen.preventAutoHideAsync()
+SplashScreen.setOptions({ duration: 800, fade: true })
 
 const FLUIDS_URL = 'https://qujifwhwntqxziymqdwu.supabase.co/storage/v1/object/public/test/somi%20og%20music/fluids%20v2.mp3'
 const TOGETHER_URL = 'https://qujifwhwntqxziymqdwu.supabase.co/storage/v1/object/public/test/somi%20music/Nine%20Inch%20Nails%20-%20Together.mp3'

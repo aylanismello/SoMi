@@ -999,7 +999,9 @@ export default function MySomiScreen() {
                       const closingCheck = sortedChecks.length > 1 ? sortedChecks[sortedChecks.length - 1] : null
 
                       // Group blocks by section, sort by order_index within each
-                      const SECTION_ORDER = ['warm-up', 'main', 'integration']
+                      // Server stores sections as 'warm_up' (underscore), not 'warm-up'
+                      const SECTION_ORDER = ['warm_up', 'main', 'integration']
+                      const SECTION_LABELS = { warm_up: 'warm-up', main: 'main', integration: 'integration' }
                       const blocksBySection = {}
                       chain.somi_chain_entries.forEach(b => {
                         const sec = b.section || 'main'
@@ -1082,7 +1084,7 @@ export default function MySomiScreen() {
                               <View key={sec}>
                                 <View style={styles.flowSectionDivider}>
                                   <View style={styles.flowSectionLine} />
-                                  <Text style={styles.flowSectionLabel}>{sec}</Text>
+                                  <Text style={styles.flowSectionLabel}>{SECTION_LABELS[sec] ?? sec}</Text>
                                   <View style={styles.flowSectionLine} />
                                 </View>
                                 {blocks.map(block => {

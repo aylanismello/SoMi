@@ -11,9 +11,9 @@ module.exports = {
     userInterfaceStyle: 'light',
     newArchEnabled: true,
     splash: {
-      image: './assets/splash-icon.png',
-      resizeMode: 'contain',
-      backgroundColor: '#ffffff',
+      image: './assets/water_bg.jpg',
+      resizeMode: 'cover',
+      backgroundColor: '#000000',
     },
     ios: {
       supportsTablet: true,
