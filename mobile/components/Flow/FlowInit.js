@@ -188,7 +188,6 @@ export default function DailyFlowSetup() {
   const [showMusicPicker, setShowMusicPicker]       = useState(false)
   const [showPolyvagalInfo, setShowPolyvagalInfo]   = useState(false)
 
-  const [actualDuration, setActualDuration] = useState(null)
   const fullSegmentsRef = useRef(null)
 
   const energyRef  = useRef(50)
@@ -299,7 +298,6 @@ export default function DailyFlowSetup() {
         timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
       })
       if (result.segments && result.segments.length > 0) {
-        setActualDuration(result.actual_duration_seconds)
         if (result.reasoning) setReasoning(result.reasoning)
         fullSegmentsRef.current = result.segments
         if (!isInitial) showUpdatedToast()
@@ -336,10 +334,6 @@ export default function DailyFlowSetup() {
     const storeSegs = useEditFlowStore.getState().segments
     if (storeSegs.length > 0) {
       fullSegmentsRef.current = storeSegs
-      const totalSecs = storeSegs
-        .filter((s) => s.type === 'somi_block')
-        .reduce((acc, s) => acc + (s.duration_seconds ?? 0), 0)
-      if (totalSecs > 0) setActualDuration(totalSecs)
     }
   }, []))
 
@@ -534,7 +528,7 @@ export default function DailyFlowSetup() {
           activeOpacity={0.75}
         >
           <Text style={styles.durationPillText}>
-            {actualDuration ? `${Math.ceil(actualDuration / 60)} min` : `${selectedMinutes} min`}
+            {selectedMinutes} min
           </Text>
           <Ionicons name="chevron-expand-outline" size={14} color="rgba(255,255,255,0.5)" />
         </TouchableOpacity>
