@@ -3,8 +3,10 @@ import { create } from 'zustand'
 export const useEditFlowStore = create((set, get) => ({
   segments: [],
   reasoning: null,
+  generationParams: null,
   setSegments: (segments) => set({ segments }),
   setReasoning: (reasoning) => set({ reasoning }),
+  setGenerationParams: (params) => set({ generationParams: params }),
   swapBlock: (blockIndex, newBlock) => set((state) => {
     let queueIdx = -1
     const rebuilt = state.segments.map((s) => {

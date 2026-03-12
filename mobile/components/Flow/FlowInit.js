@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect, useMemo, useCallback } from 'react'
 import { useFocusEffect, useNavigation } from '@react-navigation/native'
 import { router } from 'expo-router'
-import { StyleSheet, View, Text, TouchableOpacity, ScrollView, ActivityIndicator, Animated, PanResponder, Modal, Switch } from 'react-native'
+import { StyleSheet, View, Text, TouchableOpacity, ScrollView, ActivityIndicator, Animated, PanResponder, Modal } from 'react-native'
 import { LinearGradient } from 'expo-linear-gradient'
 import { BlurView } from 'expo-blur'
 import { Ionicons } from '@expo/vector-icons'
@@ -356,6 +356,13 @@ export default function DailyFlowSetup() {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
     useEditFlowStore.getState().setSegments(fullSegmentsRef.current)
     useEditFlowStore.getState().setReasoning(reasoning || null)
+    const now = new Date()
+    useEditFlowStore.getState().setGenerationParams({
+      polyvagal_state: deriveState(energyLevel, safetyLevel).name,
+      duration_minutes: selectedMinutes,
+      local_hour: now.getHours(),
+      timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+    })
     router.push('/EditFlow')
   }
 
@@ -458,6 +465,7 @@ export default function DailyFlowSetup() {
         style={styles.scrollView}
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
+        scrollEnabled={false}
       >
         {/* How do you feel */}
         <View style={styles.section}>
@@ -494,37 +502,6 @@ export default function DailyFlowSetup() {
           />
         </View>
 
-        {showBodyScanToggles && (
-          <View style={styles.section}>
-            <Text style={styles.sectionLabel}>Body Scans</Text>
-            <View style={styles.scanRow}>
-              <Text style={styles.scanRowLabel}>Opening Body Scan</Text>
-              <Switch
-                value={bodyScanStart}
-                onValueChange={() => {
-                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
-                  handleToggleBodyScanStart()
-                }}
-                trackColor={{ false: 'rgba(255,255,255,0.15)', true: '#4ECDC4' }}
-                thumbColor="#ffffff"
-                style={{ transform: [{ scaleX: 0.8 }, { scaleY: 0.8 }] }}
-              />
-            </View>
-            <View style={styles.scanRow}>
-              <Text style={styles.scanRowLabel}>Closing Body Scan</Text>
-              <Switch
-                value={bodyScanEnd}
-                onValueChange={() => {
-                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
-                  handleToggleBodyScanEnd()
-                }}
-                trackColor={{ false: 'rgba(255,255,255,0.15)', true: '#4ECDC4' }}
-                thumbColor="#ffffff"
-                style={{ transform: [{ scaleX: 0.8 }, { scaleY: 0.8 }] }}
-              />
-            </View>
-          </View>
-        )}
 
       </ScrollView>
 
@@ -760,25 +737,6 @@ const styles = StyleSheet.create({
     borderWidth: 1, borderColor: 'rgba(255,255,255,0.12)',
   },
   durationPillText: { color: '#fff', fontSize: 15, fontWeight: '600', letterSpacing: 0.2 },
-
-  // ── Body Scan Toggles ───────────────────────────────────────────────────────
-  scanRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingVertical: 10,
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255,255,255,0.07)',
-  },
-  scanRowLabel: {
-    color: 'rgba(255,255,255,0.85)',
-    fontSize: 14,
-    fontWeight: '500',
-    letterSpacing: 0.2,
-    textShadowColor: 'rgba(0,0,0,0.85)',
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 4,
-  },
 
   // ── Reasoning Sheet ─────────────────────────────────────────────────────────
   reasoningOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' },

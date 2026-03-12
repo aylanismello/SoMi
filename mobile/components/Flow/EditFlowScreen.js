@@ -1,5 +1,5 @@
-import { useState, useEffect, useRef, useCallback } from 'react'
-import { StyleSheet, View, Text, TouchableOpacity, ScrollView, Modal, TextInput } from 'react-native'
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
+import { StyleSheet, View, Text, TouchableOpacity, ScrollView, Modal, TextInput, Animated, PanResponder, Dimensions, Switch, ActivityIndicator } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { BlurView } from 'expo-blur'
 import { Ionicons } from '@expo/vector-icons'
@@ -7,8 +7,11 @@ import { router } from 'expo-router'
 import * as Haptics from 'expo-haptics'
 import { colors } from '../../constants/theme'
 import { useEditFlowStore } from '../../stores/editFlowStore'
+import { useSettingsStore } from '../../stores/settingsStore'
 import { api } from '../../services/api'
 import BlockDeltaViz from './BlockDeltaViz'
+
+const SCREEN_WIDTH = Dimensions.get('window').width
 
 const SECTION_LABELS = {
   warm_up: 'WARM UP',
@@ -23,9 +26,27 @@ function getSectionLabel(name) {
 export default function EditFlowScreen() {
   const { top: topInset } = useSafeAreaInsets()
 
-const segments = useEditFlowStore((s) => s.segments)
+  // transparentModal doesn't support native swipe-back — need manual responder
+  const panResponder = useMemo(() => PanResponder.create({
+    onMoveShouldSetPanResponder: (_, gs) =>
+      gs.dx > 8 && Math.abs(gs.dx) > Math.abs(gs.dy) * 2,
+    onPanResponderRelease: (_, gs) => {
+      if (gs.dx > SCREEN_WIDTH * 0.25 || gs.vx > 0.4) {
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
+        router.back()
+      }
+    },
+  }), [])
+
+  const segments = useEditFlowStore((s) => s.segments)
   const swapBlock = useEditFlowStore((s) => s.swapBlock)
   const reasoning = useEditFlowStore((s) => s.reasoning)
+  const generationParams = useEditFlowStore((s) => s.generationParams)
+
+  const bodyScanStart = useSettingsStore((s) => s.bodyScanStart)
+  const bodyScanEnd   = useSettingsStore((s) => s.bodyScanEnd)
+  const setBodyScanStart = useSettingsStore((s) => s.setBodyScanStart)
+  const setBodyScanEnd   = useSettingsStore((s) => s.setBodyScanEnd)
 
   const [allBlocks, setAllBlocks] = useState([])
   const [pickerVisible, setPickerVisible] = useState(false)
@@ -34,6 +55,7 @@ const segments = useEditFlowStore((s) => s.segments)
   const [swappedIndex, setSwappedIndex] = useState(-1)
   const swappedTimer = useRef(null)
   const [whyVisible, setWhyVisible] = useState(false)
+  const [isRegenerating, setIsRegenerating] = useState(false)
 
   // Fetch all blocks on mount
   useEffect(() => {
@@ -86,6 +108,38 @@ const segments = useEditFlowStore((s) => s.segments)
 
   const currentBlock = pickerBlockIndex >= 0 ? queue[pickerBlockIndex] : null
 
+  // ── Body scan toggle handler ───────────────────────────────────────────────
+  const handleToggleScan = async (which) => {
+    if (isRegenerating || !generationParams) return
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
+    const newStart = which === 'start' ? !bodyScanStart : bodyScanStart
+    const newEnd   = which === 'end'   ? !bodyScanEnd   : bodyScanEnd
+    if (which === 'start') setBodyScanStart(newStart)
+    else setBodyScanEnd(newEnd)
+    setIsRegenerating(true)
+    try {
+      const { polyvagal_state, duration_minutes, local_hour, timezone } = generationParams
+      const result = await api.generateFlow({
+        polyvagal_state,
+        duration_minutes,
+        body_scan_start: newStart,
+        body_scan_end:   newEnd,
+        local_hour,
+        timezone,
+      })
+      if (result.segments?.length > 0) {
+        useEditFlowStore.getState().setSegments(result.segments)
+        if (result.reasoning) useEditFlowStore.getState().setReasoning(result.reasoning)
+      }
+    } catch (e) {
+      console.warn('Scan toggle regen failed:', e)
+      if (which === 'start') setBodyScanStart(!newStart)
+      else setBodyScanEnd(!newEnd)
+    } finally {
+      setIsRegenerating(false)
+    }
+  }
+
   // ── Render block rows ──────────────────────────────────────────────────────
   const renderBlockList = () => {
     const hasSections = queue.some((b) => b.section)
@@ -110,36 +164,33 @@ const segments = useEditFlowStore((s) => s.segments)
     return queue.map((block, index) => renderBlockRow(block, index))
   }
 
-  const renderBodyScanRows = () => {
-    const rows = []
-    if (segments.length > 0 && segments[0]?.type === 'body_scan') {
-      rows.push(
-        <View key="bs-start" style={[styles.planItem, styles.bodyScanItem]}>
-          <View style={[styles.planItemNumber, styles.bodyScanNumber]}>
-            <Text style={styles.bodyScanNumberText}>~</Text>
-          </View>
-          <Text style={[styles.planItemName, styles.planItemNameDimmed]}>Body Scan</Text>
-          <Ionicons name="lock-closed" size={13} color="rgba(255,255,255,0.35)" />
+  const renderBodyScanToggle = (which) => {
+    if (!generationParams || generationParams.duration_minutes < 8) return null
+    const isStart = which === 'start'
+    const value   = isStart ? bodyScanStart : bodyScanEnd
+    const label   = isStart ? 'Opening Body Scan' : 'Closing Body Scan'
+    return (
+      <View style={[styles.planItem, styles.bodyScanItem, styles.bodyScanToggleItem]}>
+        <View style={[styles.planItemNumber, styles.bodyScanNumber]}>
+          <Text style={styles.bodyScanNumberText}>~</Text>
         </View>
-      )
-    }
-    return rows
-  }
-
-  const renderBodyScanEnd = () => {
-    const last = segments[segments.length - 1]
-    if (last?.type === 'body_scan' && last?.section === 'integration') {
-      return (
-        <View style={[styles.planItem, styles.bodyScanItem]}>
-          <View style={[styles.planItemNumber, styles.bodyScanNumber]}>
-            <Text style={styles.bodyScanNumberText}>~</Text>
-          </View>
-          <Text style={[styles.planItemName, styles.planItemNameDimmed]}>Body Scan</Text>
-          <Ionicons name="lock-closed" size={13} color="rgba(255,255,255,0.35)" />
-        </View>
-      )
-    }
-    return null
+        <Text style={[styles.planItemName, value ? styles.planItemNameActive : styles.planItemNameDimmed]}>
+          {label}
+        </Text>
+        {isRegenerating
+          ? <ActivityIndicator size="small" color="rgba(255,255,255,0.4)" />
+          : (
+            <Switch
+              value={value}
+              onValueChange={() => handleToggleScan(which)}
+              trackColor={{ false: 'rgba(255,255,255,0.15)', true: '#4ECDC4' }}
+              thumbColor="#ffffff"
+              style={{ transform: [{ scaleX: 0.75 }, { scaleY: 0.75 }] }}
+            />
+          )
+        }
+      </View>
+    )
   }
 
   const renderBlockRow = (block, globalIndex) => {
@@ -215,9 +266,9 @@ const segments = useEditFlowStore((s) => s.segments)
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
-        {renderBodyScanRows()}
+        {renderBodyScanToggle('start')}
         {renderBlockList()}
-        {renderBodyScanEnd()}
+        {renderBodyScanToggle('end')}
       </ScrollView>
 
       {/* Footer */}
@@ -427,14 +478,20 @@ const styles = StyleSheet.create({
 
   // ── Body scan ───────────────────────────────────────────────────────────────
   bodyScanItem: {
-    opacity: 0.7,
     borderStyle: 'dashed',
     backgroundColor: 'rgba(255,255,255,0.03)',
+  },
+  bodyScanToggleItem: {
+    opacity: 1,
   },
   bodyScanNumber: { backgroundColor: 'rgba(255,255,255,0.07)' },
   bodyScanNumberText: {
     color: 'rgba(255,255,255,0.4)',
     fontSize: 13, fontWeight: '600',
+  },
+  planItemNameActive: {
+    flex: 1, color: 'rgba(255,255,255,0.75)',
+    fontSize: 15, fontWeight: '500',
   },
 
   // ── Footer ──────────────────────────────────────────────────────────────────
