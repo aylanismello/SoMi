@@ -22,6 +22,7 @@ function getSectionLabel(name) {
 export default function EditFlowScreen() {
   const segments = useEditFlowStore((s) => s.segments)
   const swapBlock = useEditFlowStore((s) => s.swapBlock)
+  const reasoning = useEditFlowStore((s) => s.reasoning)
 
   const [allBlocks, setAllBlocks] = useState([])
   const [pickerVisible, setPickerVisible] = useState(false)
@@ -29,6 +30,7 @@ export default function EditFlowScreen() {
   const [searchQuery, setSearchQuery] = useState('')
   const [swappedIndex, setSwappedIndex] = useState(-1)
   const swappedTimer = useRef(null)
+  const [whyVisible, setWhyVisible] = useState(false)
 
   // Fetch all blocks on mount
   useEffect(() => {
@@ -176,7 +178,20 @@ export default function EditFlowScreen() {
           <Text style={styles.headerTitle}>Edit Flow</Text>
           <Text style={styles.headerSubtitle}>{queue.length} blocks · {displayMin} min</Text>
         </View>
-        <View style={{ width: 44 }} />
+        {reasoning ? (
+          <TouchableOpacity
+            onPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
+              setWhyVisible(true)
+            }}
+            style={styles.infoBtn}
+            activeOpacity={0.7}
+          >
+            <Ionicons name="information-circle-outline" size={22} color="rgba(255,255,255,0.6)" />
+          </TouchableOpacity>
+        ) : (
+          <View style={{ width: 44 }} />
+        )}
       </View>
 
       {/* Block list */}
@@ -196,6 +211,33 @@ export default function EditFlowScreen() {
           <Text style={styles.doneBtnText}>Done</Text>
         </TouchableOpacity>
       </View>
+
+      {/* Why this flow? Modal */}
+      <Modal
+        visible={whyVisible}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setWhyVisible(false)}
+      >
+        <View style={styles.whyOverlay}>
+          <TouchableOpacity style={StyleSheet.absoluteFillObject} onPress={() => setWhyVisible(false)} activeOpacity={1} />
+          <View style={styles.whySheet}>
+            <View style={styles.whyHandle} />
+            <Text style={styles.whyTitle}>Why these exercises?</Text>
+            <Text style={styles.whyBody}>{reasoning}</Text>
+            <TouchableOpacity
+              style={styles.whyDismiss}
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
+                setWhyVisible(false)
+              }}
+              activeOpacity={0.7}
+            >
+              <Text style={styles.whyDismissText}>Got it</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
 
       {/* Block Picker Modal */}
       <Modal
@@ -289,6 +331,12 @@ const styles = StyleSheet.create({
     width: 44, height: 44, borderRadius: 22,
     backgroundColor: 'rgba(255,255,255,0.1)',
     borderWidth: 1, borderColor: 'rgba(255,255,255,0.15)',
+    alignItems: 'center', justifyContent: 'center',
+  },
+  infoBtn: {
+    width: 44, height: 44, borderRadius: 22,
+    backgroundColor: 'rgba(255,255,255,0.07)',
+    borderWidth: 1, borderColor: 'rgba(255,255,255,0.12)',
     alignItems: 'center', justifyContent: 'center',
   },
   headerCenter: { flex: 1, alignItems: 'center' },
@@ -426,4 +474,33 @@ const styles = StyleSheet.create({
     fontSize: 14, textAlign: 'center',
     marginTop: 40,
   },
+
+  // ── Why modal ────────────────────────────────────────────────────────────────
+  whyOverlay: {
+    flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end',
+  },
+  whySheet: {
+    backgroundColor: '#111', borderTopLeftRadius: 24, borderTopRightRadius: 24,
+    paddingHorizontal: 24, paddingTop: 12, paddingBottom: 48,
+  },
+  whyHandle: {
+    width: 36, height: 4, borderRadius: 2,
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    alignSelf: 'center', marginBottom: 24,
+  },
+  whyTitle: {
+    color: '#fff', fontSize: 20, fontWeight: '700',
+    marginBottom: 12, letterSpacing: 0.2,
+  },
+  whyBody: {
+    color: 'rgba(255,255,255,0.7)', fontSize: 15, lineHeight: 24,
+    fontWeight: '400', marginBottom: 28,
+  },
+  whyDismiss: {
+    alignItems: 'center', paddingVertical: 14,
+    borderRadius: 16,
+    backgroundColor: 'rgba(255,255,255,0.07)',
+    borderWidth: 1, borderColor: 'rgba(255,255,255,0.12)',
+  },
+  whyDismissText: { color: 'rgba(255,255,255,0.7)', fontSize: 16, fontWeight: '600' },
 })

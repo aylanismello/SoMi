@@ -355,6 +355,7 @@ export default function DailyFlowSetup() {
   const handleEditRoutine = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
     useEditFlowStore.getState().setSegments(fullSegmentsRef.current || [])
+    useEditFlowStore.getState().setReasoning(reasoning || null)
     router.push('/EditFlow')
   }
 
