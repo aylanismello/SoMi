@@ -13,6 +13,7 @@ import CustomizationModal from './CustomizationModal'
 import MusicPickerModal from './MusicPickerModal'
 import { useAuthStore } from '../stores/authStore'
 import { useStreaks } from '../hooks/useSupabaseQueries'
+import { flowPreloadCache } from '../utils/flowPreloadCache'
 import { Ionicons } from '@expo/vector-icons'
 import SoMiHeader from './SoMiHeader'
 import { WATER_BG_SOURCE } from '../constants/media'
@@ -103,6 +104,8 @@ export default function HomeScreen() {
   useFocusEffect(
     useCallback(() => {
       refetchStreaks()
+      // Kick off default flow preload so FlowInit screen is instant
+      flowPreloadCache.preload()
     }, [refetchStreaks])
   )
 

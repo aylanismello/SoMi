@@ -15,6 +15,7 @@ import PolyvagalStatePicker from './PolyvagalStatePicker'
 import CustomizationModal from '../CustomizationModal'
 import MusicPickerModal from '../MusicPickerModal'
 import { api } from '../../services/api'
+import { flowPreloadCache } from '../../utils/flowPreloadCache'
 import { deriveState, getPolyvagalExplanation } from '../../constants/polyvagalStates'
 
 const _H_PAD = 20
@@ -343,8 +344,28 @@ export default function DailyFlowSetup() {
       setBodyScanEnd(true)
       setHasUserInteracted(false)
 
-      // Silent background preload — no spinner, just gets it ready
-      doGeneratePreview(10, 50, 50, true)
+      if (flowPreloadCache.segments) {
+        // Cache hit — instant, no network call needed
+        fullSegmentsRef.current = flowPreloadCache.segments
+        if (flowPreloadCache.reasoning) setReasoning(flowPreloadCache.reasoning)
+        flowPreloadCache.clear()
+        isReadyForInputRef.current = true
+      } else if (flowPreloadCache.isLoading) {
+        // Preload is still in-flight — wait for it then consume
+        setIsPreloading(true)
+        flowPreloadCache.wait().then(() => {
+          if (flowPreloadCache.segments) {
+            fullSegmentsRef.current = flowPreloadCache.segments
+            if (flowPreloadCache.reasoning) setReasoning(flowPreloadCache.reasoning)
+            flowPreloadCache.clear()
+          }
+          isReadyForInputRef.current = true
+          setIsPreloading(false)
+        })
+      } else {
+        // No preload at all — fall back to generating fresh
+        doGeneratePreview(10, 50, 50, true)
+      }
     }
   }, [doGeneratePreview]))
 
@@ -361,6 +382,7 @@ export default function DailyFlowSetup() {
   const handleClose = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium)
     hasInitializedRef.current = false
+    flowPreloadCache.clear()
     router.dismissAll()
   }
 
