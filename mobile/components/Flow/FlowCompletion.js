@@ -4,7 +4,7 @@ import { router } from 'expo-router'
 import { StyleSheet, View, Text, TouchableOpacity, Animated, Dimensions, Easing } from 'react-native'
 import { LinearGradient } from 'expo-linear-gradient'
 import { BlurView } from 'expo-blur'
-import { Video } from 'expo-av'
+import { useVideoPlayer, VideoView } from 'expo-video'
 import * as Haptics from 'expo-haptics'
 import { colors } from '../../constants/theme'
 import { useLatestChain, useStreaks } from '../../hooks/useSupabaseQueries'
@@ -25,8 +25,15 @@ const generateConfetti = (count) => {
   }))
 }
 
+const OCEAN_VIDEO_URI = 'https://qujifwhwntqxziymqdwu.supabase.co/storage/v1/object/public/test/somi%20videos/ocean_loop_final.mp4'
+
 export default function CompletionScreen() {
   const navigation = useNavigation()
+  const bgPlayer = useVideoPlayer(OCEAN_VIDEO_URI, (player) => {
+    player.loop = true
+    player.muted = true
+    player.play()
+  })
   const { data: latestChain } = useLatestChain()
   const { data: streakData } = useStreaks()
   const [confetti] = useState(generateConfetti(20))
@@ -252,13 +259,11 @@ export default function CompletionScreen() {
       style={styles.container}
     >
       {/* Background ocean video */}
-      <Video
-        source={{ uri: 'https://qujifwhwntqxziymqdwu.supabase.co/storage/v1/object/public/test/somi%20videos/ocean_loop_final.mp4' }}
+      <VideoView
+        player={bgPlayer}
         style={styles.backgroundVideo}
-        resizeMode="cover"
-        shouldPlay
-        isLooping
-        isMuted
+        contentFit="cover"
+        nativeControls={false}
       />
 
       {/* Confetti particles */}

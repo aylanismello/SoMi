@@ -22,8 +22,6 @@ if (isRunningFromEASUpdate) {
   API_BASE_URL = 'https://so-mi-server.vercel.app/api'
 }
 
-console.log('🌐 API URL:', API_BASE_URL)
-
 
 async function apiRequest(endpoint, options = {}) {
   const url = `${API_BASE_URL}${endpoint}`
