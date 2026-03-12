@@ -1,9 +1,10 @@
 ---
 id: task-71
 title: Fix flow generation and save performance bottlenecks
-status: In Progress
+status: Done
 assignee: []
 created_date: '2026-03-12 05:17'
+updated_date: '2026-03-12 05:19'
 labels:
   - performance
   - backend
