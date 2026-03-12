@@ -182,6 +182,8 @@ export default function DailyFlowSetup() {
   const [energyLevel, setEnergyLevel]         = useState(50)
   const [safetyLevel, setSafetyLevel]         = useState(50)
   const [isGenerating, setIsGenerating]       = useState(false)
+  const [isPreloading, setIsPreloading]       = useState(false)
+  const [hasUserInteracted, setHasUserInteracted] = useState(false)
   const [reasoning, setReasoning]             = useState(null)
   const [showDurationPicker, setShowDurationPicker] = useState(false)
   const [showCustomization, setShowCustomization]   = useState(false)
@@ -275,12 +277,17 @@ export default function DailyFlowSetup() {
   }, [])
 
   // ── Generate preview ────────────────────────────────────────────────────────
+  // isInitial=true → silent background preload, no spinner shown in UI
   // scanStartOverride / scanEndOverride allow passing new values before store updates
   const doGeneratePreview = useCallback(async (
     durationMinutes, energy, safety, isInitial,
     scanStartOverride, scanEndOverride
   ) => {
-    setIsGenerating(true)
+    if (isInitial) {
+      setIsPreloading(true)
+    } else {
+      setIsGenerating(true)
+    }
     try {
       const stateTarget = (energy != null && safety != null)
         ? deriveState(energy, safety).name
@@ -306,13 +313,17 @@ export default function DailyFlowSetup() {
     } catch (err) {
       console.warn('Preview generation failed:', err)
     } finally {
-      setIsGenerating(false)
-      if (isInitial) isReadyForInputRef.current = true
-      // A toggle fired while generating — re-run immediately with latest store values
-      if (!isInitial && pendingRegenRef.current) {
-        pendingRegenRef.current = false
-        const { bodyScanStart: s, bodyScanEnd: e } = useSettingsStore.getState()
-        doGeneratePreview(durationMinutes, energy, safety, false, s, e)
+      if (isInitial) {
+        setIsPreloading(false)
+        isReadyForInputRef.current = true
+      } else {
+        setIsGenerating(false)
+        // A toggle fired while generating — re-run immediately with latest store values
+        if (pendingRegenRef.current) {
+          pendingRegenRef.current = false
+          const { bodyScanStart: s, bodyScanEnd: e } = useSettingsStore.getState()
+          doGeneratePreview(durationMinutes, energy, safety, false, s, e)
+        }
       }
     }
   }, [showUpdatedToast])
@@ -330,7 +341,9 @@ export default function DailyFlowSetup() {
       setReasoning(null)
       setBodyScanStart(true)
       setBodyScanEnd(true)
+      setHasUserInteracted(false)
 
+      // Silent background preload — no spinner, just gets it ready
       doGeneratePreview(10, 50, 50, true)
     }
   }, [doGeneratePreview]))
@@ -393,6 +406,7 @@ export default function DailyFlowSetup() {
 
   // Trigger re-generate when user lifts finger from the XY picker
   const handlePickerDragEnd = useCallback(() => {
+    setHasUserInteracted(true)
     if (!isReadyForInputRef.current || isGenerating) return
     doGeneratePreview(selectedMinutes, energyRef.current, safetyRef.current, false)
   }, [doGeneratePreview, selectedMinutes, isGenerating])
@@ -400,6 +414,7 @@ export default function DailyFlowSetup() {
   // Duration save → re-generate immediately
   const handleDurationSave = useCallback((min) => {
     setSelectedMinutes(min)
+    setHasUserInteracted(true)
     if (!isReadyForInputRef.current || isGenerating) return
     doGeneratePreview(min, energyLevel, safetyLevel, false)
   }, [doGeneratePreview, energyLevel, safetyLevel, isGenerating])
@@ -449,10 +464,15 @@ export default function DailyFlowSetup() {
 
       {/* Header: edit | X */}
       <View style={styles.header}>
-        <TouchableOpacity onPress={handleEditRoutine} style={styles.iconButton} activeOpacity={0.7} disabled={isGenerating}>
-          {isGenerating
+        <TouchableOpacity
+          onPress={handleEditRoutine}
+          style={[styles.iconButton, !hasUserInteracted && styles.iconButtonDimmed]}
+          activeOpacity={0.7}
+          disabled={!hasUserInteracted || isGenerating}
+        >
+          {isGenerating && hasUserInteracted
             ? <ActivityIndicator size="small" color={colors.accent.primary} />
-            : <Ionicons name="pencil-outline" size={20} color={colors.accent.primary} />
+            : <Ionicons name="pencil-outline" size={20} color={hasUserInteracted ? colors.accent.primary : 'rgba(255,255,255,0.25)'} />
           }
         </TouchableOpacity>
         <TouchableOpacity onPress={handleClose} style={styles.iconButton} activeOpacity={0.7}>
@@ -524,8 +544,8 @@ export default function DailyFlowSetup() {
           {/* Glowing Flow button */}
           <View style={styles.flowBtnWrapper}>
             <Animated.View style={[styles.flowBtnGlow, { opacity: glowOpacity, transform: [{ scale: glowScale }] }]} />
-            <TouchableOpacity style={styles.flowBtn} onPress={handleStartFlow} activeOpacity={0.88} disabled={isGenerating}>
-              {isGenerating
+            <TouchableOpacity style={styles.flowBtn} onPress={handleStartFlow} activeOpacity={0.88} disabled={isPreloading || isGenerating}>
+              {isPreloading || isGenerating
                 ? <ActivityIndicator color="rgba(0,0,0,0.8)" />
                 : <Text style={styles.flowBtnText}>Start</Text>
               }
@@ -615,6 +635,10 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255,255,255,0.1)',
     borderWidth: 1, borderColor: 'rgba(255,255,255,0.15)',
     alignItems: 'center', justifyContent: 'center',
+  },
+  iconButtonDimmed: {
+    backgroundColor: 'rgba(255,255,255,0.04)',
+    borderColor: 'rgba(255,255,255,0.07)',
   },
   closeText: { color: '#fff', fontSize: 24, fontWeight: '300' },
 
