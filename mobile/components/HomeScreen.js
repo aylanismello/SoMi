@@ -77,7 +77,6 @@ export default function HomeScreen() {
   const [showMusicModal, setShowMusicModal] = useState(false)
   const [groundingQuote, setGroundingQuote] = useState(null)
   const [quoteLoading, setQuoteLoading] = useState(true)
-  const quoteShowing = useRef(false)
   const [cachedWeekData, setCachedWeekData] = useState(null)
   const user = useAuthStore((state) => state.user)
   const { data: streakData, refetch: refetchStreaks } = useStreaks()
@@ -116,39 +115,36 @@ export default function HomeScreen() {
     ).start()
   }, [])
 
-  const fadeInQuote = useCallback((quote) => {
-    setGroundingQuote(quote)
-    Animated.timing(quoteOpacity, { toValue: 1, duration: 600, useNativeDriver: true }).start()
-    quoteShowing.current = true
-  }, [quoteOpacity])
-
-  const crossfadeToQuote = useCallback((quote) => {
-    if (!quoteShowing.current) {
-      fadeInQuote(quote)
-      return
-    }
-    Animated.timing(quoteOpacity, { toValue: 0, duration: 300, useNativeDriver: true }).start(() => {
-      setGroundingQuote(quote)
-      Animated.timing(quoteOpacity, { toValue: 1, duration: 500, useNativeDriver: true }).start()
-    })
-  }, [quoteOpacity, fadeInQuote])
-
   useEffect(() => {
+    let cachedQuote = null
+
     AsyncStorage.getItem('lastGroundingQuote')
-      .then((cached) => {
-        if (cached) {
-          try { fadeInQuote(JSON.parse(cached)) } catch {}
+      .then((raw) => {
+        if (raw) {
+          try { cachedQuote = JSON.parse(raw) } catch {}
         }
       })
       .finally(() => {
         api.getRandomGroundingQuote()
           .then(({ quote }) => {
             if (quote) {
-              crossfadeToQuote(quote)
+              // Use fresh quote if available, else fall back to cache
+              const toShow = quote ?? cachedQuote
+              setGroundingQuote(toShow)
+              Animated.timing(quoteOpacity, { toValue: 1, duration: 700, useNativeDriver: true }).start()
               AsyncStorage.setItem('lastGroundingQuote', JSON.stringify(quote)).catch(() => {})
+            } else if (cachedQuote) {
+              setGroundingQuote(cachedQuote)
+              Animated.timing(quoteOpacity, { toValue: 1, duration: 700, useNativeDriver: true }).start()
             }
           })
-          .catch(() => {})
+          .catch(() => {
+            // API failed — fade in cached if we have it
+            if (cachedQuote) {
+              setGroundingQuote(cachedQuote)
+              Animated.timing(quoteOpacity, { toValue: 1, duration: 700, useNativeDriver: true }).start()
+            }
+          })
           .finally(() => setQuoteLoading(false))
       })
   }, [])
