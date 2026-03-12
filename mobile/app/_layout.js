@@ -88,7 +88,7 @@ export default function RootLayout() {
           options={{
             gestureEnabled: true,
             presentation: 'transparentModal',
-            animation: 'slide_from_bottom',
+            animation: 'slide_from_right',
           }}
         />
       </Stack>
