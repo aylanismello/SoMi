@@ -4,7 +4,7 @@ import { formatContextForPrompt } from './sessionContext.js'
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 
 const SYSTEM_PROMPT = `You are a polyvagal-informed, trauma-informed, somatic routine designer. Your role is to select and sequence somatic exercises
-into a three-phase routine (warm-up → main → integration) tailored to the user's nervous system state and broader context.
+into a somatic routine with phases determined by session length, tailored to the user's nervous system state and broader context.
 
 ## Polyvagal Principles
 
@@ -17,10 +17,10 @@ Your routines should be inspired by:
 - **Trauma-informed care**: never imply guaranteed outcomes; offer options that are non-demanding and consent-based.
 
 ### Phase Guidelines
-- **Warm-up**: gentle, non-demanding, vagal-toning exercises to ease the nervous system in (e.g. vagus_reset, eye_covering, humming). Never start with intense proprioceptive input. **ALWAYS exactly 1 block — never more, never less.**
+- **Warm-up**: gentle, non-demanding, vagal-toning exercises to ease the nervous system in (e.g. vagus_reset, eye_covering, humming). Never start with intense proprioceptive input. **Included only when block_count ≥ 2. When included, always exactly 1 block.**
 - **Main**: progressive proprioceptive and movement blocks that engage the body more fully (e.g. body_tapping, shaking, heart_opener, self_havening, ear_stretch, upward_gaze, freeze_roll,
-arm_shoulder_hand_circles, squeeze_hands_release). **Contains ALL remaining blocks after assigning 1 warm-up and 1 integration.** Repeat blocks as needed to hit the exact count.
-- **Integration**: slow, integrative, grounding exercises to close the session (e.g. self_hug, self_hug_swaying, brain_hold). Always end with something settling. **ALWAYS exactly 1 block — never more, never less.**
+arm_shoulder_hand_circles, squeeze_hands_release). **Contains all blocks not assigned to warm-up or integration.** Repeat blocks as needed to hit the exact count.
+- **Integration**: slow, integrative, grounding exercises to close the session (e.g. self_hug, self_hug_swaying, brain_hold). Always end with something settling. **Included only when block_count ≥ 3. When included, always exactly 1 block.**
 
 ### State-Specific Guidance
 States are derived from a 2D energy × safety space:
@@ -57,19 +57,13 @@ Respond ONLY with valid JSON matching this exact schema. No extra text, no markd
   "rationale": "2–3 sentences for system interpretability. Summarise the key decision factors: state, inferred need, and any contextual signals that influenced selection. Use factual, concise language. Example: 'State: shutdown → activation need. Evening session nudged toward stabilization. Selected gentle vagal blocks for warm-up, progressive activation in main.'",
   "sections": [
     {
-      "name": "warm-up",
-      "blocks": [{"canonical_name": "string"}]
-    },
-    {
-      "name": "main",
-      "blocks": [{"canonical_name": "string"}]
-    },
-    {
-      "name": "integration",
+      "name": "<phase name>",
       "blocks": [{"canonical_name": "string"}]
     }
   ]
 }
+
+Include ONLY the sections listed in the Structure Requirements of the user prompt. Do not add sections not specified.
 
 Only use canonical_name values from the provided available blocks list. Never invent names.`
 
@@ -85,9 +79,17 @@ Only use canonical_name values from the provided available blocks list. Never in
 export async function generateAIRoutine({ sessionContext, availableBlocks, blockCount: explicitBlockCount }) {
   const blockCount = explicitBlockCount ?? Math.round(sessionContext.duration_minutes)
 
-  // Always 1 warm-up + 1 integration; main gets the rest.
-  const mainBlocks = Math.max(1, blockCount - 2)
-  const effectiveBlockCount = mainBlocks + 2
+  // Build structure requirements conditional on block count, matching the section
+  // assignment rules: 1 block → main only; 2 blocks → warm-up + main; 3+ → all three phases.
+  let structureRequirements
+  if (blockCount === 1) {
+    structureRequirements = `- main: EXACTLY 1 block\nTotal: EXACTLY 1 block.`
+  } else if (blockCount === 2) {
+    structureRequirements = `- warm-up: EXACTLY 1 block\n- main: EXACTLY 1 block\nTotal: EXACTLY 2 blocks.`
+  } else {
+    const mainBlocks = blockCount - 2
+    structureRequirements = `- warm-up: EXACTLY 1 block\n- main: EXACTLY ${mainBlocks} block${mainBlocks !== 1 ? 's' : ''}\n- integration: EXACTLY 1 block\nTotal: EXACTLY ${blockCount} blocks. Repeat blocks if needed to reach the exact counts.`
+  }
 
   const contextBlock = formatContextForPrompt(sessionContext)
 
@@ -100,14 +102,11 @@ ${contextBlock}
 ${availableBlocks.join(', ')}
 
 ## Structure Requirements — no exceptions
-- warm-up: EXACTLY 1 block
-- main: EXACTLY ${mainBlocks} block${mainBlocks !== 1 ? 's' : ''}
-- integration: EXACTLY 1 block
-Total: EXACTLY ${effectiveBlockCount} blocks. Repeat blocks if needed to reach the exact counts.
+${structureRequirements}
 
 Apply polyvagal principles for the ${sessionContext.polyvagal_state} state. Use the contextual signals to refine your choices.`
 
-  console.log('[claude] user prompt:\n', userPrompt)
+  console.log('\n\n[claude] user prompt:\n', userPrompt)
 
   const response = await client.messages.create({
     model: 'claude-haiku-4-5-20251001',

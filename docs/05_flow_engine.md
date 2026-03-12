@@ -184,3 +184,33 @@ All section labels use underscores: `warm_up`, `main`, `integration`. [VERIFIED]
 ### Queue Modification at Runtime
 
 Users can swap blocks from `RoutineQueuePreview` and during `SoMiRoutine` (via edit modal). Swapping replaces a block in the local queue; it does not re-call the server. [VERIFIED]
+
+---
+
+## Addendum — 2026-03-11: Short-session block count fix + duration display fix
+
+### Bug 1: AI over-allocating blocks for short sessions
+
+**What was wrong:** `generateAIRoutine()` in `server/lib/claude.js` used `Math.max(1, blockCount - 2)` to compute `mainBlocks`, which forced a minimum of 3 total blocks (1 warm-up + 1 main + 1 integration) regardless of `block_count`. A 3-minute session computes `block_count = 2` server-side, but the AI was being asked for 3 blocks = 240s — over budget.
+
+**What changed:** The prompt structure is now conditional on `block_count`, matching the section assignment rules already documented in the Algorithmic Path:
+
+| block_count | Sections sent to Claude |
+|---|---|
+| 1 | main only |
+| 2 | warm-up + main |
+| 3+ | warm-up + main + integration |
+
+The system prompt phase guidelines were updated to reflect that warm-up is included only when `block_count ≥ 2` and integration only when `block_count ≥ 3`. The JSON schema in the system prompt now instructs Claude to include only the sections listed in the user prompt's Structure Requirements.
+
+**Files changed:** `server/lib/claude.js`
+
+---
+
+### Bug 2: Duration display mismatch between FlowInit and EditFlowScreen
+
+**What was wrong:** `EditFlowScreen.js` computed `displayMin` by summing only `somi_block` durations (60s each), ignoring `micro_integration` (20s each) and `body_scan` (60s each) segments. `FlowInit.js` displayed `actual_duration_seconds` from the server, which includes all segment types. For a 7-block session: EditFlow showed `Math.ceil(420/60) = 7 min`; FlowInit showed `Math.ceil(560/60) = 10 min`.
+
+**What changed:** `totalSecs` now sums all segments in the array, matching the server's `actual_duration_seconds` formula.
+
+**Files changed:** `mobile/components/Flow/EditFlowScreen.js` (line 45: `queue.reduce` → `segments.reduce`)

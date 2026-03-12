@@ -1,5 +1,16 @@
 # Changelog
 
+## 2026-03-11 — Fix short-session block over-allocation + duration display mismatch
+
+**Server:**
+- `server/lib/claude.js` — `generateAIRoutine()` now builds conditional structure requirements based on `block_count`: 1 block → main only; 2 blocks → warm-up + main; 3+ → warm-up + main + integration. Removes `Math.max(1, blockCount - 2)` which was forcing a minimum of 3 blocks regardless of session length. System prompt updated to make warm-up and integration conditional phases.
+
+**Mobile:**
+- `mobile/components/Flow/EditFlowScreen.js` — `totalSecs` now sums all segment types (somi_block + micro_integration + body_scan), matching the server's `actual_duration_seconds` formula. Previously only somi_block durations were counted, causing the EditFlow duration display to show ~30% less than the FlowInit pill.
+
+**Docs:**
+- `docs/05_flow_engine.md` — addendum added
+
 ## 2026-03-11 — Context-aware flow generation (Flow Engine v2)
 
 Refactored the flow generation system to support richer session context modeling. Context-aware generation is now the default path; the old algorithmic path is preserved as a fallback.

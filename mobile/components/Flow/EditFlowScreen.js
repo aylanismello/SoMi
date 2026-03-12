@@ -42,7 +42,7 @@ export default function EditFlowScreen() {
   }, [])
 
   const queue = segments.filter((s) => s.type === 'somi_block')
-  const totalSecs = queue.reduce((acc, s) => acc + (s.duration_seconds ?? 0), 0)
+  const totalSecs = segments.reduce((acc, s) => acc + (s.duration_seconds ?? 0), 0)
   const displayMin = Math.ceil(totalSecs / 60)
 
   const openPicker = (blockIndex) => {
