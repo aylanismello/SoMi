@@ -62,7 +62,7 @@ export default function EditFlowScreen() {
     let cancelled = false
     api.getAllBlocks().then((res) => {
       if (!cancelled && res.blocks) setAllBlocks(res.blocks)
-    }).catch(() => {})
+    }).catch((e) => { if (__DEV__) console.warn(e) })
     return () => { cancelled = true }
   }, [])
 
@@ -132,7 +132,7 @@ export default function EditFlowScreen() {
         if (result.reasoning) useEditFlowStore.getState().setReasoning(result.reasoning)
       }
     } catch (e) {
-      console.warn('Scan toggle regen failed:', e)
+      if (__DEV__) console.warn('Scan toggle regen failed:', e)
       if (which === 'start') setBodyScanStart(!newStart)
       else setBodyScanEnd(!newEnd)
     } finally {

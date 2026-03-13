@@ -87,17 +87,17 @@ export default function HomeScreen() {
     AsyncStorage.getItem('lastStreakWeek')
       .then((cached) => {
         if (cached) {
-          try { setCachedWeekData(JSON.parse(cached)) } catch {}
+          try { setCachedWeekData(JSON.parse(cached)) } catch (e) { if (__DEV__) console.warn(e) }
         }
       })
-      .catch(() => {})
+      .catch((e) => { if (__DEV__) console.warn(e) })
   }, [])
 
   // When fresh data arrives, update state and persist to cache
   useEffect(() => {
     if (streakData?.week?.length) {
       setCachedWeekData(streakData.week)
-      AsyncStorage.setItem('lastStreakWeek', JSON.stringify(streakData.week)).catch(() => {})
+      AsyncStorage.setItem('lastStreakWeek', JSON.stringify(streakData.week)).catch((e) => { if (__DEV__) console.warn(e) })
     }
   }, [streakData])
 
@@ -124,7 +124,7 @@ export default function HomeScreen() {
     AsyncStorage.getItem('lastGroundingQuote')
       .then((raw) => {
         if (raw) {
-          try { cachedQuote = JSON.parse(raw) } catch {}
+          try { cachedQuote = JSON.parse(raw) } catch (e) { if (__DEV__) console.warn(e) }
         }
       })
       .finally(() => {
@@ -135,7 +135,7 @@ export default function HomeScreen() {
               const toShow = quote ?? cachedQuote
               setGroundingQuote(toShow)
               Animated.timing(quoteOpacity, { toValue: 1, duration: 700, useNativeDriver: true }).start()
-              AsyncStorage.setItem('lastGroundingQuote', JSON.stringify(quote)).catch(() => {})
+              AsyncStorage.setItem('lastGroundingQuote', JSON.stringify(quote)).catch((e) => { if (__DEV__) console.warn(e) })
             } else if (cachedQuote) {
               setGroundingQuote(cachedQuote)
               Animated.timing(quoteOpacity, { toValue: 1, duration: 700, useNativeDriver: true }).start()

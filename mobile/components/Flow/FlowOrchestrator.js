@@ -225,7 +225,7 @@ export default function SoMiRoutineScreen() {
     if (!player) return
     if (phase === 'video' && currentVideo) {
       shouldVideoPlayRef.current = true
-      setTimeout(() => { try { player.play() } catch (e) { /* player released */ } }, 100)
+      setTimeout(() => { try { player.play() } catch (e) { if (__DEV__) console.warn('player released:', e) } }, 100)
       soundManager.playBlockStart()
     } else if (phase === 'interstitial') {
       shouldVideoPlayRef.current = false
@@ -270,7 +270,7 @@ export default function SoMiRoutineScreen() {
     if (!mainIsPlaying && shouldVideoPlayRef.current) {
       const t = setTimeout(() => {
         if (isMountedRef.current && shouldVideoPlayRef.current) {
-          try { player.play() } catch (e) { /* released */ }
+          try { player.play() } catch (e) { if (__DEV__) console.warn('released:', e) }
         }
       }, 800)
       return () => clearTimeout(t)
@@ -282,7 +282,7 @@ export default function SoMiRoutineScreen() {
     if (!previewIsPlaying && phase === 'interstitial' && !interstitialPaused) {
       const t = setTimeout(() => {
         if (isMountedRef.current && phase === 'interstitial' && !interstitialPaused) {
-          try { previewPlayer.play() } catch (e) { /* released */ }
+          try { previewPlayer.play() } catch (e) { if (__DEV__) console.warn('released:', e) }
         }
       }, 500)
       return () => clearTimeout(t)
@@ -292,7 +292,7 @@ export default function SoMiRoutineScreen() {
   // Stall recovery: ocean player
   useEffect(() => {
     if (!oceanIsPlaying && phase === 'interstitial') {
-      try { oceanPlayer.play() } catch (e) { /* released */ }
+      try { oceanPlayer.play() } catch (e) { if (__DEV__) console.warn('released:', e) }
     }
   }, [oceanIsPlaying])
 
@@ -463,7 +463,7 @@ export default function SoMiRoutineScreen() {
     // Advance from micro_integration to the next segment (should be somi_block)
     advanceSegment()
 
-    try { player.currentTime = 0 } catch (_) {}
+    try { player.currentTime = 0 } catch (e) { if (__DEV__) console.warn(e) }
     setVideoCurrentTime(0)
     startTimeRef.current = Date.now()
     hasSavedCurrentBlockRef.current = false

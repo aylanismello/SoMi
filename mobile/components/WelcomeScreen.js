@@ -24,7 +24,7 @@ export default function WelcomeScreen() {
   const { isPlaying: oceanIsPlaying } = useEvent(oceanPlayer, 'playingChange', { isPlaying: oceanPlayer.playing })
   useEffect(() => {
     if (!oceanIsPlaying) {
-      try { oceanPlayer.play() } catch (e) { /* player released during navigation */ }
+      try { oceanPlayer.play() } catch (e) { if (__DEV__) console.warn('player released during navigation:', e) }
     }
   }, [oceanIsPlaying])
 

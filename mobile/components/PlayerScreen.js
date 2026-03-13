@@ -85,12 +85,12 @@ export default function PlayerScreen() {
     if (fromExplore) {
       // À la carte viewing - no chain association
       await chainService.saveCompletedBlock(somiBlockId, elapsedSeconds, 0, null)
-      console.log(`Completed block ${somiBlockId} saved (à la carte): ${elapsedSeconds}s`)
+      if (__DEV__) console.log(`Completed block ${somiBlockId} saved (à la carte): ${elapsedSeconds}s`)
     } else {
       // Check-in flow - associate with active chain
       const chainId = await chainService.getOrCreateActiveChain(flowType)
       await chainService.saveCompletedBlock(somiBlockId, elapsedSeconds, 0, chainId, flowType)
-      console.log(`Completed block ${somiBlockId} saved (chain ${chainId}): ${elapsedSeconds}s`)
+      if (__DEV__) console.log(`Completed block ${somiBlockId} saved (chain ${chainId}): ${elapsedSeconds}s`)
     }
   }
 

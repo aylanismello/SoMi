@@ -32,7 +32,7 @@ export const flowPreloadCache = {
         _cache.segments = result.segments
         _cache.reasoning = result.reasoning
       }
-    }).catch(() => {}).finally(() => {
+    }).catch((e) => { if (__DEV__) console.warn('Flow preload failed:', e) }).finally(() => {
       _cache._promise = null
     })
   },

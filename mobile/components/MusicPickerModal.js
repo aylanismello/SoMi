@@ -20,7 +20,7 @@ export default function MusicPickerModal({ visible, onClose }) {
   const stopPreview = () => {
     clearTimeout(previewTimerRef.current)
     previewTimerRef.current = null
-    try { previewPlayer.pause() } catch (_) {}
+    try { previewPlayer.pause() } catch (e) { if (__DEV__) console.warn(e) }
     setPreviewingId(null)
   }
 
@@ -34,7 +34,7 @@ export default function MusicPickerModal({ visible, onClose }) {
 
     // Stop any in-progress preview first
     clearTimeout(previewTimerRef.current)
-    try { previewPlayer.pause() } catch (_) {}
+    try { previewPlayer.pause() } catch (e) { if (__DEV__) console.warn(e) }
 
     try {
       previewPlayer.replace({ uri: track.url })
@@ -43,12 +43,12 @@ export default function MusicPickerModal({ visible, onClose }) {
       setPreviewingId(track.id)
 
       previewTimerRef.current = setTimeout(() => {
-        try { previewPlayer.pause() } catch (_) {}
+        try { previewPlayer.pause() } catch (e) { if (__DEV__) console.warn(e) }
         setPreviewingId(null)
         previewTimerRef.current = null
       }, PREVIEW_DURATION_MS)
     } catch (e) {
-      console.error('❌ Preview error:', e)
+      if (__DEV__) console.error('❌ Preview error:', e)
       setPreviewingId(null)
     }
   }
@@ -70,7 +70,7 @@ export default function MusicPickerModal({ visible, onClose }) {
   useEffect(() => {
     return () => {
       clearTimeout(previewTimerRef.current)
-      try { previewPlayer.pause() } catch (_) {}
+      try { previewPlayer.pause() } catch (e) { if (__DEV__) console.warn(e) }
     }
   }, [])
 

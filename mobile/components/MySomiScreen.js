@@ -667,7 +667,7 @@ export default function MySomiScreen() {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
 
     if (!block.somi_blocks || !block.somi_blocks.media_url) {
-      console.error('Block missing media data', block)
+      if (__DEV__) console.error('Block missing media data', block)
       return
     }
 

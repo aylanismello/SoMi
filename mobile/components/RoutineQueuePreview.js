@@ -8,7 +8,7 @@ import { colors } from '../constants/theme'
 import { supabase } from '../supabase'
 import { useRoutineStore } from '../stores/routineStore'
 import { useSettingsStore } from '../stores/settingsStore'
-import { deriveStateFromDeltas } from '../constants/polyvagalStates'
+import { deriveStateFromDeltas, STATE_COLORS, STATE_LABELS } from '../constants/polyvagalStates'
 import BlockDeltaViz from './Flow/BlockDeltaViz'
 
 const SECTION_LABELS = {
@@ -21,13 +21,6 @@ function getSectionLabel(name) {
   return SECTION_LABELS[name] || name.toUpperCase()
 }
 
-const STATE_COLORS = {
-  shutdown: '#4A5A72',
-  restful:  '#4ECDC4',
-  wired:    '#8B5CF6',
-  glowing:  '#F4B942',
-  steady:   '#7DBCE7',
-}
 
 export default function RoutineQueuePreview() {
   const navigation = useNavigation()
@@ -293,17 +286,12 @@ export default function RoutineQueuePreview() {
               })
               if (blocksForState.length === 0) return null
 
-              const stateLabels = {
-                shutdown: 'Shutdown', restful: 'Restful',
-                wired: 'Wired', glowing: 'Glowing', steady: 'Steady',
-              }
-
               return (
                 <View key={stateId}>
                   <View style={[styles.stateHeader, sectionIndex === 0 && { marginTop: 0 }]}>
                     <View style={styles.stateHeaderLine} />
                     <Text style={[styles.stateHeaderText, { color: stateColor }]}>
-                      {stateLabels[stateId]}
+                      {STATE_LABELS[stateId]}
                     </Text>
                     <View style={styles.stateHeaderLine} />
                   </View>

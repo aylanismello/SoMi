@@ -28,12 +28,12 @@ async function fetchVideoBlocks() {
       .neq('block_type', 'timer') // Exclude timer blocks
 
     if (error) {
-      console.error('Error fetching video blocks:', error)
-      console.error('Supabase error details:', JSON.stringify(error))
+      if (__DEV__) console.error('Error fetching video blocks:', error)
+      if (__DEV__) console.error('Supabase error details:', JSON.stringify(error))
       return []
     }
 
-    console.log(`Fetched ${data?.length || 0} video blocks from Supabase`)
+    if (__DEV__) console.log(`Fetched ${data?.length || 0} video blocks from Supabase`)
 
     // Update cache
     videoBlocksCache = data || []
@@ -41,7 +41,7 @@ async function fetchVideoBlocks() {
 
     return videoBlocksCache
   } catch (err) {
-    console.error('Unexpected error fetching video blocks:', err)
+    if (__DEV__) console.error('Unexpected error fetching video blocks:', err)
     return []
   }
 }
@@ -49,7 +49,7 @@ async function fetchVideoBlocks() {
 // Convert a block from database format to media player format
 function blockToMedia(block) {
   if (!block) {
-    console.error('No block provided, using fallback')
+    if (__DEV__) console.error('No block provided, using fallback')
     return {
       url: 'https://qujifwhwntqxziymqdwu.supabase.co/storage/v1/object/public/test/output_tiktok.mp4',
       type: 'video',

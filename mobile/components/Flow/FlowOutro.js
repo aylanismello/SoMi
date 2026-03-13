@@ -108,7 +108,7 @@ export default function SoMiCheckIn() {
           queryClient.invalidateQueries({ queryKey: QUERY_KEYS.streaks })
         }
       }).catch(err => {
-        console.error('Background chain save failed:', err)
+        if (__DEV__) console.error('Background chain save failed:', err)
       })
     } else {
       await chainService.endActiveChain()

@@ -314,7 +314,7 @@ export default function DailyFlowSetup() {
         if (!isInitial) showUpdatedToast()
       }
     } catch (err) {
-      console.warn('Preview generation failed:', err)
+      if (__DEV__) console.warn('Preview generation failed:', err)
     } finally {
       if (isInitial) {
         setIsPreloading(false)

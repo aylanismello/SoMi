@@ -1,13 +1,5 @@
 import Svg, { Line, Circle, Rect } from 'react-native-svg'
-import { deriveStateFromDeltas } from '../../constants/polyvagalStates'
-
-const STATE_COLORS = {
-  shutdown: '#4A5A72',
-  restful:  '#4ECDC4',
-  wired:    '#8B5CF6',
-  glowing:  '#F4B942',
-  steady:   '#7DBCE7',
-}
+import { deriveStateFromDeltas, STATE_COLORS } from '../../constants/polyvagalStates'
 
 /**
  * BlockDeltaViz — mini SVG chart showing where a somi_block pushes
