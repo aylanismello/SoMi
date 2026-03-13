@@ -1,3 +1,4 @@
+import React from 'react'
 import Svg, { Line, Circle, Rect } from 'react-native-svg'
 import { deriveStateFromDeltas } from '../../constants/polyvagalStates'
 
@@ -17,7 +18,7 @@ const STATE_COLORS = {
  * safetyDelta: positive = grounds, negative = activates/destabilises
  * A dot + arrow from centre → delta direction, coloured by derived state.
  */
-export default function BlockDeltaViz({ energyDelta, safetyDelta, size = 28 }) {
+export default React.memo(function BlockDeltaViz({ energyDelta, safetyDelta, size = 28 }) {
   const e = energyDelta ?? 0
   const s = safetyDelta ?? 0
   const half = size / 2
@@ -62,4 +63,4 @@ export default function BlockDeltaViz({ energyDelta, safetyDelta, size = 28 }) {
       />
     </Svg>
   )
-}
+})

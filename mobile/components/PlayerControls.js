@@ -1,4 +1,4 @@
-import { useRef, useEffect, useState } from 'react'
+import React, { useRef, useEffect, useState } from 'react'
 import { StyleSheet, View, Text, Animated, Pressable, TouchableOpacity } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
 import * as Haptics from 'expo-haptics'
@@ -24,7 +24,7 @@ import MusicPickerModal from './MusicPickerModal'
  *   showControls  – drives fade in/out
  *   timeDisplay   – optional string shown in a pill below transport row
  */
-export default function PlayerControls({
+export default React.memo(function PlayerControls({
   isPaused,
   onPause,
   onPlay,
@@ -134,7 +134,7 @@ export default function PlayerControls({
       </Pressable>
     </Animated.View>
   )
-}
+})
 
 const styles = StyleSheet.create({
   root: {

@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef, useEffect } from 'react'
+import React, { useState, useCallback, useRef, useEffect } from 'react'
 import { StyleSheet, View, Text, Image, TouchableOpacity, Animated } from 'react-native'
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import { api } from '../services/api'
@@ -20,7 +20,7 @@ import { WATER_BG_SOURCE } from '../constants/media'
 
 const DAY_LABELS = ['M', 'T', 'W', 'T', 'F', 'S', 'S']
 
-function WeekDay({ label, percentage, isToday, isFuture }) {
+const WeekDay = React.memo(function WeekDay({ label, percentage, isToday, isFuture }) {
   const SIZE = 40
   const FILL_R = 13   // inner white disk (today only)
   const RING_R = 17   // ring track + progress arc radius
@@ -69,7 +69,7 @@ function WeekDay({ label, percentage, isToday, isFuture }) {
       </View>
     </View>
   )
-}
+})
 
 export default function HomeScreen() {
   const glowAnim = useRef(new Animated.Value(0)).current

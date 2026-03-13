@@ -1,10 +1,11 @@
+import React from 'react'
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
 import * as Haptics from 'expo-haptics'
 import { useStreaks } from '../hooks/useSupabaseQueries'
 
 // style prop allows each screen to control positioning (absolute for Home, padding for others)
-export default function SoMiHeader({ onRightPress, rightIcon = 'heart', style }) {
+export default React.memo(function SoMiHeader({ onRightPress, rightIcon = 'heart', style }) {
   const { data: streakData } = useStreaks()
   const streak = streakData?.current_streak ?? 0
 
@@ -33,7 +34,7 @@ export default function SoMiHeader({ onRightPress, rightIcon = 'heart', style })
       </View>
     </View>
   )
-}
+})
 
 const styles = StyleSheet.create({
   row: {
