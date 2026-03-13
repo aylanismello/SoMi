@@ -6,8 +6,7 @@ import { useAudioPlayer } from 'expo-audio'
 import { useSettingsStore } from '../stores/settingsStore'
 import { useFlowMusicStore, TRACKS } from '../stores/flowMusicStore'
 import { colors } from '../constants/theme'
-
-const PREVIEW_DURATION_MS = 15000
+import { PREVIEW_DURATION_MS } from '../constants/config'
 
 export default function MusicPickerModal({ visible, onClose }) {
   const { selectedTrackId, setSelectedTrack } = useSettingsStore()

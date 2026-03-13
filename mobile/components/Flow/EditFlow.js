@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { useNavigation, useRoute } from '@react-navigation/native'
 import {
   StyleSheet, View, Text, TouchableOpacity, ScrollView, Modal,
@@ -63,7 +63,7 @@ function assignSections(blocks) {
 }
 
 // ─── Block Card ──────────────────────────────────────────────────────────────
-function BlockCard({ block, index, total, isSelected, onSwap, onRemove, onMoveUp, onMoveDown, fadeAnim }) {
+const BlockCard = React.memo(function BlockCard({ block, index, total, isSelected, onSwap, onRemove, onMoveUp, onMoveDown, fadeAnim }) {
   return (
     <Animated.View
       style={[
@@ -138,10 +138,10 @@ function BlockCard({ block, index, total, isSelected, onSwap, onRemove, onMoveUp
       </TouchableOpacity>
     </Animated.View>
   )
-}
+})
 
 // ─── Body Scan Row ───────────────────────────────────────────────────────────
-function BodyScanRow() {
+const BodyScanRow = React.memo(function BodyScanRow() {
   return (
     <View style={[styles.blockCard, styles.bodyScanCard]}>
       <View style={[styles.blockNumber, styles.bodyScanNumber]}>
@@ -154,10 +154,10 @@ function BodyScanRow() {
       <Ionicons name="leaf-outline" size={14} color="rgba(255,255,255,0.3)" />
     </View>
   )
-}
+})
 
 // ─── Library Block Card ──────────────────────────────────────────────────────
-function LibraryBlockCard({ block, stateColor, isInQueue, onSelect, onDeselect }) {
+const LibraryBlockCard = React.memo(function LibraryBlockCard({ block, stateColor, isInQueue, onSelect, onDeselect }) {
   return (
     <TouchableOpacity
       onPress={() => {
@@ -190,7 +190,7 @@ function LibraryBlockCard({ block, stateColor, isInQueue, onSelect, onDeselect }
       </View>
     </TouchableOpacity>
   )
-}
+})
 
 // ─── Main Component ──────────────────────────────────────────────────────────
 export default function EditFlow() {

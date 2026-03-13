@@ -9,6 +9,7 @@ import { chainService } from '../../services/chainService'
 import { useSettingsStore } from '../../stores/settingsStore'
 import { useFlowMusicStore } from '../../stores/flowMusicStore'
 import { useRoutineStore } from '../../stores/routineStore'
+import { BODY_SCAN_BLOCK_ID, CONTROLS_OVERLAY_TIMEOUT_MS } from '../../constants/config'
 import FlowProgressHeader from './FlowProgressHeader'
 import PlayerControls from '../PlayerControls'
 import CustomizationModal from '../CustomizationModal'
@@ -106,7 +107,6 @@ export default function BodyScanCountdown() {
 
     const elapsedMs = Date.now() - startTimeRef.current
     const elapsedSeconds = Math.round(elapsedMs / 1000)
-    const BODY_SCAN_BLOCK_ID = 20
     const section = isInitial ? 'warm_up' : 'integration'
     await chainService.saveCompletedBlock(BODY_SCAN_BLOCK_ID, elapsedSeconds, isInitial ? 0 : finalOrderIndex, null, flowType, section)
     await chainService.logPlayTime(`body scan (${section}) complete — ${elapsedSeconds}s`)
@@ -176,7 +176,7 @@ export default function BodyScanCountdown() {
       setShowControls(false)
     } else {
       setShowControls(true)
-      overlayTimeoutRef.current = setTimeout(() => setShowControls(false), 3000)
+      overlayTimeoutRef.current = setTimeout(() => setShowControls(false), CONTROLS_OVERLAY_TIMEOUT_MS)
     }
   }
 

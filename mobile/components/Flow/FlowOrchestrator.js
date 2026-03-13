@@ -15,6 +15,7 @@ import CustomizationModal from '../CustomizationModal'
 import FlowIntegration from './FlowIntegration'
 import FlowVideoPlayer from './FlowVideoPlayer'
 import { useSaveChainEntry } from '../../hooks/useSupabaseQueries'
+import { DEFAULT_BLOCK_SECS, DEFAULT_INTERSTITIAL_SECS, CONTROLS_OVERLAY_TIMEOUT_MS } from '../../constants/config'
 
 const OCEAN_VIDEO_URI = 'https://qujifwhwntqxziymqdwu.supabase.co/storage/v1/object/public/test/somi%20videos/ocean_loop_final.mp4'
 
@@ -63,7 +64,7 @@ export default function SoMiRoutineScreen() {
   const saveChainEntryMutation = useSaveChainEntry()
 
   // ── Interstitial state ────────────────────────────────────────────────────
-  const interstitialDuration = segment?.duration_seconds ?? 20
+  const interstitialDuration = segment?.duration_seconds ?? DEFAULT_INTERSTITIAL_SECS
   const [countdown, setCountdown] = useState(interstitialDuration)
   const [currentMessageIndex, setCurrentMessageIndex] = useState(0)
   const [interstitialPaused, setInterstitialPaused] = useState(false)
@@ -83,7 +84,7 @@ export default function SoMiRoutineScreen() {
 
   // ── Video state ───────────────────────────────────────────────────────────
   const [videoCurrentTime, setVideoCurrentTime] = useState(0)
-  const [videoDuration, setVideoDuration] = useState(segment?.duration_seconds ?? 60)
+  const [videoDuration, setVideoDuration] = useState(segment?.duration_seconds ?? DEFAULT_BLOCK_SECS)
   const [isPlayingState, setIsPlayingState] = useState(false)
   const [showBackground, setShowBackground] = useState(false)
   const startTimeRef = useRef(null)
@@ -184,7 +185,7 @@ export default function SoMiRoutineScreen() {
     React.useCallback(() => {
       if (wasPausedRef.current && phase === 'interstitial') {
         const resumeCountdown = pausedCountdownRef.current
-        const segDuration = segment?.duration_seconds ?? 20
+        const segDuration = segment?.duration_seconds ?? DEFAULT_INTERSTITIAL_SECS
         setCountdown(resumeCountdown)
 
         countdownIntervalRef.current = setInterval(() => {
@@ -312,21 +313,19 @@ export default function SoMiRoutineScreen() {
 
   // Live remaining-time updater
   useEffect(() => {
-    const BLOCK_SECS = 60
-    const INTERSTITIAL_SECS = 20
     // Count remaining somi_block segments after current
     const remainingBlocks = segments.slice(segmentIndex + 1).filter(s => s.type === 'somi_block').length
     const remainingIntegrations = segments.slice(segmentIndex + 1).filter(s => s.type === 'micro_integration').length
     const remainingBodyScans = segments.slice(segmentIndex + 1).filter(s => s.type === 'body_scan').length
 
     const tick = () => {
-      const futureTime = remainingBlocks * BLOCK_SECS + remainingIntegrations * INTERSTITIAL_SECS + remainingBodyScans * 60
+      const futureTime = remainingBlocks * DEFAULT_BLOCK_SECS + remainingIntegrations * DEFAULT_INTERSTITIAL_SECS + remainingBodyScans * DEFAULT_BLOCK_SECS
       if (phase === 'video') {
         const elapsed = player.currentTime || 0
-        const inBlock = Math.max(0, BLOCK_SECS - elapsed)
+        const inBlock = Math.max(0, DEFAULT_BLOCK_SECS - elapsed)
         setRemainingSeconds(Math.round(inBlock + futureTime))
       } else if (phase === 'interstitial') {
-        const interstitialLeft = countdownRef.current ?? INTERSTITIAL_SECS
+        const interstitialLeft = countdownRef.current ?? DEFAULT_INTERSTITIAL_SECS
         setRemainingSeconds(Math.round(interstitialLeft + futureTime))
       }
     }
@@ -339,7 +338,7 @@ export default function SoMiRoutineScreen() {
   // Interstitial progress animation — uses segment.duration_seconds
   useEffect(() => {
     if (phase === 'interstitial' && !wasPausedRef.current) {
-      const duration = segment?.duration_seconds ?? 20
+      const duration = segment?.duration_seconds ?? DEFAULT_INTERSTITIAL_SECS
       interstitialProgressAnim.setValue(0)
 
       const runAnimation = () => {
@@ -369,7 +368,7 @@ export default function SoMiRoutineScreen() {
   // Interstitial countdown timer — uses segment.duration_seconds
   useEffect(() => {
     if (phase === 'interstitial' && !wasPausedRef.current) {
-      const duration = segment?.duration_seconds ?? 20
+      const duration = segment?.duration_seconds ?? DEFAULT_INTERSTITIAL_SECS
       setCountdown(duration)
       // Start interstitial play-time clock
       interstitialStartMsRef.current = Date.now()
@@ -415,7 +414,7 @@ export default function SoMiRoutineScreen() {
   useEffect(() => {
     if (phase !== 'video') return
 
-    const cap = segment?.duration_seconds ?? 60
+    const cap = segment?.duration_seconds ?? DEFAULT_BLOCK_SECS
     const interval = setInterval(() => {
       if (player) {
         if (!isSeekingRef.current) {
@@ -433,7 +432,7 @@ export default function SoMiRoutineScreen() {
   // Auto-complete when video reaches cap — uses segment.duration_seconds
   useEffect(() => {
     if (phase !== 'video') return
-    const cap = segment?.duration_seconds ?? 60
+    const cap = segment?.duration_seconds ?? DEFAULT_BLOCK_SECS
     if (videoDuration > 0 && videoCurrentTime >= Math.min(videoDuration, cap) - 0.5) {
       if (hasCompletedCurrentBlockRef.current) return
       hasCompletedCurrentBlockRef.current = true
@@ -508,7 +507,7 @@ export default function SoMiRoutineScreen() {
       if (followingSomiBlock) {
         setCurrentVideo(videoFromSegment(followingSomiBlock))
       }
-      const duration = nextSegment.duration_seconds ?? 20
+      const duration = nextSegment.duration_seconds ?? DEFAULT_INTERSTITIAL_SECS
       setCountdown(duration)
       setInterstitialPaused(false)
     }
@@ -539,7 +538,7 @@ export default function SoMiRoutineScreen() {
     // Save the completed block using actual player position (not wall clock)
     if (currentVideo && !hasSavedCurrentBlockRef.current) {
       hasSavedCurrentBlockRef.current = true
-      const cap = segment?.duration_seconds ?? 60
+      const cap = segment?.duration_seconds ?? DEFAULT_BLOCK_SECS
       const elapsedSeconds = Math.min(Math.round(player.currentTime || cap), cap)
       saveChainEntryMutation.mutate({
         somiBlockId: currentVideo.id,
@@ -563,7 +562,7 @@ export default function SoMiRoutineScreen() {
     // Save current video progress using actual player position (not wall clock)
     if (currentVideo && !hasSavedCurrentBlockRef.current) {
       hasSavedCurrentBlockRef.current = true
-      const cap = segment?.duration_seconds ?? 60
+      const cap = segment?.duration_seconds ?? DEFAULT_BLOCK_SECS
       const elapsedSeconds = Math.min(Math.round(player.currentTime || 0), cap)
       saveChainEntryMutation.mutate({
         somiBlockId: currentVideo.id,
@@ -593,12 +592,12 @@ export default function SoMiRoutineScreen() {
       setShowOverlay(false)
     } else {
       setShowOverlay(true)
-      overlayTimeoutRef.current = setTimeout(() => setShowOverlay(false), 3000)
+      overlayTimeoutRef.current = setTimeout(() => setShowOverlay(false), CONTROLS_OVERLAY_TIMEOUT_MS)
     }
   }
 
   const handleInterstitialPauseResume = () => {
-    const segDuration = segment?.duration_seconds ?? 20
+    const segDuration = segment?.duration_seconds ?? DEFAULT_INTERSTITIAL_SECS
     if (!interstitialPaused) {
       setInterstitialPaused(true)
       pauseFlowMusic()
@@ -693,7 +692,7 @@ export default function SoMiRoutineScreen() {
 
   const handleCloseSettings = () => {
     setShowSettingsModal(false)
-    const segDuration = segment?.duration_seconds ?? 20
+    const segDuration = segment?.duration_seconds ?? DEFAULT_INTERSTITIAL_SECS
 
     if (phase === 'interstitial' && wasPausedRef.current) {
       const resumeCountdown = pausedCountdownRef.current

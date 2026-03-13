@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import { Animated, Easing } from 'react-native'
+import { FADE_IN_MS, FADE_CROSS_MS, FADE_OUT_MS } from '../constants/config'
 
 export const TRACKS = [
   {
@@ -28,10 +29,6 @@ export const TRACKS = [
 // Per-player volume animators (outside store — non-serializable)
 const fluidsVolumeAnim = new Animated.Value(0)
 const togetherVolumeAnim = new Animated.Value(0)
-
-const FADE_IN_MS = 2000
-const FADE_CROSS_MS = 800
-const FADE_OUT_MS = 2000
 
 function volumeAnimFor(trackId) {
   if (trackId === 'fluids') return fluidsVolumeAnim
