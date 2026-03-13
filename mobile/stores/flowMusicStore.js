@@ -52,7 +52,7 @@ function startFade(volumeAnim, player, toValue, duration, onComplete) {
 
   // Register listener first so no frame is missed
   volumeAnim.addListener(({ value }) => {
-    try { player.volume = value } catch (_) {}
+    try { player.volume = value } catch (e) { if (__DEV__) console.warn(e) }
   })
 
   Animated.timing(volumeAnim, {
@@ -98,7 +98,7 @@ export const useFlowMusicStore = create((set, get) => ({
     if (prevPlayer && prevVolumeAnim) {
       prevVolumeAnim.stopAnimation()
       prevVolumeAnim.removeAllListeners()
-      try { prevPlayer.pause() } catch (_) {}
+      try { prevPlayer.pause() } catch (e) { if (__DEV__) console.warn(e) }
       prevVolumeAnim.setValue(0)
     }
 
@@ -127,7 +127,7 @@ export const useFlowMusicStore = create((set, get) => ({
       volumeAnim.setValue(0)
       startFade(volumeAnim, activePlayer, 1, FADE_IN_MS)
     } catch (e) {
-      console.error('❌ Error starting flow music:', e)
+      if (__DEV__) console.error('❌ Error starting flow music:', e)
       set({ isPlaying: false, flowStartedAt: null })
     }
   },
@@ -149,7 +149,7 @@ export const useFlowMusicStore = create((set, get) => ({
     // Fade out current track, then pause it
     if (currentPlayer && currentVolumeAnim) {
       startFade(currentVolumeAnim, currentPlayer, 0, FADE_CROSS_MS, () => {
-        try { currentPlayer.pause() } catch (_) {}
+        try { currentPlayer.pause() } catch (e) { if (__DEV__) console.warn(e) }
         currentVolumeAnim.setValue(0)
       })
     }
@@ -170,7 +170,7 @@ export const useFlowMusicStore = create((set, get) => ({
         newVolumeAnim.setValue(0)
         startFade(newVolumeAnim, newPlayer, 1, FADE_CROSS_MS)
       } catch (e) {
-        console.error('❌ Error switching track:', e)
+        if (__DEV__) console.error('❌ Error switching track:', e)
       }
     }
   },
@@ -188,11 +188,11 @@ export const useFlowMusicStore = create((set, get) => ({
 
     if (activeVolumeAnim) {
       startFade(activeVolumeAnim, activePlayer, 0, FADE_OUT_MS, () => {
-        try { activePlayer.pause() } catch (_) {}
+        try { activePlayer.pause() } catch (e) { if (__DEV__) console.warn(e) }
         activeVolumeAnim.setValue(0)
       })
     } else {
-      try { activePlayer.pause() } catch (_) {}
+      try { activePlayer.pause() } catch (e) { if (__DEV__) console.warn(e) }
     }
   },
 
@@ -200,7 +200,7 @@ export const useFlowMusicStore = create((set, get) => ({
     const state = get()
     if (!state.isPlaying) return
     const player = playerFor(state, state.currentTrackId)
-    try { if (player) player.pause() } catch (_) {}
+    try { if (player) player.pause() } catch (e) { if (__DEV__) console.warn(e) }
     set({ isPlaying: false })
   },
 
@@ -209,7 +209,7 @@ export const useFlowMusicStore = create((set, get) => ({
     if (state.isPlaying) return
     const player = playerFor(state, state.currentTrackId)
     if (player && state.currentTrackId !== 'none') {
-      try { player.play() } catch (_) {}
+      try { player.play() } catch (e) { if (__DEV__) console.warn(e) }
     }
     set({ isPlaying: true })
   },
@@ -222,9 +222,9 @@ export const useFlowMusicStore = create((set, get) => ({
     if (player && !player.playing) {
       try {
         player.play()
-        console.log('🎵 Music recovered after unexpected stop')
+        if (__DEV__) console.log('🎵 Music recovered after unexpected stop')
       } catch (e) {
-        console.error('❌ Failed to recover music playback:', e)
+        if (__DEV__) console.error('❌ Failed to recover music playback:', e)
       }
     }
   },
@@ -233,7 +233,7 @@ export const useFlowMusicStore = create((set, get) => ({
     const state = get()
     const player = playerFor(state, state.currentTrackId)
     if (player) {
-      try { player.volume = volume } catch (_) {}
+      try { player.volume = volume } catch (e) { if (__DEV__) console.warn(e) }
     }
   },
 
@@ -247,7 +247,7 @@ export const useFlowMusicStore = create((set, get) => ({
         const v = isMusicEnabled ? 1 : 0
         player.volume = v
         if (volumeAnim) volumeAnim.setValue(v)
-      } catch (_) {}
+      } catch (e) { if (__DEV__) console.warn(e) }
     }
   },
 }))

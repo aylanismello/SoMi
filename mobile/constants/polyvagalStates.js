@@ -98,6 +98,14 @@ const POLYVAGAL_EXPLANATIONS = [
   },
 ]
 
+// Derived lookup maps — single source of truth for colours / labels
+export const STATE_COLORS = Object.fromEntries(
+  Object.entries(POLYVAGAL_STATES).map(([k, v]) => [k, v.color])
+)
+export const STATE_LABELS = Object.fromEntries(
+  Object.entries(POLYVAGAL_STATES).map(([k, v]) => [k, v.label])
+)
+
 export function getPolyvagalExplanation(energy, safety) {
   const e = energy ?? 50
   const s = safety ?? 50

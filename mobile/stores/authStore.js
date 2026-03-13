@@ -44,10 +44,10 @@ export const useAuthStore = create((set, get) => ({
     try {
       // Check if Apple Authentication is available
       const isAvailable = await AppleAuthentication.isAvailableAsync()
-      console.log('Apple Auth available:', isAvailable)
+      if (__DEV__) console.log('Apple Auth available:', isAvailable)
 
       if (!isAvailable) {
-        console.error('Apple Authentication is not available on this device')
+        if (__DEV__) console.error('Apple Authentication is not available on this device')
         return { success: false, error: 'Apple Sign In not available on this device' }
       }
 
@@ -58,7 +58,7 @@ export const useAuthStore = create((set, get) => ({
         rawNonce
       )
 
-      console.log('Attempting Apple sign in...')
+      if (__DEV__) console.log('Attempting Apple sign in...')
       const credential = await AppleAuthentication.signInAsync({
         requestedScopes: [
           AppleAuthentication.AppleAuthenticationScope.FULL_NAME,
@@ -66,9 +66,9 @@ export const useAuthStore = create((set, get) => ({
         ],
         nonce: hashedNonce,
       })
-      console.log('Apple credential received:', credential)
-      console.log('Email from Apple:', credential.email)
-      console.log('Full name from Apple:', credential.fullName)
+      if (__DEV__) console.log('Apple credential received:', credential)
+      if (__DEV__) console.log('Email from Apple:', credential.email)
+      if (__DEV__) console.log('Full name from Apple:', credential.fullName)
 
       if (!credential.identityToken) {
         throw new Error('No identity token from Apple')
@@ -103,10 +103,10 @@ export const useAuthStore = create((set, get) => ({
       return { success: true }
     } catch (error) {
       if (error.code === 'ERR_REQUEST_CANCELED') {
-        console.log('Apple sign-in cancelled by user')
+        if (__DEV__) console.log('Apple sign-in cancelled by user')
         return { success: false, cancelled: true }
       }
-      console.error('Apple sign-in error:', {
+      if (__DEV__) console.error('Apple sign-in error:', {
         message: error.message,
         code: error.code,
         fullError: error,
@@ -142,7 +142,7 @@ export const useAuthStore = create((set, get) => ({
       if (error.code === GoogleSignin.statusCodes.SIGN_IN_CANCELLED) {
         return { success: false, cancelled: true }
       }
-      console.error('Google sign-in error:', error)
+      if (__DEV__) console.error('Google sign-in error:', error)
       return { success: false, error: error.message }
     }
   },
@@ -159,7 +159,7 @@ export const useAuthStore = create((set, get) => ({
 
       return { success: true, data }
     } catch (error) {
-      console.error('Email sign-up error:', error)
+      if (__DEV__) console.error('Email sign-up error:', error)
       return { success: false, error: error.message }
     }
   },
@@ -176,7 +176,7 @@ export const useAuthStore = create((set, get) => ({
 
       return { success: true, data }
     } catch (error) {
-      console.error('Email sign-in error:', error)
+      if (__DEV__) console.error('Email sign-in error:', error)
       return { success: false, error: error.message }
     }
   },
@@ -188,7 +188,7 @@ export const useAuthStore = create((set, get) => ({
       if (error) throw error
       // State will be updated by onAuthStateChange listener
     } catch (error) {
-      console.error('Sign out error:', error)
+      if (__DEV__) console.error('Sign out error:', error)
       // Force clear state even on error
       set({ isAuthenticated: false, user: null, session: null })
     }

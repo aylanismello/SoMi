@@ -59,7 +59,7 @@ export default function CategoryDetailScreen() {
         .order('name', { ascending: true })
 
       if (error) {
-        console.error('Error fetching videos:', error)
+        if (__DEV__) console.error('Error fetching videos:', error)
         setVideos([])
       } else {
         // Sort by state_target for vagal toning, otherwise use default order
@@ -69,7 +69,7 @@ export default function CategoryDetailScreen() {
         setVideos(sortedVideos)
       }
     } catch (err) {
-      console.error('Unexpected error fetching videos:', err)
+      if (__DEV__) console.error('Unexpected error fetching videos:', err)
       setVideos([])
     } finally {
       setLoading(false)

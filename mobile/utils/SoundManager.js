@@ -26,9 +26,9 @@ class SoundManager {
       this.players.blockStart = startPlayer
       this.players.blockEnd = endPlayer
       this.isLoaded = true
-      console.log('✅ Sound effects loaded from bundle')
+      if (__DEV__) console.log('✅ Sound effects loaded from bundle')
     } catch (error) {
-      console.error('❌ Failed to load sound effects:', error)
+      if (__DEV__) console.error('❌ Failed to load sound effects:', error)
     }
   }
 
@@ -40,7 +40,7 @@ class SoundManager {
 
     const player = this.players[soundKey]
     if (!player) {
-      console.warn(`❌ Sound "${soundKey}" not available`)
+      if (__DEV__) console.warn(`❌ Sound "${soundKey}" not available`)
       return
     }
 
@@ -50,7 +50,7 @@ class SoundManager {
       player.seekTo(0)
       player.play()
     } catch (error) {
-      console.error(`❌ Failed to play sound "${soundKey}":`, error)
+      if (__DEV__) console.error(`❌ Failed to play sound "${soundKey}":`, error)
     }
   }
 
@@ -68,7 +68,7 @@ class SoundManager {
       this.players = {}
       this.isLoaded = false
     } catch (error) {
-      console.error('Failed to unload sounds:', error)
+      if (__DEV__) console.error('Failed to unload sounds:', error)
     }
   }
 }

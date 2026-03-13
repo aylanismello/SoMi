@@ -59,7 +59,7 @@ async function apiRequest(endpoint, options = {}) {
 
     return data
   } catch (error) {
-    console.error(`API Error (${endpoint}):`, error)
+    if (__DEV__) console.error(`API Error (${endpoint}):`, error)
     throw error
   }
 }

@@ -23,9 +23,9 @@ export const chainService = {
       })
 
       await AsyncStorage.setItem(SESSION_CHECKS_KEY, JSON.stringify(checks))
-      console.log(`📝 Saved check to session (${checks.length} total)`)
+      if (__DEV__) console.log(`📝 Saved check to session (${checks.length} total)`)
     } catch (error) {
-      console.error('Error saving check to session:', error)
+      if (__DEV__) console.error('Error saving check to session:', error)
     }
   },
 
@@ -43,9 +43,9 @@ export const chainService = {
       })
 
       await AsyncStorage.setItem(SESSION_BLOCKS_KEY, JSON.stringify(blocks))
-      console.log(`🎯 Saved block to session (${blocks.length} total)`)
+      if (__DEV__) console.log(`🎯 Saved block to session (${blocks.length} total)`)
     } catch (error) {
-      console.error('Error saving block to session:', error)
+      if (__DEV__) console.error('Error saving block to session:', error)
     }
   },
 
@@ -59,7 +59,7 @@ export const chainService = {
         blocks: blocksStr ? JSON.parse(blocksStr) : [],
       }
     } catch (error) {
-      console.error('Error getting session data:', error)
+      if (__DEV__) console.error('Error getting session data:', error)
       return { checks: [], blocks: [] }
     }
   },
@@ -70,7 +70,7 @@ export const chainService = {
       const current = existing ? parseInt(existing, 10) : 0
       await AsyncStorage.setItem(SESSION_EXTRA_SECONDS_KEY, String(current + seconds))
     } catch (error) {
-      console.error('Error adding extra play seconds:', error)
+      if (__DEV__) console.error('Error adding extra play seconds:', error)
     }
   },
 
@@ -79,7 +79,7 @@ export const chainService = {
       const existing = await AsyncStorage.getItem(SESSION_EXTRA_SECONDS_KEY)
       return existing ? parseInt(existing, 10) : 0
     } catch (error) {
-      console.error('Error getting extra play seconds:', error)
+      if (__DEV__) console.error('Error getting extra play seconds:', error)
       return 0
     }
   },
@@ -90,7 +90,7 @@ export const chainService = {
       const extra = await this.getExtraPlaySeconds()
       const blockSecs = blocks.reduce((sum, b) => sum + (b.secondsElapsed || 0), 0)
       const total = blockSecs + extra
-      console.log(
+      if (__DEV__) console.log(
         `\n⏱️  [PLAY TIME] ${label}\n` +
         `   blocks (${blocks.length}): ${blockSecs}s\n` +
         `   interstitials:  ${extra}s\n` +
@@ -98,7 +98,7 @@ export const chainService = {
         `   TOTAL SO FAR:   ${total}s  (need ${Math.max(0, 300 - total)}s more for streak)\n`
       )
     } catch (e) {
-      console.error('logPlayTime error:', e)
+      if (__DEV__) console.error('logPlayTime error:', e)
     }
   },
 
@@ -107,35 +107,35 @@ export const chainService = {
       await AsyncStorage.removeItem(SESSION_CHECKS_KEY)
       await AsyncStorage.removeItem(SESSION_BLOCKS_KEY)
       await AsyncStorage.removeItem(SESSION_EXTRA_SECONDS_KEY)
-      console.log('🧹 Cleared session data')
+      if (__DEV__) console.log('🧹 Cleared session data')
     } catch (error) {
-      console.error('Error clearing session data:', error)
+      if (__DEV__) console.error('Error clearing session data:', error)
     }
   },
 
   // Create chain and upload all session data (called only when flow is complete)
   async createChainFromSession(flowType = 'daily_flow') {
     try {
-      console.log('🎉 Creating chain from session data...')
+      if (__DEV__) console.log('🎉 Creating chain from session data...')
 
       // Get all session data
       const { checks, blocks } = await this.getSessionData()
       const extraPlaySeconds = await this.getExtraPlaySeconds()
 
       if (checks.length === 0) {
-        console.error('❌ No checks in session, cannot create chain')
+        if (__DEV__) console.error('❌ No checks in session, cannot create chain')
         return null
       }
 
       // Compute total actual play time: somi blocks + body scans + interstitials
       const blockPlaySeconds = blocks.reduce((sum, b) => sum + (b.secondsElapsed || 0), 0)
       const totalPlaySeconds = blockPlaySeconds + extraPlaySeconds
-      console.log(`⏱️ Total play time: ${totalPlaySeconds}s (blocks: ${blockPlaySeconds}s, interstitials: ${extraPlaySeconds}s)`)
+      if (__DEV__) console.log(`⏱️ Total play time: ${totalPlaySeconds}s (blocks: ${blockPlaySeconds}s, interstitials: ${extraPlaySeconds}s)`)
 
       // Create the chain with duration_seconds baked in from the start
       const { chain } = await api.createChain(flowType, totalPlaySeconds)
       const chainId = chain.id
-      console.log(`✅ Created chain ${chainId} with duration_seconds=${totalPlaySeconds}s`)
+      if (__DEV__) console.log(`✅ Created chain ${chainId} with duration_seconds=${totalPlaySeconds}s`)
 
       // Upload checks and blocks concurrently:
       // - checks via individual calls (typically only 2, can't batch differently)
@@ -162,7 +162,7 @@ export const chainService = {
           : Promise.resolve(),
       ])
 
-      console.log(`🎊 Chain ${chainId} saved: ${checks.length} checks + ${blocks.length} blocks`)
+      if (__DEV__) console.log(`🎊 Chain ${chainId} saved: ${checks.length} checks + ${blocks.length} blocks`)
 
       // Clear session data
       await this.clearSessionData()
@@ -170,7 +170,7 @@ export const chainService = {
       return chainId
 
     } catch (error) {
-      console.error('Error creating chain from session:', error)
+      if (__DEV__) console.error('Error creating chain from session:', error)
       return null
     }
   },
@@ -192,7 +192,7 @@ export const chainService = {
             return chainId
           }
         } catch (verifyError) {
-          console.warn('Could not verify existing chain, creating new one:', verifyError)
+          if (__DEV__) console.warn('Could not verify existing chain, creating new one:', verifyError)
           // Continue to create new chain
         }
       }
@@ -214,7 +214,7 @@ export const chainService = {
         }
       }
     } catch (error) {
-      console.error('Error getting/creating active chain:', error)
+      if (__DEV__) console.error('Error getting/creating active chain:', error)
       return null
     }
   },
@@ -231,7 +231,7 @@ export const chainService = {
       const activeChainId = chainId || await this.getOrCreateActiveChain(flowType)
 
       if (!activeChainId) {
-        console.error('No active chain available')
+        if (__DEV__) console.error('No active chain available')
         return null
       }
 
@@ -244,7 +244,7 @@ export const chainService = {
 
       return entry
     } catch (error) {
-      console.error('Error saving completed block:', error)
+      if (__DEV__) console.error('Error saving completed block:', error)
       return null
     }
   },
@@ -261,7 +261,7 @@ export const chainService = {
       const chainId = await this.getOrCreateActiveChain(flowType)
 
       if (!chainId) {
-        console.error('No active chain available')
+        if (__DEV__) console.error('No active chain available')
         return null
       }
 
@@ -274,7 +274,7 @@ export const chainService = {
 
       return check
     } catch (error) {
-      console.error('Error saving embodiment check:', error)
+      if (__DEV__) console.error('Error saving embodiment check:', error)
       return null
     }
   },
@@ -284,7 +284,7 @@ export const chainService = {
     try {
       await AsyncStorage.removeItem(ACTIVE_CHAIN_KEY)
     } catch (error) {
-      console.error('Error ending active chain:', error)
+      if (__DEV__) console.error('Error ending active chain:', error)
     }
   },
 
@@ -294,7 +294,7 @@ export const chainService = {
       const { chain } = await api.getLatestChain()
       return chain
     } catch (error) {
-      console.error('Error getting latest chain:', error)
+      if (__DEV__) console.error('Error getting latest chain:', error)
       return null
     }
   },
@@ -305,7 +305,7 @@ export const chainService = {
       const { chains } = await api.getChains(limit)
       return chains
     } catch (error) {
-      console.error('Error fetching chains:', error)
+      if (__DEV__) console.error('Error fetching chains:', error)
       return []
     }
   },
@@ -316,7 +316,7 @@ export const chainService = {
       const result = await api.deleteChain(chainId)
       return result
     } catch (error) {
-      console.error('Error deleting chain:', error)
+      if (__DEV__) console.error('Error deleting chain:', error)
       throw error
     }
   },

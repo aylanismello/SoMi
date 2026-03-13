@@ -10,7 +10,7 @@ import { Ionicons } from '@expo/vector-icons'
 import * as Haptics from 'expo-haptics'
 import { colors } from '../../constants/theme'
 import { supabase } from '../../supabase'
-import { deriveStateFromDeltas } from '../../constants/polyvagalStates'
+import { deriveStateFromDeltas, STATE_COLORS, STATE_LABELS } from '../../constants/polyvagalStates'
 import BlockDeltaViz from './BlockDeltaViz'
 
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
@@ -28,21 +28,6 @@ const SECTION_LABELS = {
   integration: 'INTEGRATION',
 }
 
-const STATE_COLORS = {
-  shutdown: '#4A5A72',
-  restful: '#4ECDC4',
-  wired: '#8B5CF6',
-  glowing: '#F4B942',
-  steady: '#7DBCE7',
-}
-
-const STATE_LABELS = {
-  shutdown: 'Shutdown',
-  restful: 'Restful',
-  wired: 'Wired',
-  glowing: 'Glowing',
-  steady: 'Steady',
-}
 
 // Assign sections based on queue position (matches server/lib/polyvagal.js logic)
 function assignSections(blocks) {
