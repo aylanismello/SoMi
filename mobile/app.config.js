@@ -39,7 +39,11 @@ module.exports = {
       favicon: './assets/favicon.png',
     },
     plugins: [
-      'expo-splash-screen',
+      ['expo-splash-screen', {
+        image: './assets/water_bg.jpg',
+        imageResizeMode: 'cover',
+        backgroundColor: '#000000',
+      }],
       'expo-video',
       'expo-audio',
       'expo-apple-authentication',

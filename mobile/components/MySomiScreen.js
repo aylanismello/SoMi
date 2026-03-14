@@ -53,8 +53,14 @@ function CalendarStreakView({ chains, monthData = [] }) {
   })
 
   // Streak days from server data: consecutive counts: true days walking backward from today
+  // If today hasn't reached the threshold yet, skip it and start from yesterday
+  // (mirrors the server-side streak logic in /api/streaks)
   const streakDays = new Set()
-  for (let i = monthData.length - 1; i >= 0; i--) {
+  let startIdx = monthData.length - 1
+  if (startIdx >= 0 && monthData[startIdx].is_today && !monthData[startIdx].counts) {
+    startIdx--
+  }
+  for (let i = startIdx; i >= 0; i--) {
     if (monthData[i].counts) {
       streakDays.add(parseInt(monthData[i].date.slice(-2), 10))
     } else {
@@ -362,7 +368,7 @@ export default function MySomiScreen() {
   // Calculate stats whenever chains data changes
   React.useEffect(() => {
     if (somiChains.length > 0) {
-      const allChecks = somiChains.flatMap(chain => chain.embodiment_checks)
+      const allChecks = somiChains.flatMap(chain => chain.embodiment_checks || [])
       calculateStats(allChecks, somiChains)
     }
   }, [somiChains])
@@ -416,11 +422,11 @@ export default function MySomiScreen() {
     const totalSessions = chains.length
 
     // Calculate total exercises (blocks completed across all sessions)
-    const totalExercises = chains.reduce((sum, chain) => sum + chain.somi_chain_entries.length, 0)
+    const totalExercises = chains.reduce((sum, chain) => sum + (chain.somi_chain_entries || []).length, 0)
 
     // Calculate total minutes
     const totalSeconds = chains.reduce((sum, chain) => {
-      return sum + chain.somi_chain_entries.reduce((chainSum, entry) => {
+      return sum + (chain.somi_chain_entries || []).reduce((chainSum, entry) => {
         return chainSum + (entry.seconds_elapsed || 0)
       }, 0)
     }, 0)
@@ -914,11 +920,13 @@ export default function MySomiScreen() {
 
         {somiChains.map((chain, chainIndex) => {
           const isExpanded = expandedChains[chain.id]
-          const checksCount = chain.embodiment_checks.length
-          const blocksCount = chain.somi_chain_entries.length
+          const checks = chain.embodiment_checks || []
+          const entries = chain.somi_chain_entries || []
+          const checksCount = checks.length
+          const blocksCount = entries.length
 
           // Calculate total minutes from seconds_elapsed
-          const totalSeconds = chain.somi_chain_entries.reduce((sum, entry) => sum + (entry.seconds_elapsed || 0), 0)
+          const totalSeconds = entries.reduce((sum, entry) => sum + (entry.seconds_elapsed || 0), 0)
           const totalMinutes = Math.round(totalSeconds / 60)
 
           // Get or create animation values for this chain
@@ -992,7 +1000,7 @@ export default function MySomiScreen() {
                   <View style={styles.chainExpandedContent}>
                     {(() => {
                       // Opening = earliest check, closing = latest check
-                      const sortedChecks = [...chain.embodiment_checks].sort(
+                      const sortedChecks = [...(chain.embodiment_checks || [])].sort(
                         (a, b) => new Date(a.created_at) - new Date(b.created_at)
                       )
                       const openingCheck = sortedChecks[0] ?? null
@@ -1003,7 +1011,7 @@ export default function MySomiScreen() {
                       const SECTION_ORDER = ['warm_up', 'main', 'integration']
                       const SECTION_LABELS = { warm_up: 'warm-up', main: 'main', integration: 'integration' }
                       const blocksBySection = {}
-                      chain.somi_chain_entries.forEach(b => {
+                      ;(chain.somi_chain_entries || []).forEach(b => {
                         const sec = b.section || 'main'
                         if (!blocksBySection[sec]) blocksBySection[sec] = []
                         blocksBySection[sec].push(b)
