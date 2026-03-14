@@ -9,8 +9,10 @@ SoMi is a React Native mobile application built with Expo that helps users asses
 ## Technical Stack & Conventions
 
 ### Language Choice
-- **JavaScript Only**: This project uses plain JavaScript (.js files), not TypeScript
-- Keep code simple and readable without type annotations
+- **TypeScript**: This project uses TypeScript (.ts/.tsx files) with strict mode enabled
+- Shared type definitions live in `/mobile/types.ts` — import from there
+- Config files (`app.config.js`, `babel.config.js`, `metro.config.js`) remain as `.js` (CommonJS tooling)
+- Use `import type` for type-only imports
 
 ### Framework & Platform
 - **React Native** with **Expo SDK ~54**
@@ -24,7 +26,7 @@ SoMi is a React Native mobile application built with Expo that helps users asses
 - **Accessibility**: Ensure touch targets are appropriately sized and controls are accessible
 
 ### Backend Communication
-- **Use the API service** (`services/api.js`) for all backend communication
+- **Use the API service** (`services/api.ts`) for all backend communication
 - **DO NOT** make direct Supabase calls from the mobile app
 - All database operations, routine generation, and business logic go through the Next.js backend
 - API base URL: `http://localhost:3000/api` (development) or your Vercel deployment (production)

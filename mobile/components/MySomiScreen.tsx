@@ -1,0 +1,2143 @@
+import React, { useState, useCallback, useRef, useMemo } from 'react'
+import { StyleSheet, Text, View, Image, ScrollView, ActivityIndicator, TouchableOpacity, Animated, Modal } from 'react-native'
+import { useFocusEffect, useNavigation } from '@react-navigation/native'
+import { LinearGradient } from 'expo-linear-gradient'
+import { BlurView } from 'expo-blur'
+import Svg, { Circle, Line } from 'react-native-svg'
+import * as Haptics from 'expo-haptics'
+import { chainService } from '../services/chainService'
+import { colors } from '../constants/theme'
+import { useChains, useDeleteChain, useStreaks } from '../hooks/useSupabaseQueries'
+import { useAuthStore } from '../stores/authStore'
+import { intensityWord } from './Flow/PolyvagalStatePicker'
+import { deriveState, deriveIntensity } from '../constants/polyvagalStates'
+import SoMiHeader from './SoMiHeader'
+import { WATER_BG_SOURCE } from '../constants/media'
+import type { SomiChain, StreakDay, EmbodimentCheck, ChainEntry, PolyvagalStateName } from '../types'
+
+// Mini bar gradient for check-in display (energy axis: left=low, right=high)
+const MINI_GRAD_COLORS = ['#0D1B2A', '#3D2575', '#8B5CF6']
+const MINI_GRAD_LOCS = [0, 0.5, 1]
+
+// Calendar/Streak View Component
+interface CalendarStreakViewProps {
+  chains: SomiChain[]
+  monthData?: StreakDay[]
+}
+
+function CalendarStreakView({ chains, monthData = [] }: CalendarStreakViewProps): React.JSX.Element {
+  const today = new Date()
+  const currentMonth = today.getMonth()
+  const currentYear = today.getFullYear()
+
+  // Get first day of month and number of days
+  const firstDayOfMonth = new Date(currentYear, currentMonth, 1)
+  const lastDayOfMonth = new Date(currentYear, currentMonth + 1, 0)
+  const daysInMonth = lastDayOfMonth.getDate()
+  const startingDayOfWeek = firstDayOfMonth.getDay() // 0 = Sunday
+
+  // Create map of days with sessions (only daily flows)
+  const daysWithSessions = new Set<number>()
+  const sessionsByDay: Record<number, number> = {}
+
+  // Only count daily flows with >= 5 min of play time
+  const dailyFlowChains = chains.filter(chain => {
+    if (chain.flow_type !== 'daily_flow') return false
+    const dur = chain.duration_seconds > 0
+      ? chain.duration_seconds
+      : (chain.somi_chain_entries || []).reduce((sum, e) => sum + (e.seconds_elapsed || 0), 0)
+    return dur >= 300
+  })
+
+  dailyFlowChains.forEach(chain => {
+    const date = new Date(chain.created_at)
+    if (date.getMonth() === currentMonth && date.getFullYear() === currentYear) {
+      const day = date.getDate()
+      daysWithSessions.add(day)
+      sessionsByDay[day] = (sessionsByDay[day] || 0) + 1
+    }
+  })
+
+  // Streak days from server data: consecutive counts: true days walking backward from today
+  const streakDays = new Set()
+  for (let i = monthData.length - 1; i >= 0; i--) {
+    if (monthData[i].counts) {
+      streakDays.add(parseInt(monthData[i].date.slice(-2), 10))
+    } else {
+      break
+    }
+  }
+
+  // Generate calendar grid
+  const weeks = []
+  let currentWeek = []
+
+  // Add empty cells for days before month starts
+  for (let i = 0; i < startingDayOfWeek; i++) {
+    currentWeek.push(null)
+  }
+
+  // Add days of month
+  for (let day = 1; day <= daysInMonth; day++) {
+    currentWeek.push(day)
+
+    if (currentWeek.length === 7) {
+      weeks.push(currentWeek)
+      currentWeek = []
+    }
+  }
+
+  // Add remaining empty cells
+  if (currentWeek.length > 0) {
+    while (currentWeek.length < 7) {
+      currentWeek.push(null)
+    }
+    weeks.push(currentWeek)
+  }
+
+  const monthNames = ['January', 'February', 'March', 'April', 'May', 'June',
+                      'July', 'August', 'September', 'October', 'November', 'December']
+  const dayNames = ['S', 'M', 'T', 'W', 'T', 'F', 'S']
+
+  return (
+    <View style={styles.calendarContainer}>
+      <Text style={styles.calendarMonthTitle}>{monthNames[currentMonth]}</Text>
+
+      {/* Day names header */}
+      <View style={styles.calendarHeader}>
+        {dayNames.map((dayName, index) => (
+          <Text key={index} style={styles.calendarDayName}>{dayName}</Text>
+        ))}
+      </View>
+
+      {/* Calendar grid */}
+      {weeks.map((week, weekIndex) => (
+        <View key={weekIndex} style={styles.calendarWeek}>
+          {week.map((day, dayIndex) => {
+            const isToday = day === today.getDate()
+            const hasSession = !!day && daysWithSessions.has(day)
+            const isStreakDay = !!day && streakDays.has(day)
+            const sessionCount = day ? sessionsByDay[day] || 0 : 0
+
+            return (
+              <View key={dayIndex} style={styles.calendarDayCell}>
+                {day && (
+                  <View style={[
+                    styles.calendarDay,
+                    hasSession && styles.calendarDayWithSession,
+                    isStreakDay && styles.calendarDayStreak,
+                    isToday && styles.calendarDayToday,
+                  ]}>
+                    <Text style={[
+                      styles.calendarDayText,
+                      hasSession && styles.calendarDayTextActive,
+                      isToday && styles.calendarDayTextToday,
+                    ]}>
+                      {day}
+                    </Text>
+                    {sessionCount > 1 && (
+                      <View style={styles.sessionCountDot}>
+                        <Text style={styles.sessionCountText}>{sessionCount}</Text>
+                      </View>
+                    )}
+                  </View>
+                )}
+              </View>
+            )
+          })}
+        </View>
+      ))}
+    </View>
+  )
+}
+
+interface FloatingOrbProps {
+  check: EmbodimentCheck
+  index: number
+  onPress: (check: EmbodimentCheck) => void
+  isSelected: boolean
+  formatDate: (dateString: string) => string
+}
+
+// Floating Orb Component with physics
+function FloatingOrb({ check, index, onPress, isSelected, formatDate }: FloatingOrbProps): React.JSX.Element {
+  const stateInfo = deriveState(check.energy_level ?? 50, check.safety_level ?? 50)
+  const fillLevel = deriveIntensity(check.energy_level ?? 50, check.safety_level ?? 50) / 100
+
+  // Circle measurements for progress ring
+  const circleSize = 52
+  const strokeWidth = 4 // Thicker stroke for better visibility
+  const radius = (circleSize - strokeWidth) / 2
+  const circumference = 2 * Math.PI * radius
+  const strokeDashoffset = circumference * (1 - fillLevel)
+
+  // Position: newest at top, oldest at bottom
+  const row = Math.floor(index / 3)
+  const col = index % 3
+  const leftOffset = col === 0 ? 5 : col === 1 ? 40 : 75
+  const topOffset = row * 22 + 5
+
+  // Smart tooltip positioning to avoid edges
+  const showTooltipBelow = row < 2 // Show below for top rows
+  const tooltipAlignment = col === 0 ? 'left' : col === 2 ? 'right' : 'center'
+
+  // Create floating animation for this orb
+  const floatY = React.useRef(new Animated.Value(0)).current
+  const floatX = React.useRef(new Animated.Value(0)).current
+
+  // Start animation on mount with unique timing per orb
+  React.useEffect(() => {
+    const duration = 2000 + (index * 200) // Vary duration per orb
+    const delay = index * 300 // Stagger start times
+
+    // Vertical floating (bobbing up and down)
+    const floatYAnimation = Animated.loop(
+      Animated.sequence([
+        Animated.timing(floatY, {
+          toValue: -8,
+          duration: duration,
+          delay: delay,
+          useNativeDriver: true,
+        }),
+        Animated.timing(floatY, {
+          toValue: 0,
+          duration: duration,
+          useNativeDriver: true,
+        }),
+      ])
+    )
+
+    // Horizontal drifting (gentle side-to-side)
+    const floatXAnimation = Animated.loop(
+      Animated.sequence([
+        Animated.timing(floatX, {
+          toValue: 5,
+          duration: duration * 1.5,
+          delay: delay + 500,
+          useNativeDriver: true,
+        }),
+        Animated.timing(floatX, {
+          toValue: -5,
+          duration: duration * 1.5,
+          useNativeDriver: true,
+        }),
+        Animated.timing(floatX, {
+          toValue: 0,
+          duration: duration * 1.5,
+          useNativeDriver: true,
+        }),
+      ])
+    )
+
+    floatYAnimation.start()
+    floatXAnimation.start()
+
+    return () => {
+      floatYAnimation.stop()
+      floatXAnimation.stop()
+    }
+  }, [index, floatY, floatX])
+
+  return (
+    <Animated.View
+      style={[
+        styles.gardenOrb,
+        {
+          left: `${leftOffset}%`,
+          top: `${topOffset}%`,
+          transform: [
+            { translateY: floatY },
+            { translateX: floatX },
+          ],
+        }
+      ]}
+    >
+      <TouchableOpacity
+        onPress={() => onPress(check)}
+        activeOpacity={0.8}
+        style={styles.orbTouchable}
+      >
+        {/* SVG Progress Ring */}
+        <Svg width={circleSize} height={circleSize} style={styles.gardenOrbSvg}>
+          {/* Background ring */}
+          <Circle
+            cx={circleSize / 2}
+            cy={circleSize / 2}
+            r={radius}
+            stroke={stateInfo?.color + '30'}
+            strokeWidth={strokeWidth}
+            fill="none"
+          />
+          {/* Progress ring - uses derived state color */}
+          <Circle
+            cx={circleSize / 2}
+            cy={circleSize / 2}
+            r={radius}
+            stroke={stateInfo?.color}
+            strokeWidth={strokeWidth}
+            fill="none"
+            strokeDasharray={circumference}
+            strokeDashoffset={strokeDashoffset}
+            strokeLinecap="round"
+            transform={`rotate(-90 ${circleSize / 2} ${circleSize / 2})`}
+          />
+        </Svg>
+
+        {/* Center content */}
+        <View
+          style={[
+            styles.gardenOrbCenter,
+            {
+              backgroundColor: stateInfo?.color,
+              opacity: 0.4 + (fillLevel * 0.6), // Vary opacity based on fill level
+            }
+          ]}
+        >
+          <Text style={[styles.gardenOrbEmoji, { opacity: 1 }]}>
+            {stateInfo.icon}
+          </Text>
+        </View>
+
+        {/* Popup tooltip on selection */}
+        {isSelected && (
+          <View style={[
+            styles.orbTooltip,
+            showTooltipBelow ? styles.orbTooltipBelow : styles.orbTooltipAbove,
+            tooltipAlignment === 'left' && styles.orbTooltipLeft,
+            tooltipAlignment === 'right' && styles.orbTooltipRight,
+            tooltipAlignment === 'center' && styles.orbTooltipCenter,
+          ]}>
+            <Text style={styles.orbTooltipText}>{Math.round(fillLevel * 100)}%</Text>
+            <Text style={styles.orbTooltipState}>{stateInfo.label}</Text>
+            <Text style={styles.orbTooltipDate}>{formatDate(check.created_at)}</Text>
+          </View>
+        )}
+      </TouchableOpacity>
+    </Animated.View>
+  )
+}
+
+export default function MySomiScreen(): React.JSX.Element {
+  const navigation = useNavigation()
+  const scrollViewRef = useRef<ScrollView>(null)
+
+  // Use React Query for chains data
+  const { data: allChains = [], isLoading: loading, refetch } = useChains(30)
+  const { data: streakData, refetch: refetchStreaks } = useStreaks()
+  const deleteChainMutation = useDeleteChain()
+
+  // Filter to only show daily flows with >= 5 min of play time (memoized to prevent infinite loops)
+  const somiChains = useMemo(() =>
+    allChains.filter(chain => {
+      if (chain.flow_type !== 'daily_flow') return false
+      // Use duration_seconds if available and positive; fall back to summing entries
+      const dur = chain.duration_seconds > 0
+        ? chain.duration_seconds
+        : (chain.somi_chain_entries || []).reduce((sum, e) => sum + (e.seconds_elapsed || 0), 0)
+      return dur >= 300
+    }),
+    [allChains]
+  )
+
+  // Get user for personalization
+  const user = useAuthStore((state) => state.user)
+
+  const [selectedOrb, setSelectedOrb] = useState<EmbodimentCheck | null>(null)
+  const [expandedChains, setExpandedChains] = useState<Record<number, boolean>>({}) // Track which chains are expanded
+  const [deleteModalVisible, setDeleteModalVisible] = useState(false)
+  const [chainToDelete, setChainToDelete] = useState<number | null>(null)
+  const [deletingChainId, setDeletingChainId] = useState<number | null>(null) // Track which chain is animating out
+  const [journalModalVisible, setJournalModalVisible] = useState(false)
+  const [selectedJournalEntry, setSelectedJournalEntry] = useState<string | null>(null)
+
+  // Animated values for deletion (one per chain, created on demand)
+  const chainAnimations = useRef<Record<number, { opacity: Animated.Value, translateX: Animated.Value }>>({})
+  const [stats, setStats] = useState({
+    averageScore: 0,
+    totalCheckIns: 0,
+    mostCommonState: null as string | null,
+    recentTrend: null as string | null,
+    totalSessions: 0,
+    totalMinutes: 0,
+    totalExercises: 0,
+    daysActive: 0,
+    currentStreak: 0,
+  })
+
+  // Fetch fresh data and scroll to top whenever the screen comes into focus
+  useFocusEffect(
+    useCallback(() => {
+      refetch()
+      refetchStreaks()
+      scrollViewRef.current?.scrollTo({ y: 0, animated: false })
+    }, [refetch, refetchStreaks])
+  )
+
+  // Calculate stats whenever chains data changes
+  React.useEffect(() => {
+    if (somiChains.length > 0) {
+      const allChecks = somiChains.flatMap(chain => chain.embodiment_checks)
+      calculateStats(allChecks, somiChains)
+    }
+  }, [somiChains])
+
+  const calculateStats = (data: (EmbodimentCheck | undefined)[], chains: SomiChain[]) => {
+    if (data.length === 0) {
+      setStats({
+        averageScore: 0,
+        totalCheckIns: 0,
+        mostCommonState: null,
+        recentTrend: null,
+        totalSessions: 0,
+        totalMinutes: 0,
+        totalExercises: 0,
+        daysActive: 0,
+        currentStreak: 0,
+      })
+      return
+    }
+
+    // Calculate average score (using derived intensity)
+    const avgScore = data.reduce((sum: number, check: EmbodimentCheck | undefined) => sum + deriveIntensity((check as EmbodimentCheck)?.energy_level ?? 50, (check as EmbodimentCheck)?.safety_level ?? 50), 0) / data.length
+
+    // Find most common state
+    const stateCounts: Record<PolyvagalStateName, number> = {} as Record<PolyvagalStateName, number>
+    data.forEach((check: EmbodimentCheck | undefined) => {
+      const stateName = deriveState((check as EmbodimentCheck)?.energy_level ?? 50, (check as EmbodimentCheck)?.safety_level ?? 50).name
+      stateCounts[stateName] = (stateCounts[stateName] || 0) + 1
+    })
+    const mostCommonState = Object.keys(stateCounts).reduce((a: string, b: string) =>
+      (stateCounts as Record<string, number>)[a] > (stateCounts as Record<string, number>)[b] ? a : b
+    )
+
+    // Calculate recent trend (last 5 vs previous 5)
+    let recentTrend = null
+    if (data.length >= 10) {
+      const recentAvg = data.slice(0, 5).reduce((sum: number, c: EmbodimentCheck | undefined) => sum + deriveIntensity((c as EmbodimentCheck)?.energy_level ?? 50, (c as EmbodimentCheck)?.safety_level ?? 50), 0) / 5
+      const previousAvg = data.slice(5, 10).reduce((sum: number, c: EmbodimentCheck | undefined) => sum + deriveIntensity((c as EmbodimentCheck)?.energy_level ?? 50, (c as EmbodimentCheck)?.safety_level ?? 50), 0) / 5
+      const diff = recentAvg - previousAvg
+
+      if (Math.abs(diff) < 5) {
+        recentTrend = 'stable'
+      } else if (diff > 0) {
+        recentTrend = 'improving'
+      } else {
+        recentTrend = 'fluctuating'
+      }
+    }
+
+    // Calculate total sessions
+    const totalSessions = chains.length
+
+    // Calculate total exercises (blocks completed across all sessions)
+    const totalExercises = chains.reduce((sum: number, chain: SomiChain) => sum + (chain.somi_chain_entries || []).length, 0)
+
+    // Calculate total minutes
+    const totalSeconds = chains.reduce((sum: number, chain: SomiChain) => {
+      return sum + (chain.somi_chain_entries || []).reduce((chainSum: number, entry: ChainEntry) => {
+        return chainSum + (entry.seconds_elapsed || 0)
+      }, 0)
+    }, 0)
+    const totalMinutes = Math.round(totalSeconds / 60)
+
+    // Calculate days active (unique days with sessions)
+    const uniqueDays = new Set()
+    chains.forEach(chain => {
+      const date = new Date(chain.created_at)
+      const dateKey = `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`
+      uniqueDays.add(dateKey)
+    })
+    const daysActive = uniqueDays.size
+
+    // Calculate current streak (consecutive days with sessions)
+    const sortedChains = [...chains].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+    let currentStreak = 0
+    let lastDate = null
+
+    for (const chain of sortedChains) {
+      const chainDate = new Date(chain.created_at)
+      chainDate.setHours(0, 0, 0, 0)
+
+      if (!lastDate) {
+        // First chain - check if it's today or yesterday
+        const today = new Date()
+        today.setHours(0, 0, 0, 0)
+        const yesterday = new Date(today)
+        yesterday.setDate(yesterday.getDate() - 1)
+
+        if (chainDate.getTime() === today.getTime() || chainDate.getTime() === yesterday.getTime()) {
+          currentStreak = 1
+          lastDate = chainDate
+        } else {
+          break // Streak is broken
+        }
+      } else {
+        // Check if this chain is from the day before lastDate
+        const expectedDate = new Date(lastDate)
+        expectedDate.setDate(expectedDate.getDate() - 1)
+
+        if (chainDate.getTime() === expectedDate.getTime()) {
+          currentStreak++
+          lastDate = chainDate
+        } else if (chainDate.getTime() === lastDate.getTime()) {
+          // Same day, don't increment streak but continue
+          continue
+        } else {
+          break // Streak is broken
+        }
+      }
+    }
+
+    setStats({
+      averageScore: Math.round(avgScore),
+      totalCheckIns: data.length,
+      mostCommonState,
+      recentTrend,
+      totalSessions,
+      totalMinutes,
+      totalExercises,
+      daysActive,
+      currentStreak,
+    })
+  }
+
+  const formatDate = (dateString: string): string => {
+    const date = new Date(dateString)
+    const now = new Date()
+    const diffMs = now.getTime() - date.getTime()
+    const diffMins = Math.floor(diffMs / 60000)
+    const diffHours = Math.floor(diffMs / 3600000)
+    const diffDays = Math.floor(diffMs / 86400000)
+
+    if (diffMins < 1) {
+      return 'just now'
+    } else if (diffMins < 60) {
+      return `${diffMins}m ago`
+    } else if (diffHours < 24) {
+      return `${diffHours}h ago`
+    } else if (diffDays < 7) {
+      return `${diffDays}d ago`
+    } else {
+      return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+    }
+  }
+
+  const getChainLabel = (dateString: string): string => {
+    const date = new Date(dateString)
+    const now = new Date()
+    const diffMs = now.getTime() - date.getTime()
+    const diffHours = Math.floor(diffMs / 3600000)
+    const diffDays = Math.floor(diffMs / 86400000)
+
+    // Get time of day (morning, afternoon, evening, night)
+    const hours = date.getHours()
+    let timeOfDay
+    if (hours >= 5 && hours < 12) {
+      timeOfDay = 'Morning'
+    } else if (hours >= 12 && hours < 17) {
+      timeOfDay = 'Afternoon'
+    } else if (hours >= 17 && hours < 21) {
+      timeOfDay = 'Evening'
+    } else {
+      timeOfDay = 'Night'
+    }
+
+    // Today
+    if (diffHours < 24 && date.getDate() === now.getDate()) {
+      return `${timeOfDay} Session`
+    }
+
+    // Yesterday
+    const yesterday = new Date(now)
+    yesterday.setDate(yesterday.getDate() - 1)
+    if (date.getDate() === yesterday.getDate() && date.getMonth() === yesterday.getMonth()) {
+      return `Yesterday ${timeOfDay}`
+    }
+
+    // This week (show day name)
+    if (diffDays < 7) {
+      const dayName = date.toLocaleDateString('en-US', { weekday: 'long' })
+      return `${dayName} ${timeOfDay}`
+    }
+
+    // Last week
+    if (diffDays < 14) {
+      const dayName = date.toLocaleDateString('en-US', { weekday: 'long' })
+      return `Last ${dayName}`
+    }
+
+    // This month (show date)
+    if (date.getMonth() === now.getMonth() && date.getFullYear() === now.getFullYear()) {
+      const dayName = date.toLocaleDateString('en-US', { weekday: 'short' })
+      const day = date.getDate()
+      return `${dayName} ${day}`
+    }
+
+    // Older (show month + day)
+    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+  }
+
+  const getStateInfo = (energy: number | null, safety: number | null) => {
+    return deriveState(energy ?? 50, safety ?? 50)
+  }
+
+  const handleOrbPress = (check: EmbodimentCheck) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
+    setSelectedOrb(selectedOrb?.id === check.id ? null : check)
+  }
+
+  const toggleChainExpanded = (chainId: number) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
+    setExpandedChains(prev => ({
+      ...prev,
+      [chainId]: !prev[chainId]
+    }))
+  }
+
+  const handleDeleteChainPress = (chainId: number) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium)
+    setChainToDelete(chainId)
+    setDeleteModalVisible(true)
+  }
+
+  const confirmDeleteChain = async () => {
+    if (!chainToDelete) return
+
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning)
+    setDeleteModalVisible(false)
+    setDeletingChainId(chainToDelete)
+
+    // Initialize animation values for this chain if not exists
+    if (!chainAnimations.current[chainToDelete]) {
+      chainAnimations.current[chainToDelete] = {
+        opacity: new Animated.Value(1),
+        translateX: new Animated.Value(0),
+      }
+    }
+
+    const anim = chainAnimations.current[chainToDelete]
+
+    // Animate out with iOS-style slide and fade
+    Animated.parallel([
+      Animated.timing(anim.opacity, {
+        toValue: 0,
+        duration: 300,
+        useNativeDriver: true,
+      }),
+      Animated.timing(anim.translateX, {
+        toValue: -50,
+        duration: 300,
+        useNativeDriver: true,
+      }),
+    ]).start(() => {
+      // After animation completes, delete from backend
+      deleteChainMutation.mutate(chainToDelete, {
+        onSuccess: () => {
+          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success)
+          setDeletingChainId(null)
+          // Clean up animation values
+          delete chainAnimations.current[chainToDelete]
+        },
+        onError: () => {
+          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error)
+          // Reset animation on error
+          Animated.parallel([
+            Animated.spring(anim.opacity, {
+              toValue: 1,
+              useNativeDriver: true,
+            }),
+            Animated.spring(anim.translateX, {
+              toValue: 0,
+              useNativeDriver: true,
+            }),
+          ]).start()
+          setDeletingChainId(null)
+        },
+      })
+    })
+
+    setChainToDelete(null)
+  }
+
+  const cancelDelete = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
+    setDeleteModalVisible(false)
+    setChainToDelete(null)
+  }
+
+  const handleViewJournal = (journalEntry: string) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
+    setSelectedJournalEntry(journalEntry)
+    setJournalModalVisible(true)
+  }
+
+  const closeJournalModal = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
+    setJournalModalVisible(false)
+    setSelectedJournalEntry(null)
+  }
+
+  const handlePlayBlock = (block: ChainEntry) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
+
+    if (!block.somi_blocks || !block.somi_blocks.media_url) {
+      console.error('Block missing media data', block)
+      return
+    }
+
+    ;(navigation as any).navigate('Player', {
+      media: {
+        somi_block_id: block.somi_blocks.id,
+        name: block.somi_blocks.name,
+        type: block.somi_blocks.media_type || 'video',
+        url: block.somi_blocks.media_url,
+      },
+      fromExplore: true // Mark as à la carte viewing
+    })
+  }
+
+  const handleOpenSettings = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
+    ;(navigation as any).navigate('AccountSettings')
+  }
+
+  const renderEmptyState = () => (
+    <View style={styles.emptyContainer}>
+      <Text style={styles.emptyEmoji}>🌱</Text>
+      <Text style={styles.emptyTitle}>your journey starts here</Text>
+      <Text style={styles.emptyText}>
+        complete a check-in to start tracking your embodiment over time
+      </Text>
+    </View>
+  )
+
+  if (loading) {
+    return (
+      <View style={styles.container}>
+        <Image source={WATER_BG_SOURCE} style={StyleSheet.absoluteFillObject} resizeMode="cover" />
+        <LinearGradient
+          colors={[colors.background.primary + 'BF', colors.background.secondary + 'CC', colors.background.primary + 'BF']}
+          style={StyleSheet.absoluteFillObject}
+        />
+        <SoMiHeader style={styles.soMiHeader} rightIcon="settings" onRightPress={handleOpenSettings} />
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={colors.accent.primary} />
+        </View>
+      </View>
+    )
+  }
+
+  if (somiChains.length === 0) {
+    return (
+      <View style={styles.container}>
+        <Image source={WATER_BG_SOURCE} style={StyleSheet.absoluteFillObject} resizeMode="cover" />
+        <LinearGradient
+          colors={[colors.background.primary + 'BF', colors.background.secondary + 'CC', colors.background.primary + 'BF']}
+          style={StyleSheet.absoluteFillObject}
+        />
+        <SoMiHeader style={styles.soMiHeader} rightIcon="settings" onRightPress={handleOpenSettings} />
+        {renderEmptyState()}
+      </View>
+    )
+  }
+
+  // Get all embodiment checks from all chains for the river visualization
+  const allChecksForRiver = somiChains.flatMap(chain => chain.embodiment_checks)
+
+  return (
+    <View style={styles.container}>
+      <Image source={WATER_BG_SOURCE} style={StyleSheet.absoluteFillObject} resizeMode="cover" />
+      <LinearGradient
+        colors={[colors.background.primary + 'BF', colors.background.secondary + 'CC', colors.background.primary + 'BF']}
+        style={StyleSheet.absoluteFillObject}
+      />
+      <SoMiHeader style={styles.soMiHeader} rightIcon="settings" onRightPress={handleOpenSettings} />
+
+      <ScrollView
+        ref={scrollViewRef}
+        style={styles.scrollContainer}
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+      >
+        {/* Garden Visualization */}
+        {/* Temporarily commented out - might bring back later
+        <BlurView intensity={20} tint="dark" style={styles.gardenCard}>
+          <Text style={styles.gardenTitle}>your embodiment river</Text>
+          <View style={styles.gardenContainer}>
+            <LinearGradient
+              colors={[
+                'rgba(42, 74, 111, 0.3)',
+                'rgba(74, 95, 140, 0.4)',
+                'rgba(0, 217, 163, 0.25)',
+                'rgba(74, 95, 140, 0.4)',
+                'rgba(42, 74, 111, 0.3)',
+              ]}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.riverGradient}
+            />
+
+            <Svg style={styles.tetherSvg}>
+              {somiChains.slice(0, 10).map((chain, chainIndex) => {
+                const checks = chain.embodiment_checks.slice(0, 3)
+                if (checks.length < 2) return null
+
+                return checks.slice(0, -1).map((check, checkIndex) => {
+                  const currentIndex = chainIndex * 3 + checkIndex
+                  const nextIndex = currentIndex + 1
+
+                  const currentRow = Math.floor(currentIndex / 3)
+                  const currentCol = currentIndex % 3
+                  const nextRow = Math.floor(nextIndex / 3)
+                  const nextCol = nextIndex % 3
+
+                  const currentX = (currentCol === 0 ? 5 : currentCol === 1 ? 40 : 75) + 3
+                  const currentY = (currentRow * 22 + 5) + 3
+                  const nextX = (nextCol === 0 ? 5 : nextCol === 1 ? 40 : 75) + 3
+                  const nextY = (nextRow * 22 + 5) + 3
+
+                  return (
+                    <Line
+                      key={`tether-${chain.id}-${checkIndex}`}
+                      x1={`${currentX}%`}
+                      y1={`${currentY}%`}
+                      x2={`${nextX}%`}
+                      y2={`${nextY}%`}
+                      stroke="rgba(0, 217, 163, 0.3)"
+                      strokeWidth="1"
+                      strokeDasharray="3,3"
+                    />
+                  )
+                })
+              })}
+            </Svg>
+
+            {allChecksForRiver.slice(0, 20).map((check, index) => (
+              <FloatingOrb
+                key={check.id}
+                check={check}
+                index={index}
+                onPress={handleOrbPress}
+                isSelected={selectedOrb?.id === check.id}
+                formatDate={formatDate}
+              />
+            ))}
+          </View>
+        </BlurView>
+        */}
+
+        {/* Stats Row - Breathwork style */}
+        <View style={styles.statsRow}>
+          <View style={styles.statsRowItem}>
+            <Text style={styles.statsRowNumber}>{streakData?.all_time_streak ?? 0}</Text>
+            <Text style={styles.statsRowLabel}>Top Streak</Text>
+          </View>
+          <View style={styles.statsRowDivider} />
+          <View style={styles.statsRowItem}>
+            <Text style={styles.statsRowNumber}>{stats.totalExercises}</Text>
+            <Text style={styles.statsRowLabel}>Exercises</Text>
+          </View>
+          <View style={styles.statsRowDivider} />
+          <View style={styles.statsRowItem}>
+            <Text style={styles.statsRowNumber}>{stats.totalMinutes}</Text>
+            <Text style={styles.statsRowLabel}>Minutes</Text>
+          </View>
+        </View>
+
+        {/* Calendar/Streak View */}
+        <Text style={styles.sectionTitle}>flow calendar</Text>
+        <BlurView intensity={20} tint="dark" style={styles.calendarCard}>
+          <CalendarStreakView chains={somiChains} monthData={streakData?.month ?? []} />
+          <View style={styles.calendarLegend}>
+            <View style={styles.calendarLegendItem}>
+              <View style={[styles.calendarLegendDot, styles.calendarLegendDotSession]} />
+              <Text style={styles.calendarLegendText}>Session</Text>
+            </View>
+            <View style={styles.calendarLegendItem}>
+              <View style={[styles.calendarLegendDot, styles.calendarLegendDotStreak]} />
+              <Text style={styles.calendarLegendText}>Streak</Text>
+            </View>
+            <View style={styles.calendarLegendItem}>
+              <View style={[styles.calendarLegendDot, styles.calendarLegendDotToday]} />
+              <Text style={styles.calendarLegendText}>Today</Text>
+            </View>
+          </View>
+        </BlurView>
+
+        {/* MVP: Recent Check-Ins hidden for now
+        <Text style={styles.sectionTitle}>recent check-ins</Text>
+        <BlurView intensity={20} tint="dark" style={styles.checkInsListCard}>
+          {allChecksForRiver
+            .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
+            .slice(0, 8)
+            .map((check, index) => {
+              const stateInfo = POLYVAGAL_STATES.find(s => s.id === check.polyvagal_state_code)
+              const emoji = STATE_EMOJIS[check.polyvagal_state_code] || '❓'
+              const fillLevel = check.embodiment_level / 100
+
+              const circleSize = 48
+              const strokeWidth = 3
+              const radius = (circleSize - strokeWidth) / 2
+              const circumference = 2 * Math.PI * radius
+              const strokeDashoffset = circumference * (1 - fillLevel)
+
+              return (
+                <View key={check.id} style={[
+                  styles.checkInListItem,
+                  index < 7 && styles.checkInListItemBorder
+                ]}>
+                  <View style={styles.checkInListLeft}>
+                    <View style={styles.checkInStateCircle}>
+                      <Svg width={circleSize} height={circleSize}>
+                        <Circle
+                          cx={circleSize / 2}
+                          cy={circleSize / 2}
+                          r={radius}
+                          stroke={stateInfo?.color + '30'}
+                          strokeWidth={strokeWidth}
+                          fill="none"
+                        />
+                        <Circle
+                          cx={circleSize / 2}
+                          cy={circleSize / 2}
+                          r={radius}
+                          stroke={stateInfo?.color}
+                          strokeWidth={strokeWidth}
+                          fill="none"
+                          strokeDasharray={circumference}
+                          strokeDashoffset={strokeDashoffset}
+                          strokeLinecap="round"
+                          transform={`rotate(-90 ${circleSize / 2} ${circleSize / 2})`}
+                        />
+                      </Svg>
+                      <Text style={styles.checkInStateEmojiAbsolute}>{emoji}</Text>
+                    </View>
+                    <View style={styles.checkInListInfo}>
+                      <Text style={styles.checkInStateLabel}>{stateInfo?.label || 'Unknown'}</Text>
+                      <Text style={styles.checkInListTime}>{formatDate(check.created_at)}</Text>
+                    </View>
+                  </View>
+                </View>
+              )
+            })}
+        </BlurView>
+        */}
+
+        {/* My Daily Flows Timeline */}
+        <Text style={styles.sectionTitle}>my daily flows</Text>
+
+        {somiChains.map((chain, chainIndex) => {
+          const isExpanded = expandedChains[chain.id]
+          const checksCount = (chain.embodiment_checks || []).length
+          const blocksCount = (chain.somi_chain_entries || []).length
+
+          // Calculate total minutes from seconds_elapsed
+          const totalSeconds = (chain.somi_chain_entries || []).reduce((sum: number, entry: ChainEntry) => sum + (entry.seconds_elapsed || 0), 0)
+          const totalMinutes = Math.round(totalSeconds / 60)
+
+          // Get or create animation values for this chain
+          if (!chainAnimations.current[chain.id]) {
+            chainAnimations.current[chain.id] = {
+              opacity: new Animated.Value(1),
+              translateX: new Animated.Value(0),
+            }
+          }
+          const anim = chainAnimations.current[chain.id]
+          const isDeleting = deletingChainId === chain.id
+
+          return (
+            <Animated.View
+              key={chain.id}
+              style={[
+                styles.checkInItem,
+                {
+                  opacity: anim.opacity,
+                  transform: [{ translateX: anim.translateX }],
+                }
+              ]}
+            >
+              {/* Timeline dot and line */}
+              <View style={styles.timelineContainer}>
+                <View style={[styles.timelineDot, { backgroundColor: colors.accent.primary }]} />
+                {chainIndex < somiChains.length - 1 && (
+                  <View style={styles.timelineLine} />
+                )}
+              </View>
+
+              {/* Chain card */}
+              <BlurView intensity={15} tint="dark" style={styles.checkInCard}>
+                <View style={styles.chainHeader}>
+                  <TouchableOpacity
+                    onPress={() => toggleChainExpanded(chain.id)}
+                    activeOpacity={0.7}
+                    style={styles.chainHeaderTouchable}
+                  >
+                    <View style={styles.checkInHeader}>
+                      <View style={styles.chainHeaderLeft}>
+                        <Text style={styles.chainTitle}>{getChainLabel(chain.created_at)}</Text>
+                        <Text style={styles.chainSubtitle}>
+                          {checksCount} check-in{checksCount !== 1 ? 's' : ''} • {blocksCount} block{blocksCount !== 1 ? 's' : ''} • {totalMinutes} min
+                        </Text>
+                      </View>
+
+                      <Text style={styles.expandIcon}>{isExpanded ? '▼' : '▶'}</Text>
+                    </View>
+
+                    <Text style={styles.checkInTime}>{formatDate(chain.created_at)}</Text>
+                  </TouchableOpacity>
+
+                  {/* Delete button (MVP debugging) */}
+                  <TouchableOpacity
+                    onPress={() => handleDeleteChainPress(chain.id)}
+                    activeOpacity={0.7}
+                    style={styles.deleteButton}
+                    disabled={isDeleting}
+                  >
+                    {isDeleting ? (
+                      <ActivityIndicator size="small" color="#ff6b6b" />
+                    ) : (
+                      <Text style={styles.deleteButtonText}>✕</Text>
+                    )}
+                  </TouchableOpacity>
+                </View>
+
+                {/* Expanded content */}
+                {isExpanded && (
+                  <View style={styles.chainExpandedContent}>
+                    {(() => {
+                      // Opening = earliest check, closing = latest check
+                      const sortedChecks = [...(chain.embodiment_checks || [])].sort(
+                        (a: EmbodimentCheck, b: EmbodimentCheck) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+                      )
+                      const openingCheck = sortedChecks[0] ?? null
+                      const closingCheck = sortedChecks.length > 1 ? sortedChecks[sortedChecks.length - 1] : null
+
+                      // Group blocks by section, sort by order_index within each
+                      // Server stores sections as 'warm_up' (underscore), not 'warm-up'
+                      const SECTION_ORDER = ['warm_up', 'main', 'integration']
+                      const SECTION_LABELS: Record<string, string> = { warm_up: 'warm-up', main: 'main', integration: 'integration' }
+                      const blocksBySection: Record<string, ChainEntry[]> = {}
+                      ;(chain.somi_chain_entries || []).forEach((b: ChainEntry) => {
+                        const sec = b.section || 'main'
+                        if (!blocksBySection[sec]) blocksBySection[sec] = []
+                        blocksBySection[sec].push(b)
+                      })
+                      SECTION_ORDER.forEach(sec => {
+                        if (blocksBySection[sec]) {
+                          blocksBySection[sec].sort((a: ChainEntry, b: ChainEntry) => (a.order_index || 0) - (b.order_index || 0))
+                        }
+                      })
+
+                      const renderCheck = (check: EmbodimentCheck, label: string) => {
+                        const stInfo = getStateInfo(check.energy_level, check.safety_level)
+                        const displayIcon = stInfo.icon
+                        const displayLabel = stInfo.label
+                        const displayColor = stInfo.color
+                        const intensity = Math.round(deriveIntensity(check.energy_level ?? 50, check.safety_level ?? 50))
+                        const xFrac = (check.energy_level ?? 50) / 100
+                        const iWord = intensityWord(intensity)
+                        const dimOpacity = 1 - (intensity / 100) * 0.8
+                        const hasTags = check.tags && check.tags.length > 0
+                        return (
+                          <View key={`check-${check.id}`} style={styles.timelineItem}>
+                            <Text style={styles.timelineItemLabel}>{label}</Text>
+                            <View style={styles.miniPickerCard}>
+                              <View style={styles.miniBarWrap}>
+                                <LinearGradient
+                                  colors={MINI_GRAD_COLORS as [string, string, string]}
+                                  locations={MINI_GRAD_LOCS as [number, number, number]}
+                                  start={{ x: 0, y: 0.5 }}
+                                  end={{ x: 1, y: 0.5 }}
+                                  style={StyleSheet.absoluteFillObject}
+                                />
+                                <View style={[StyleSheet.absoluteFillObject, { backgroundColor: '#040812', opacity: dimOpacity, borderRadius: 10 }]} />
+                                <View style={[styles.miniBarMarker, {
+                                  left: `${xFrac * 100}%`,
+                                  backgroundColor: displayColor,
+                                }]} />
+                                <View style={styles.miniBarReadout}>
+                                  <Text style={styles.miniBarIcon}>{displayIcon}</Text>
+                                  <Text style={styles.miniBarStateName}>{displayLabel}</Text>
+                                  <Text style={styles.miniBarDot}>·</Text>
+                                  <Text style={styles.miniBarIntensityWord}>{iWord}</Text>
+                                </View>
+                                {check.journal_entry && (
+                                  <TouchableOpacity
+                                    onPress={() => handleViewJournal(check.journal_entry!)}
+                                    activeOpacity={0.7}
+                                    style={styles.miniBarJournalBtn}
+                                  >
+                                    <Text style={styles.miniBarJournalIcon}>📝</Text>
+                                  </TouchableOpacity>
+                                )}
+                              </View>
+                              {hasTags && (
+                                <View style={styles.checkTagsRow}>
+                                  {check.tags!.map((tag: string) => (
+                                    <View key={tag} style={styles.checkTag}>
+                                      <Text style={styles.checkTagText}>{tag}</Text>
+                                    </View>
+                                  ))}
+                                </View>
+                              )}
+                            </View>
+                          </View>
+                        )
+                      }
+
+                      return (
+                        <React.Fragment>
+                          {/* Opening check-in */}
+                          {openingCheck && renderCheck(openingCheck, 'opening check-in')}
+
+                          {/* Sections */}
+                          {SECTION_ORDER.map(sec => {
+                            const blocks = blocksBySection[sec]
+                            if (!blocks || blocks.length === 0) return null
+                            return (
+                              <View key={sec}>
+                                <View style={styles.flowSectionDivider}>
+                                  <View style={styles.flowSectionLine} />
+                                  <Text style={styles.flowSectionLabel}>{SECTION_LABELS[sec] ?? sec}</Text>
+                                  <View style={styles.flowSectionLine} />
+                                </View>
+                                {blocks.map((block: ChainEntry) => {
+                                  const blockName = block.somi_blocks?.name || block.somi_blocks?.canonical_name || 'Unknown'
+                                  const minutes = Math.floor(block.seconds_elapsed / 60)
+                                  const seconds = block.seconds_elapsed % 60
+                                  const timeStr = `${minutes}:${seconds.toString().padStart(2, '0')}`
+                                  const hasMedia = !!block.somi_blocks?.media_url
+                                  return (
+                                    <View key={`block-${block.id}`} style={styles.timelineItem}>
+                                      <View style={styles.chainBlockItem}>
+                                        <View style={styles.blockLeftSide}>
+                                          {hasMedia ? (
+                                            <TouchableOpacity
+                                              onPress={() => handlePlayBlock(block)}
+                                              style={styles.playIconButton}
+                                              activeOpacity={0.7}
+                                            >
+                                              <Text style={styles.playIcon}>▶</Text>
+                                            </TouchableOpacity>
+                                          ) : (
+                                            <View style={styles.blockNoPlaySpacer} />
+                                          )}
+                                          <Text style={styles.blockName}>{blockName}</Text>
+                                        </View>
+                                        <Text style={styles.blockTime}>{timeStr}</Text>
+                                      </View>
+                                    </View>
+                                  )
+                                })}
+                              </View>
+                            )
+                          })}
+
+                          {/* Closing check-in */}
+                          {closingCheck && (
+                            <React.Fragment>
+                              <View style={styles.flowSectionDividerLine} />
+                              {renderCheck(closingCheck, 'closing check-in')}
+                            </React.Fragment>
+                          )}
+                        </React.Fragment>
+                      )
+                    })()}
+                  </View>
+                )}
+              </BlurView>
+            </Animated.View>
+          )
+        })}
+
+        {/* Bottom spacing */}
+        <View style={styles.bottomSpacer} />
+      </ScrollView>
+
+      {/* Delete Confirmation Modal */}
+      <Modal
+        visible={deleteModalVisible}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={cancelDelete}
+      >
+        <View style={styles.modalOverlay}>
+          <BlurView intensity={40} tint="dark" style={styles.deleteModalContainer}>
+            <View style={styles.deleteModalContent}>
+              <Text style={styles.deleteModalTitle}>Delete SoMi Chain?</Text>
+              <Text style={styles.deleteModalText}>
+                This will permanently delete this chain and all its check-ins and exercise blocks.
+              </Text>
+
+              <View style={styles.deleteModalButtons}>
+                <TouchableOpacity
+                  onPress={cancelDelete}
+                  activeOpacity={0.7}
+                  style={styles.deleteModalButtonCancel}
+                >
+                  <Text style={styles.deleteModalButtonCancelText}>Cancel</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  onPress={confirmDeleteChain}
+                  activeOpacity={0.7}
+                  style={styles.deleteModalButtonConfirm}
+                >
+                  <Text style={styles.deleteModalButtonConfirmText}>Delete</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </BlurView>
+        </View>
+      </Modal>
+
+      {/* Journal View Modal (Read-only) - Fullscreen */}
+      <Modal
+        visible={journalModalVisible}
+        transparent={false}
+        animationType="slide"
+        onRequestClose={closeJournalModal}
+      >
+        <View style={styles.journalViewFullscreen}>
+          <View style={styles.journalViewNotebook}>
+            {/* Header with close button */}
+            <View style={styles.journalViewHeader}>
+              <TouchableOpacity
+                onPress={closeJournalModal}
+                activeOpacity={0.7}
+                style={styles.journalViewCloseButton}
+              >
+                <Text style={styles.journalViewCloseText}>✕</Text>
+              </TouchableOpacity>
+            </View>
+
+            {/* Notebook Content */}
+            <View style={styles.journalViewNotebookContent}>
+              <Text style={styles.journalViewNotebookTitle}>what was present</Text>
+
+              <View style={styles.journalViewTextWrapper}>
+                <Text style={styles.journalViewText}>
+                  {selectedJournalEntry || ''}
+                </Text>
+              </View>
+            </View>
+          </View>
+        </View>
+      </Modal>
+    </View>
+  )
+}
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: '#000',
+  },
+  soMiHeader: {
+    paddingTop: 58,
+  },
+  scrollContainer: {
+    flex: 1,
+  },
+  scrollContent: {
+    paddingHorizontal: 24,
+    paddingBottom: 100,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  emptyContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 40,
+  },
+  emptyEmoji: {
+    fontSize: 64,
+    marginBottom: 16,
+  },
+  emptyTitle: {
+    color: colors.text.primary,
+    fontSize: 22,
+    fontWeight: '600',
+    marginBottom: 12,
+    letterSpacing: 0.3,
+  },
+  emptyText: {
+    color: colors.text.muted,
+    fontSize: 15,
+    textAlign: 'center',
+    lineHeight: 22,
+    letterSpacing: 0.2,
+  },
+  gardenCard: {
+    borderRadius: 24,
+    overflow: 'hidden',
+    marginBottom: 32,
+    borderWidth: 1,
+    borderColor: colors.border.subtle,
+    padding: 24,
+    minHeight: 300,
+  },
+  gardenTitle: {
+    color: colors.text.secondary,
+    fontSize: 14,
+    fontWeight: '600',
+    letterSpacing: 1,
+    textTransform: 'lowercase',
+    marginBottom: 20,
+    textAlign: 'center',
+  },
+  gardenContainer: {
+    width: '100%',
+    height: 240,
+    position: 'relative',
+    borderRadius: 16,
+    padding: 16,
+    overflow: 'hidden',
+  },
+  riverGradient: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    borderRadius: 16,
+  },
+  gardenOrb: {
+    position: 'absolute',
+    width: 52,
+    height: 52,
+  },
+  orbTouchable: {
+    width: 52,
+    height: 52,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  gardenOrbSvg: {
+    position: 'absolute',
+  },
+  gardenOrbCenter: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  gardenOrbEmoji: {
+    fontSize: 18,
+  },
+  orbTooltip: {
+    position: 'absolute',
+    backgroundColor: colors.overlay.dark,
+    borderRadius: 12,
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderWidth: 1,
+    borderColor: colors.border.default,
+    minWidth: 80,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 5,
+  },
+  orbTooltipAbove: {
+    top: -48,
+  },
+  orbTooltipBelow: {
+    top: 56,
+  },
+  orbTooltipLeft: {
+    left: 0,
+  },
+  orbTooltipCenter: {
+    left: '50%',
+    transform: [{ translateX: -50 }],
+  },
+  orbTooltipRight: {
+    right: 0,
+  },
+  orbTooltipText: {
+    color: colors.text.primary,
+    fontSize: 13,
+    fontWeight: '700',
+    letterSpacing: 0.3,
+  },
+  orbTooltipState: {
+    color: colors.text.secondary,
+    fontSize: 10,
+    fontWeight: '600',
+    letterSpacing: 0.3,
+    marginTop: 2,
+  },
+  orbTooltipDate: {
+    color: colors.text.muted,
+    fontSize: 9,
+    fontWeight: '500',
+    letterSpacing: 0.3,
+    marginTop: 2,
+  },
+  statsCard: {
+    borderRadius: 24,
+    overflow: 'hidden',
+    marginBottom: 32,
+    borderWidth: 1,
+    borderColor: colors.border.subtle,
+    padding: 24,
+  },
+  statsGrid: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    alignItems: 'center',
+  },
+  statItem: {
+    alignItems: 'center',
+    flex: 1,
+  },
+  statValue: {
+    color: colors.accent.primary,
+    fontSize: 28,
+    fontWeight: '700',
+    letterSpacing: 0.3,
+    marginBottom: 6,
+  },
+  statLabel: {
+    color: colors.text.muted,
+    fontSize: 12,
+    fontWeight: '500',
+    letterSpacing: 0.5,
+    textTransform: 'lowercase',
+  },
+  stateChipSmall: {
+    alignItems: 'center',
+  },
+  stateEmoji: {
+    fontSize: 32,
+    marginBottom: 4,
+  },
+  statsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-around',
+    paddingVertical: 20,
+    marginBottom: 32,
+  },
+  statsRowItem: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  statsRowNumber: {
+    color: colors.text.primary,
+    fontSize: 36,
+    fontWeight: '700',
+    letterSpacing: -0.5,
+    marginBottom: 4,
+  },
+  statsRowLabel: {
+    color: colors.text.muted,
+    fontSize: 13,
+    fontWeight: '500',
+    letterSpacing: 0.3,
+  },
+  statsRowDivider: {
+    width: 1,
+    height: 40,
+    backgroundColor: colors.border.subtle,
+  },
+  bottomStatsGrid: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-around',
+    width: '100%',
+    paddingTop: 24,
+    borderTopWidth: 1,
+    borderTopColor: colors.border.subtle,
+  },
+  bottomStatItem: {
+    alignItems: 'center',
+    flex: 1,
+  },
+  bottomStatIcon: {
+    fontSize: 24,
+    marginBottom: 8,
+  },
+  bottomStatValue: {
+    color: colors.text.primary,
+    fontSize: 18,
+    fontWeight: '700',
+    letterSpacing: 0.3,
+    marginBottom: 4,
+  },
+  bottomStatLabel: {
+    color: colors.text.muted,
+    fontSize: 11,
+    fontWeight: '500',
+    letterSpacing: 0.5,
+    textTransform: 'lowercase',
+  },
+  bottomStatDivider: {
+    width: 1,
+    height: 40,
+    backgroundColor: colors.border.subtle,
+  },
+  sectionTitle: {
+    color: colors.text.secondary,
+    fontSize: 14,
+    fontWeight: '600',
+    letterSpacing: 1,
+    textTransform: 'uppercase',
+    marginBottom: 16,
+  },
+  checkInsListCard: {
+    borderRadius: 20,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: colors.border.subtle,
+    padding: 16,
+    marginBottom: 32,
+  },
+  checkInListItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 12,
+  },
+  checkInListItemBorder: {
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border.subtle,
+  },
+  checkInListLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    flex: 1,
+  },
+  checkInStateCircle: {
+    width: 48,
+    height: 48,
+    position: 'relative',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  checkInStateEmoji: {
+    fontSize: 24,
+  },
+  checkInStateEmojiAbsolute: {
+    position: 'absolute',
+    fontSize: 22,
+    top: '50%',
+    left: '50%',
+    transform: [{ translateX: -11 }, { translateY: -11 }],
+  },
+  checkInListInfo: {
+    flex: 1,
+  },
+  checkInStateLabel: {
+    color: colors.text.primary,
+    fontSize: 16,
+    fontWeight: '600',
+    letterSpacing: 0.3,
+    marginBottom: 2,
+  },
+  checkInListTime: {
+    color: colors.text.muted,
+    fontSize: 13,
+    fontWeight: '500',
+    letterSpacing: 0.2,
+  },
+  checkInListRight: {
+    marginLeft: 12,
+  },
+  checkInSliderValue: {
+    color: colors.accent.teal,
+    fontSize: 18,
+    fontWeight: '700',
+    letterSpacing: 0.3,
+  },
+  checkInItem: {
+    flexDirection: 'row',
+    marginBottom: 16,
+  },
+  timelineContainer: {
+    alignItems: 'center',
+    marginRight: 16,
+    paddingTop: 8,
+  },
+  timelineDot: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    borderWidth: 2,
+    borderColor: colors.border.default,
+  },
+  timelineLine: {
+    width: 2,
+    flex: 1,
+    backgroundColor: colors.surface.tertiary,
+    marginTop: 4,
+    minHeight: 40,
+  },
+  checkInCard: {
+    flex: 1,
+    borderRadius: 16,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: colors.border.subtle,
+    padding: 16,
+  },
+  checkInHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  checkInHeaderRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  progressCircleSvg: {
+    // SVG circle progress indicator
+  },
+  stateChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    gap: 6,
+  },
+  stateEmojiSmall: {
+    fontSize: 16,
+  },
+  stateLabel: {
+    color: '#ffffff',
+    fontSize: 13,
+    fontWeight: '600',
+    letterSpacing: 0.3,
+  },
+  checkInTime: {
+    color: 'rgba(247, 249, 251, 0.5)',
+    fontSize: 12,
+    fontWeight: '500',
+    letterSpacing: 0.3,
+  },
+  chainHeader: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 12,
+  },
+  chainHeaderTouchable: {
+    flex: 1,
+  },
+  deleteButton: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: 'rgba(255, 107, 107, 0.15)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 107, 107, 0.3)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  deleteButtonText: {
+    color: '#ff6b6b',
+    fontSize: 16,
+    fontWeight: '300',
+  },
+  bottomSpacer: {
+    height: 40,
+  },
+  chainHeaderLeft: {
+    flex: 1,
+  },
+  chainTitle: {
+    color: colors.text.primary,
+    fontSize: 16,
+    fontWeight: '600',
+    letterSpacing: 0.3,
+    marginBottom: 4,
+  },
+  chainSubtitle: {
+    color: colors.text.muted,
+    fontSize: 12,
+    fontWeight: '500',
+    letterSpacing: 0.3,
+  },
+  expandIcon: {
+    color: colors.accent.primary,
+    fontSize: 14,
+    marginLeft: 12,
+  },
+  chainExpandedContent: {
+    marginTop: 16,
+    paddingTop: 16,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255, 255, 255, 0.1)',
+  },
+  chainSection: {
+    marginBottom: 16,
+  },
+  chainSectionTitle: {
+    color: colors.text.secondary,
+    fontSize: 12,
+    fontWeight: '600',
+    letterSpacing: 0.5,
+    textTransform: 'uppercase',
+    marginBottom: 12,
+  },
+  timelineItem: {
+    marginBottom: 12,
+  },
+  timelineItemLabel: {
+    color: 'rgba(247, 249, 251, 0.5)',
+    fontSize: 11,
+    fontWeight: '600',
+    letterSpacing: 0.5,
+    textTransform: 'uppercase',
+    marginBottom: 6,
+    marginLeft: 4,
+  },
+  chainCheckItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    backgroundColor: 'rgba(255, 255, 255, 0.03)',
+    borderRadius: 12,
+    marginBottom: 8,
+  },
+  chainBlockItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    backgroundColor: 'rgba(0, 217, 163, 0.08)',
+    borderRadius: 12,
+    marginBottom: 8,
+  },
+  blockLeftSide: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+    gap: 8,
+  },
+  playIconButton: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: 'rgba(0, 217, 163, 0.2)',
+    borderWidth: 1,
+    borderColor: 'rgba(0, 217, 163, 0.4)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  playIcon: {
+    color: colors.accent.primary,
+    fontSize: 12,
+    marginLeft: 2,
+  },
+  blockName: {
+    color: colors.text.primary,
+    fontSize: 14,
+    fontWeight: '600',
+    letterSpacing: 0.3,
+    flex: 1,
+  },
+  blockTime: {
+    color: colors.accent.primary,
+    fontSize: 13,
+    fontWeight: '700',
+    letterSpacing: 0.3,
+    marginLeft: 12,
+  },
+  tetherSvg: {
+    position: 'absolute',
+    width: '100%',
+    height: '100%',
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.75)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 24,
+  },
+  deleteModalContainer: {
+    borderRadius: 24,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 107, 107, 0.3)',
+    maxWidth: 340,
+    width: '100%',
+  },
+  deleteModalContent: {
+    padding: 24,
+    alignItems: 'center',
+  },
+  deleteModalTitle: {
+    color: '#ff6b6b',
+    fontSize: 20,
+    fontWeight: '700',
+    letterSpacing: 0.3,
+    marginBottom: 12,
+    textAlign: 'center',
+  },
+  deleteModalText: {
+    color: colors.text.secondary,
+    fontSize: 14,
+    fontWeight: '500',
+    lineHeight: 20,
+    textAlign: 'center',
+    marginBottom: 24,
+  },
+  deleteModalButtons: {
+    flexDirection: 'row',
+    gap: 12,
+    width: '100%',
+  },
+  deleteModalButtonCancel: {
+    flex: 1,
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    borderWidth: 1,
+    borderColor: colors.border.default,
+    borderRadius: 16,
+    paddingVertical: 14,
+    paddingHorizontal: 20,
+    alignItems: 'center',
+  },
+  deleteModalButtonCancelText: {
+    color: 'rgba(247, 249, 251, 0.9)',
+    fontSize: 15,
+    fontWeight: '600',
+    letterSpacing: 0.3,
+  },
+  deleteModalButtonConfirm: {
+    flex: 1,
+    backgroundColor: 'rgba(255, 107, 107, 0.2)',
+    borderWidth: 2,
+    borderColor: '#ff6b6b',
+    borderRadius: 16,
+    paddingVertical: 14,
+    paddingHorizontal: 20,
+    alignItems: 'center',
+  },
+  deleteModalButtonConfirmText: {
+    color: '#ff6b6b',
+    fontSize: 15,
+    fontWeight: '700',
+    letterSpacing: 0.3,
+  },
+  checkRightSide: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  journalIconButton: {
+    padding: 4,
+  },
+  journalIcon: {
+    fontSize: 18,
+    opacity: 0.8,
+  },
+  journalViewFullscreen: {
+    flex: 1,
+    backgroundColor: colors.text.primary,
+  },
+  journalViewNotebook: {
+    flex: 1,
+    paddingTop: 60,
+  },
+  journalViewHeader: {
+    paddingHorizontal: 24,
+    paddingBottom: 16,
+    alignItems: 'flex-end',
+  },
+  journalViewCloseButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: colors.surface.tertiary,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  journalViewCloseText: {
+    color: colors.text.muted,
+    fontSize: 24,
+    fontWeight: '300',
+  },
+  journalViewNotebookContent: {
+    flex: 1,
+    paddingHorizontal: 32,
+  },
+  journalViewNotebookTitle: {
+    color: colors.text.inverse,
+    fontSize: 28,
+    fontWeight: '600',
+    letterSpacing: 0.3,
+    marginBottom: 24,
+  },
+  journalViewTextWrapper: {
+    flex: 1,
+  },
+  journalViewText: {
+    color: colors.text.inverse,
+    fontSize: 18,
+    fontWeight: '400',
+    lineHeight: 28,
+    letterSpacing: 0.2,
+  },
+  miniPickerCard: {
+    marginBottom: 2,
+  },
+  miniBarWrap: {
+    height: 50,
+    borderRadius: 10,
+    overflow: 'hidden',
+    flexDirection: 'row',
+    alignItems: 'center',
+    position: 'relative',
+  },
+  miniBarMarker: {
+    position: 'absolute',
+    top: 8,
+    bottom: 8,
+    width: 2.5,
+    borderRadius: 1.5,
+    marginLeft: -1.5,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.7,
+    shadowRadius: 4,
+  },
+  miniBarReadout: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingLeft: 12,
+    flex: 1,
+  },
+  miniBarIcon: {
+    fontSize: 12,
+  },
+  miniBarStateName: {
+    color: 'rgba(255,255,255,0.9)',
+    fontSize: 12,
+    fontWeight: '700',
+    letterSpacing: 0.4,
+  },
+  miniBarDot: {
+    color: 'rgba(255,255,255,0.3)',
+    fontSize: 12,
+  },
+  miniBarIntensityWord: {
+    color: 'rgba(255,255,255,0.55)',
+    fontSize: 11,
+    fontWeight: '500',
+    letterSpacing: 0.3,
+  },
+  miniBarJournalBtn: {
+    paddingHorizontal: 12,
+    height: '100%',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  miniBarJournalIcon: {
+    fontSize: 15,
+  },
+  flowSectionDivider: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginVertical: 10,
+  },
+  flowSectionLine: {
+    flex: 1,
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: 'rgba(255,255,255,0.1)',
+  },
+  flowSectionLabel: {
+    color: 'rgba(255,255,255,0.28)',
+    fontSize: 9,
+    fontWeight: '700',
+    letterSpacing: 1.5,
+    textTransform: 'uppercase',
+  },
+  flowSectionDividerLine: {
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: 'rgba(255,255,255,0.1)',
+    marginVertical: 10,
+  },
+  blockNoPlaySpacer: {
+    width: 28,
+    height: 28,
+  },
+  checkTagsRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+    marginTop: 8,
+  },
+  checkTag: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.12)',
+    backgroundColor: 'rgba(255,255,255,0.05)',
+  },
+  checkTagText: {
+    color: 'rgba(255,255,255,0.5)',
+    fontSize: 11,
+    fontWeight: '500',
+    letterSpacing: 0.2,
+  },
+  calendarCard: {
+    borderRadius: 20,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: colors.border.subtle,
+    padding: 20,
+    marginBottom: 32,
+  },
+  calendarContainer: {
+    width: '100%',
+  },
+  calendarMonthTitle: {
+    color: colors.text.primary,
+    fontSize: 18,
+    fontWeight: '700',
+    letterSpacing: 0.5,
+    textAlign: 'center',
+    marginBottom: 16,
+  },
+  calendarHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    marginBottom: 12,
+    paddingBottom: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border.subtle,
+  },
+  calendarDayName: {
+    color: colors.text.muted,
+    fontSize: 12,
+    fontWeight: '600',
+    letterSpacing: 0.5,
+    textAlign: 'center',
+    width: '14.28%',
+  },
+  calendarWeek: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    marginBottom: 8,
+  },
+  calendarDayCell: {
+    width: '14.28%',
+    aspectRatio: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  calendarDay: {
+    width: '90%',
+    height: '90%',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 8,
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    position: 'relative',
+  },
+  calendarDayWithSession: {
+    backgroundColor: colors.accent.primary + '30',
+    borderWidth: 1,
+    borderColor: colors.accent.primary,
+  },
+  calendarDayStreak: {
+    backgroundColor: colors.accent.primary,
+  },
+  calendarDayToday: {
+    borderWidth: 2,
+    borderColor: colors.text.primary,
+  },
+  calendarDayText: {
+    color: colors.text.muted,
+    fontSize: 14,
+    fontWeight: '500',
+    letterSpacing: 0.3,
+  },
+  calendarDayTextActive: {
+    color: colors.text.primary,
+    fontWeight: '700',
+  },
+  calendarDayTextToday: {
+    color: colors.text.primary,
+    fontWeight: '700',
+  },
+  sessionCountDot: {
+    position: 'absolute',
+    top: 2,
+    right: 2,
+    backgroundColor: colors.accent.teal,
+    borderRadius: 6,
+    width: 12,
+    height: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  sessionCountText: {
+    color: colors.background.primary,
+    fontSize: 8,
+    fontWeight: '700',
+  },
+  calendarLegend: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: 16,
+    marginTop: 16,
+    paddingTop: 16,
+    borderTopWidth: 1,
+    borderTopColor: colors.border.subtle,
+  },
+  calendarLegendItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  calendarLegendDot: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+  },
+  calendarLegendDotSession: {
+    backgroundColor: colors.accent.primary + '30',
+    borderWidth: 1,
+    borderColor: colors.accent.primary,
+  },
+  calendarLegendDotStreak: {
+    backgroundColor: colors.accent.primary,
+  },
+  calendarLegendDotToday: {
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    borderWidth: 2,
+    borderColor: colors.text.primary,
+  },
+  calendarLegendText: {
+    color: colors.text.muted,
+    fontSize: 11,
+    fontWeight: '500',
+    letterSpacing: 0.3,
+  },
+})

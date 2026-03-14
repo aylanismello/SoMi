@@ -1,0 +1,173 @@
+import React from 'react'
+import { StyleSheet, View, Text, TouchableOpacity, ScrollView, Modal } from 'react-native'
+import { Ionicons } from '@expo/vector-icons'
+import * as Haptics from 'expo-haptics'
+import { useState } from 'react'
+import { useSettingsStore } from '../stores/settingsStore'
+
+const H_PAD = 20
+
+const CUST_SECTIONS = [
+  {
+    id: 'background',
+    label: 'Background',
+    options: [
+      { value: 'ocean', label: 'Ocean', type: 'sphere', color: '#1A4A8A' },
+    ],
+  },
+]
+
+interface CustomizationModalProps {
+  visible: boolean
+  onClose: () => void
+}
+
+export default function CustomizationModal({ visible, onClose }: CustomizationModalProps): React.JSX.Element {
+  const { isSfxEnabled, setSfxEnabled } = useSettingsStore()
+
+  const [selections, setSelections] = useState<Record<string, string>>({
+    background: 'ocean',
+  })
+
+  const pick = (sectionId: string, value: string) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
+    setSelections(s => ({ ...s, [sectionId]: value }))
+  }
+
+  const pickTone = (value: string) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
+    setSfxEnabled(value === 'bleep')
+  }
+
+  const toneValue = isSfxEnabled ? 'bleep' : 'off'
+
+  return (
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+      <TouchableOpacity style={styles.overlay} activeOpacity={1} onPress={onClose}>
+        <TouchableOpacity activeOpacity={1} style={styles.sheet} onPress={() => {}}>
+          <View style={styles.handle} />
+          <Text style={styles.title}>Customization</Text>
+          <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 24 }}>
+
+            {/* Section pickers */}
+            {CUST_SECTIONS.map(section => (
+              <View key={section.id} style={{ marginBottom: 20 }}>
+                <Text style={styles.sectionLabel}>{section.label}</Text>
+                <View style={styles.optionBox}>
+                  {section.options.map(opt => {
+                    const selected = selections[section.id] === opt.value
+                    return (
+                      <TouchableOpacity
+                        key={opt.value}
+                        style={[styles.option, selected && styles.optionSelected]}
+                        onPress={() => pick(section.id, opt.value)}
+                        activeOpacity={0.75}
+                      >
+                        {opt.type === 'sphere' && (
+                          <View style={[styles.sphere, { backgroundColor: opt.color }]} />
+                        )}
+                        {opt.type === 'off' && (
+                          <View style={styles.iconCircle}>
+                            <Text style={{ color: 'rgba(255,255,255,0.3)', fontSize: 20, fontWeight: '300' }}>—</Text>
+                          </View>
+                        )}
+                        <Text style={styles.optionLabel}>{opt.label}</Text>
+                      </TouchableOpacity>
+                    )
+                  })}
+                </View>
+              </View>
+            ))}
+
+            {/* Block Change Tone */}
+            <View style={{ marginBottom: 20 }}>
+              <Text style={styles.sectionLabel}>Block Change Tone</Text>
+              <View style={styles.optionBox}>
+                <TouchableOpacity
+                  style={[styles.option, toneValue === 'bleep' && styles.optionSelected]}
+                  onPress={() => pickTone('bleep')}
+                  activeOpacity={0.75}
+                >
+                  <View style={styles.iconCircle}>
+                    <Ionicons name="pulse-outline" size={22} color="rgba(255,255,255,0.8)" />
+                  </View>
+                  <Text style={styles.optionLabel}>Bleep</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.option, toneValue === 'off' && styles.optionSelected]}
+                  onPress={() => pickTone('off')}
+                  activeOpacity={0.75}
+                >
+                  <View style={styles.iconCircle}>
+                    <Text style={{ color: 'rgba(255,255,255,0.3)', fontSize: 20, fontWeight: '300' }}>—</Text>
+                  </View>
+                  <Text style={styles.optionLabel}>Off</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+
+          </ScrollView>
+        </TouchableOpacity>
+      </TouchableOpacity>
+    </Modal>
+  )
+}
+
+const styles = StyleSheet.create({
+  overlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'flex-end',
+  },
+  sheet: {
+    backgroundColor: '#1C1C1E',
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    paddingTop: 12,
+    paddingHorizontal: H_PAD,
+    maxHeight: '85%',
+  },
+  handle: {
+    width: 36, height: 4,
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    borderRadius: 2,
+    alignSelf: 'center',
+    marginBottom: 16,
+  },
+  title: {
+    color: '#fff',
+    fontSize: 18,
+    fontWeight: '700',
+    textAlign: 'center',
+    marginBottom: 24,
+    letterSpacing: 0.1,
+  },
+  sectionLabel: {
+    color: '#fff',
+    fontSize: 15, fontWeight: '700',
+    marginBottom: 10, letterSpacing: 0.2,
+  },
+  optionBox: {
+    flexDirection: 'row',
+    gap: 8,
+    backgroundColor: 'rgba(255,255,255,0.07)',
+    borderRadius: 16,
+    padding: 10,
+    flexWrap: 'wrap',
+  },
+  option: {
+    alignItems: 'center', gap: 6, padding: 8,
+    borderRadius: 12, borderWidth: 2, borderColor: 'transparent',
+  },
+  optionSelected: {
+    borderColor: 'rgba(255,255,255,0.35)',
+    backgroundColor: 'rgba(255,255,255,0.06)',
+  },
+  sphere: { width: 56, height: 56, borderRadius: 28 },
+  iconCircle: {
+    width: 56, height: 56, borderRadius: 28,
+    backgroundColor: 'rgba(255,255,255,0.1)',
+    alignItems: 'center', justifyContent: 'center',
+  },
+  optionLabel: { color: 'rgba(255,255,255,0.7)', fontSize: 12, fontWeight: '500' },
+})
