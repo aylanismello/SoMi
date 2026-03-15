@@ -103,7 +103,7 @@ Next.js 15 API server using App Router.
 **Tech Stack:**
 - Next.js 15 (App Router)
 - Supabase JS Client
-- Plain JavaScript (no TypeScript)
+-  (TypeScript)
 
 ### Deployment
 
