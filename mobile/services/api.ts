@@ -19,7 +19,7 @@ if (isRunningFromEASUpdate) {
   API_BASE_URL = 'https://so-mi-server.vercel.app/api'
 } else if (__DEV__) {
   // Local development - uses .env file (your local IP for phone)
-  API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:3000/api'
+  API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:3001/api'
 } else {
   // Production build
   API_BASE_URL = 'https://so-mi-server.vercel.app/api'

@@ -29,7 +29,7 @@ SoMi is a React Native mobile application built with Expo that helps users asses
 - **Use the API service** (`services/api.ts`) for all backend communication
 - **DO NOT** make direct Supabase calls from the mobile app
 - All database operations, routine generation, and business logic go through the Next.js backend
-- API base URL: `http://localhost:3000/api` (development) or your Vercel deployment (production)
+- API base URL: `http://localhost:3001/api` (development) or your Vercel deployment (production)
 
 ### Dependencies & Libraries
 - **ALWAYS use Context7 MCP** (`mcp__context7__resolve-library-id` and `mcp__context7__get-library-docs`) when working with external libraries or needing documentation
