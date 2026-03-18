@@ -6,29 +6,51 @@ import type {
   StreaksResponse, QuoteResponse,
 } from '../types'
 
-// Determine API URL based on environment:
-// 1. If running from EAS update (preview/production channel) → use Vercel
-// 2. If in dev mode locally → use local server (from .env or localhost)
-// 3. If production build → use Vercel
+export class AIServiceError extends Error {
+  public statusCode: number | null
+  public isRateLimit: boolean
+  public isNetworkError: boolean
+
+  constructor(message: string, opts: { statusCode?: number | null, isRateLimit?: boolean, isNetworkError?: boolean } = {}) {
+    super(message)
+    this.name = 'AIServiceError'
+    this.statusCode = opts.statusCode ?? null
+    this.isRateLimit = opts.isRateLimit ?? false
+    this.isNetworkError = opts.isNetworkError ?? false
+  }
+}
+
+export function isAIServiceError(error: unknown): error is AIServiceError {
+  return error instanceof AIServiceError
+}
+
 const isRunningFromEASUpdate = Constants.executionEnvironment === 'storeClient'
+const PRODUCTION_API_BASE_URL = 'https://so-mi-server.vercel.app/api'
+const LOCAL_API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || 'http://127.0.0.1:3003/api'
 
 let API_BASE_URL: string
 
 if (isRunningFromEASUpdate) {
-  // Running from EAS update in Expo Go (away from computer)
-  API_BASE_URL = 'https://so-mi-server.vercel.app/api'
+  API_BASE_URL = PRODUCTION_API_BASE_URL
 } else if (__DEV__) {
-  // Local development - uses .env file (your local IP for phone)
-  API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:3003/api'
+  API_BASE_URL = LOCAL_API_BASE_URL
 } else {
-  // Production build
-  API_BASE_URL = 'https://so-mi-server.vercel.app/api'
+  API_BASE_URL = PRODUCTION_API_BASE_URL
 }
 
+function shouldRetryAgainstProduction(error: unknown, baseUrl: string): boolean {
+  if (!__DEV__ || isRunningFromEASUpdate || baseUrl === PRODUCTION_API_BASE_URL) {
+    return false
+  }
 
-async function apiRequest<T = unknown>(endpoint: string, options: RequestInit = {}): Promise<T> {
-  const url = `${API_BASE_URL}${endpoint}`
+  return (
+    error instanceof TypeError ||
+    (error instanceof Error && error.name === 'AbortError')
+  )
+}
 
+async function performRequest<T = unknown>(baseUrl: string, endpoint: string, options: RequestInit = {}): Promise<T> {
+  const url = `${baseUrl}${endpoint}`
   // Get current session token
   const { data: { session } } = await supabase.auth.getSession()
   const accessToken = session?.access_token
@@ -62,24 +84,45 @@ async function apiRequest<T = unknown>(endpoint: string, options: RequestInit = 
 
     return data
   } catch (error) {
-    console.error(`API Error (${endpoint}):`, error)
+    throw error
+  }
+}
+
+async function apiRequest<T = unknown>(endpoint: string, options: RequestInit = {}): Promise<T> {
+  try {
+    return await performRequest<T>(API_BASE_URL, endpoint, options)
+  } catch (error) {
+    if (shouldRetryAgainstProduction(error, API_BASE_URL)) {
+      API_BASE_URL = PRODUCTION_API_BASE_URL
+      console.warn(`Retrying ${endpoint} against production API`)
+      return performRequest<T>(PRODUCTION_API_BASE_URL, endpoint, options)
+    }
+
+    console.warn(`API Error (${endpoint}) via ${API_BASE_URL}:`, error)
     throw error
   }
 }
 
 export const api = {
   generateFlow: async ({ polyvagal_state, duration_minutes, body_scan_start = false, body_scan_end = false, local_hour = null, timezone = null }: GenerateFlowParams): Promise<GenerateFlowResponse> => {
-    return apiRequest('/flows/generate', {
-      method: 'POST',
-      body: JSON.stringify({
-        polyvagal_state,
-        duration_minutes,
-        body_scan_start,
-        body_scan_end,
-        local_hour,
-        timezone,
-      }),
-    })
+    try {
+      return await apiRequest('/flows/generate', {
+        method: 'POST',
+        body: JSON.stringify({
+          polyvagal_state,
+          duration_minutes,
+          body_scan_start,
+          body_scan_end,
+          local_hour,
+          timezone,
+        }),
+      })
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Flow generation unavailable'
+      const isNetwork = error instanceof TypeError || (error instanceof Error && error.name === 'AbortError')
+      const isRateLimit = message.toLowerCase().includes('rate limit') || message.includes('429')
+      throw new AIServiceError(message, { isRateLimit, isNetworkError: isNetwork })
+    }
   },
 
   // Chains
