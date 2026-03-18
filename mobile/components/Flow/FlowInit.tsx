@@ -14,7 +14,7 @@ import { useEditFlowStore } from '../../stores/editFlowStore'
 import PolyvagalStatePicker from './PolyvagalStatePicker'
 import CustomizationModal from '../CustomizationModal'
 import MusicPickerModal from '../MusicPickerModal'
-import { api } from '../../services/api'
+import { api, isAIServiceError } from '../../services/api'
 import { flowPreloadCache } from '../../utils/flowPreloadCache'
 import { deriveState, getPolyvagalExplanation } from '../../constants/polyvagalStates'
 import type { Segment } from '../../types'
@@ -22,6 +22,32 @@ import type { Segment } from '../../types'
 const _H_PAD = 20
 const MIN_DURATION = 2
 const MAX_DURATION = 60
+
+// ─── Default fallback flow (when AI is unavailable) ──────────────────────────
+function buildDefaultSegments(durationMinutes: number, bodyScanStart: boolean, bodyScanEnd: boolean): Segment[] {
+  const segments: Segment[] = []
+  let remaining = durationMinutes * 60
+
+  if (bodyScanStart && remaining >= 120) {
+    segments.push({ type: 'body_scan', section: 'warm_up', duration_seconds: 120 })
+    remaining -= 120
+  }
+
+  if (bodyScanEnd && remaining >= 120) {
+    remaining -= 120 // reserve for end
+  }
+
+  // Fill main section with micro integrations (gentle breathing pauses)
+  const mainDuration = Math.max(remaining, 60)
+  segments.push({ type: 'micro_integration', section: 'main', duration_seconds: Math.floor(mainDuration / 2) })
+  segments.push({ type: 'micro_integration', section: 'main', duration_seconds: Math.ceil(mainDuration / 2) })
+
+  if (bodyScanEnd) {
+    segments.push({ type: 'body_scan', section: 'integration', duration_seconds: 120 })
+  }
+
+  return segments
+}
 
 // ─── Duration Picker Modal ────────────────────────────────────────────────────
 interface DurationPickerModalProps {
@@ -199,6 +225,7 @@ export default function DailyFlowSetup(): React.JSX.Element {
   const [showCustomization, setShowCustomization]   = useState(false)
   const [showMusicPicker, setShowMusicPicker]       = useState(false)
   const [showPolyvagalInfo, setShowPolyvagalInfo]   = useState(false)
+  const [aiError, setAiError]                       = useState(false)
 
   const fullSegmentsRef = useRef<Segment[] | null>(null)
 
@@ -319,10 +346,12 @@ export default function DailyFlowSetup(): React.JSX.Element {
         if (result.reasoning) setReasoning(result.reasoning)
         fullSegmentsRef.current = result.segments
         setHasSegments(true)
+        setAiError(false)
         if (!isInitial) showUpdatedToast()
       }
     } catch (err) {
       console.warn('Preview generation failed:', err)
+      setAiError(true)
     } finally {
       if (isInitial) {
         setIsPreloading(false)
@@ -476,6 +505,21 @@ export default function DailyFlowSetup(): React.JSX.Element {
     doGeneratePreview(selectedMinutes, energyLevel, safetyLevel, false, bodyScanStart, newVal)
   }, [bodyScanStart, bodyScanEnd, selectedMinutes, energyLevel, safetyLevel, isGenerating, doGeneratePreview])
 
+  const handleRetryGenerate = useCallback(() => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
+    setAiError(false)
+    doGeneratePreview(selectedMinutes, energyLevel, safetyLevel, false)
+  }, [doGeneratePreview, selectedMinutes, energyLevel, safetyLevel])
+
+  const handleUseDefaults = useCallback(() => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium)
+    const defaults = buildDefaultSegments(selectedMinutes, bodyScanStart, bodyScanEnd)
+    fullSegmentsRef.current = defaults
+    setHasSegments(true)
+    setAiError(false)
+    setReasoning(null)
+  }, [selectedMinutes, bodyScanStart, bodyScanEnd])
+
   return (
     <View style={styles.container}>
       {/* Water background comes from the root layout — always pre-rendered, zero flicker */}
@@ -558,6 +602,25 @@ export default function DailyFlowSetup(): React.JSX.Element {
           />
         </View>
 
+        {/* AI fallback state */}
+        {aiError && (
+          <View style={styles.fallbackCard}>
+            <Text style={styles.fallbackEmoji}>~</Text>
+            <Text style={styles.fallbackTitle}>The flow generator is resting</Text>
+            <Text style={styles.fallbackBody}>
+              No worries — you can try again or start with a gentle default session.
+            </Text>
+            <View style={styles.fallbackActions}>
+              <TouchableOpacity style={styles.fallbackBtnPrimary} onPress={handleRetryGenerate} activeOpacity={0.8}>
+                <Ionicons name="refresh" size={16} color="#000" />
+                <Text style={styles.fallbackBtnPrimaryText}>Try Again</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.fallbackBtnSecondary} onPress={handleUseDefaults} activeOpacity={0.8}>
+                <Text style={styles.fallbackBtnSecondaryText}>Use Defaults</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
 
       </ScrollView>
 
@@ -817,6 +880,70 @@ const styles = StyleSheet.create({
     paddingVertical: 16, alignItems: 'center',
   },
   reasoningDismissText: { color: 'rgba(255,255,255,0.7)', fontSize: 16, fontWeight: '600' },
+
+  // ── AI Fallback ────────────────────────────────────────────────────────────
+  fallbackCard: {
+    backgroundColor: 'rgba(0,15,35,0.6)',
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: 'rgba(0,210,255,0.15)',
+    padding: 24,
+    alignItems: 'center',
+    marginBottom: 24,
+  },
+  fallbackEmoji: {
+    color: 'rgba(0,217,163,0.7)',
+    fontSize: 28,
+    fontWeight: '300',
+    marginBottom: 12,
+  },
+  fallbackTitle: {
+    color: '#fff',
+    fontSize: 17,
+    fontWeight: '600',
+    letterSpacing: 0.2,
+    textAlign: 'center',
+    marginBottom: 8,
+  },
+  fallbackBody: {
+    color: 'rgba(255,255,255,0.6)',
+    fontSize: 14,
+    lineHeight: 20,
+    textAlign: 'center',
+    marginBottom: 20,
+    paddingHorizontal: 8,
+  },
+  fallbackActions: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  fallbackBtnPrimary: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: colors.accent.primary,
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderRadius: 20,
+  },
+  fallbackBtnPrimaryText: {
+    color: '#000',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  fallbackBtnSecondary: {
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.2)',
+    backgroundColor: 'rgba(255,255,255,0.06)',
+  },
+  fallbackBtnSecondaryText: {
+    color: 'rgba(255,255,255,0.8)',
+    fontSize: 14,
+    fontWeight: '600',
+  },
 
   // ── Toast ───────────────────────────────────────────────────────────────────
   toast: {
