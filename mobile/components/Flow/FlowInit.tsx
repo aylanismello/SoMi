@@ -17,11 +17,64 @@ import MusicPickerModal from '../MusicPickerModal'
 import { api } from '../../services/api'
 import { flowPreloadCache } from '../../utils/flowPreloadCache'
 import { deriveState, getPolyvagalExplanation } from '../../constants/polyvagalStates'
-import type { Segment } from '../../types'
+import type { Segment, MicroIntegrationSegment, BodyScanSegment } from '../../types'
 
 const _H_PAD = 20
 const MIN_DURATION = 2
 const MAX_DURATION = 60
+const BODY_SCAN_DURATION = 120
+
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+
+/** Sum all duration_seconds in a segment array */
+function computeExpectedDuration(segments: Segment[]): number {
+  return segments.reduce((sum, s) => sum + s.duration_seconds, 0)
+}
+
+/**
+ * Build a default (fallback) segment list whose total duration equals
+ * exactly durationMinutes * 60 seconds.
+ */
+function buildDefaultSegments(
+  durationMinutes: number,
+  scanStart: boolean,
+  scanEnd: boolean,
+): Segment[] {
+  const totalSeconds = durationMinutes * 60
+  let remaining = totalSeconds
+
+  const segments: Segment[] = []
+
+  // Body scan warm-up (if enabled and duration allows)
+  const enableScans = durationMinutes >= 8
+  if (enableScans && scanStart) {
+    segments.push({ type: 'body_scan', section: 'warm_up', duration_seconds: BODY_SCAN_DURATION } as BodyScanSegment)
+    remaining -= BODY_SCAN_DURATION
+  }
+
+  // Body scan integration (if enabled and duration allows)
+  if (enableScans && scanEnd) {
+    segments.push({ type: 'body_scan', section: 'integration', duration_seconds: BODY_SCAN_DURATION } as BodyScanSegment)
+    remaining -= BODY_SCAN_DURATION
+  }
+
+  // Remaining time distributed exactly to hit user target
+  remaining = Math.max(0, remaining)
+  const firstBlock = Math.ceil(remaining / 2)
+  const secondBlock = remaining - firstBlock
+
+  // Insert micro_integration blocks before the trailing body_scan (if any)
+  const insertIdx = (enableScans && scanEnd) ? segments.length - 1 : segments.length
+  const microBlocks: MicroIntegrationSegment[] = [
+    { type: 'micro_integration', section: 'warm_up', duration_seconds: firstBlock },
+  ]
+  if (secondBlock > 0) {
+    microBlocks.push({ type: 'micro_integration', section: 'integration', duration_seconds: secondBlock })
+  }
+  segments.splice(insertIdx, 0, ...microBlocks)
+
+  return segments
+}
 
 // ─── Duration Picker Modal ────────────────────────────────────────────────────
 interface DurationPickerModalProps {
@@ -298,13 +351,14 @@ export default function DailyFlowSetup(): React.JSX.Element {
     } else {
       setIsGenerating(true)
     }
+    const { bodyScanStart: scanStart, bodyScanEnd: scanEnd } = useSettingsStore.getState()
+    const effectiveScanStart = scanStartOverride !== undefined ? scanStartOverride : scanStart
+    const effectiveScanEnd   = scanEndOverride   !== undefined ? scanEndOverride   : scanEnd
+
     try {
       const stateTarget = (energy != null && safety != null)
         ? deriveState(energy, safety).name
         : 'steady'
-      const { bodyScanStart: scanStart, bodyScanEnd: scanEnd } = useSettingsStore.getState()
-      const effectiveScanStart = scanStartOverride !== undefined ? scanStartOverride : scanStart
-      const effectiveScanEnd   = scanEndOverride   !== undefined ? scanEndOverride   : scanEnd
 
       const now = new Date()
       const result = await api.generateFlow({
@@ -320,9 +374,21 @@ export default function DailyFlowSetup(): React.JSX.Element {
         fullSegmentsRef.current = result.segments
         setHasSegments(true)
         if (!isInitial) showUpdatedToast()
+
+        // Dev-only: warn if AI-generated session deviates from user's chosen duration
+        if (__DEV__) {
+          const expected = computeExpectedDuration(result.segments)
+          if (Math.abs(expected - durationMinutes * 60) > 30) {
+            console.warn('[SoMi] Session duration mismatch: expected', expected, 's but user chose', durationMinutes * 60, 's')
+          }
+        }
       }
     } catch (err) {
-      console.warn('Preview generation failed:', err)
+      console.warn('Preview generation failed, using default segments:', err)
+      // Fallback: build exact-duration segments client-side
+      const fallback = buildDefaultSegments(durationMinutes, effectiveScanStart, effectiveScanEnd)
+      fullSegmentsRef.current = fallback
+      setHasSegments(true)
     } finally {
       if (isInitial) {
         setIsPreloading(false)
