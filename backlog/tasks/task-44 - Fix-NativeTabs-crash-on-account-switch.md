@@ -1,7 +1,7 @@
 ---
 id: task-44
 title: Fix NativeTabs crash on account switch
-status: In Progress
+status: Done
 assignee: []
 created_date: '2026-03-02 19:56'
 labels: []
