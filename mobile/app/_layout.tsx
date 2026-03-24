@@ -93,6 +93,7 @@ export default function RootLayout(): React.JSX.Element {
         <Stack.Screen name="index" />
         <Stack.Screen name="(auth)" />
         <Stack.Screen name="(tabs)" />
+        <Stack.Screen name="onboarding" options={{ gestureEnabled: false }} />
         {/* Flow journey — tab bar hidden automatically */}
         <Stack.Screen name="FlowInit" options={{ gestureEnabled: false }} />
         <Stack.Screen name="FlowOutro" options={{ gestureEnabled: false }} />
