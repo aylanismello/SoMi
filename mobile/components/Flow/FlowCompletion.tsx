@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { useNavigation } from '@react-navigation/native'
 import { router } from 'expo-router'
-import { StyleSheet, View, Text, TouchableOpacity, Animated, Dimensions, Easing } from 'react-native'
+import { StyleSheet, View, Text, TouchableOpacity, Animated, Dimensions, Easing, Share } from 'react-native'
 import { LinearGradient } from 'expo-linear-gradient'
 import { BlurView } from 'expo-blur'
 import { useVideoPlayer, VideoView } from 'expo-video'
@@ -249,6 +249,23 @@ export default function CompletionScreen(): React.JSX.Element {
     router.dismissAll()
   }
 
+  const handleShare = async () => {
+    if (!stats) return
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
+
+    const transformation = stats.hasTransformation
+      ? `${stats.fromState.label} → ${stats.toState.label}`
+      : stats.toState.label
+    const streakPart = streak > 0 ? ` | ${streak} day streak 🔥` : ''
+    const message = `Just completed a ${stats.totalMinutes} min SoMi flow 🌊 ${transformation}${streakPart} #Bodyfullness #SoMi`
+
+    try {
+      await Share.share({ message })
+    } catch (_) {
+      // user cancelled or share failed — no action needed
+    }
+  }
+
   const badgeRotateInterpolate = badgeRotate.interpolate({
     inputRange: [0, 360],
     outputRange: ['0deg', '360deg'],
@@ -466,6 +483,15 @@ export default function CompletionScreen(): React.JSX.Element {
               <Text style={styles.continueText}>Continue</Text>
             </LinearGradient>
           </TouchableOpacity>
+          {!isQuickSession && (
+            <TouchableOpacity
+              onPress={handleShare}
+              activeOpacity={0.7}
+              style={styles.shareButton}
+            >
+              <Text style={styles.shareText}>Share</Text>
+            </TouchableOpacity>
+          )}
         </Animated.View>
       </View>
     </LinearGradient>
@@ -685,5 +711,19 @@ const styles = StyleSheet.create({
     fontSize: 19,
     fontWeight: '800',
     letterSpacing: 1,
+  },
+  shareButton: {
+    marginTop: 12,
+    paddingVertical: 14,
+    borderRadius: 28,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.2)',
+    alignItems: 'center',
+  },
+  shareText: {
+    color: 'rgba(255, 255, 255, 0.6)',
+    fontSize: 16,
+    fontWeight: '600',
+    letterSpacing: 0.5,
   },
 })
