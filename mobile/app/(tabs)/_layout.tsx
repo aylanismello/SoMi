@@ -17,7 +17,7 @@ export default function TabsLayout(): React.JSX.Element {
   }, [isAuthenticated, isLoading])
 
   return (
-    <NativeTabs>
+    <NativeTabs key={userId ?? 'unauthenticated'}>
       <NativeTabs.Trigger name="Home">
         <Icon sf="house.fill" />
       </NativeTabs.Trigger>

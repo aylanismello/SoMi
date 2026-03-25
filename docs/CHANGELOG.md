@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-03-24 — Haptic feedback on flow completion
+
+**Mobile:**
+- `mobile/components/Flow/FlowCompletion.tsx` — Replaced initial notification haptic with a subtle 2-tap medium impact pattern (200ms gap) on mount, reinforcing the somatic "Bodyfullness" philosophy.
+
+---
+
 ## 2026-03-12 — Body Scan Toggles full integration
 
 **Mobile:**
