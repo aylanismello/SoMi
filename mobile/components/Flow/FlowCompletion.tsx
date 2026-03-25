@@ -73,8 +73,11 @@ export default function CompletionScreen(): React.JSX.Element {
   ).current
 
   useEffect(() => {
-    // Initial success haptic
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success)
+    // Initial somatic completion haptic: 2 medium taps with 200ms gap
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium)
+    setTimeout(() => {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium)
+    }, 200)
 
     // Stage 1: Badge pop-in (0ms)
     setTimeout(() => {
